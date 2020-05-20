@@ -1,0 +1,46 @@
+@page "/"
+@using Kubernetes.PortForward.Manager.Shared
+@inject HttpClient Http
+
+<h1>Port forwards</h1>
+
+<p>Configured port forwards.</p>
+
+@if (_portForwards == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>@nameof(PortForward.Namespace)</th>
+                <th>@nameof(PortForward.ApplicationName)</th>
+                <th>@nameof(PortForward.ContainerPort)</th>
+                <th>@nameof(PortForward.Port)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var portForward in _portForwards)
+            {
+                <tr>
+                    <td>@portForward.Namespace</td>
+                    <td>@portForward.ApplicationName</td>
+                    <td>@portForward.ContainerPort</td>
+                    <td>@portForward.Port</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private PortForward[] _portForwards;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _portForwards = await Http.GetFromJsonAsync<PortForward[]>("PortForward");
+    }
+
+}
