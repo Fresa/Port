@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using NLog.Web;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
@@ -15,6 +17,11 @@ namespace Kubernetes.PortForward.Manager.Server
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
-                });
+                })
+                .ConfigureLogging(builder =>
+                {
+                    builder.ClearProviders();
+                })
+                .UseNLog();
     }
 }

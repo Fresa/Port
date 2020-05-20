@@ -1,14 +1,23 @@
-using System.Threading.Tasks;
+using Log.It;
+using Log.It.With.NLog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NLog;
+using NLog.Extensions.Logging;
+using LogFactory = Log.It.LogFactory;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
     public class Startup
     {
+        static Startup()
+        {
+            LogFactory.Initialize(new NLogFactory(new LogicalThreadContext()));
+        }
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -18,15 +27,8 @@ namespace Kubernetes.PortForward.Manager.Server
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.ConfigureApplicationCookie(options =>
-            {
-                options.Events.OnRedirectToLogin =
-                    options.Events.OnRedirectToAccessDenied = context =>
-                    {
-                        context.Response.StatusCode = 401;
-                        return Task.CompletedTask;
-                    };
-            });
+            LogManager.Configuration = new NLogLoggingConfiguration(Configuration.GetSection("NLog"));
+
             services.AddControllersWithViews();
             services.AddRazorPages();
         }
