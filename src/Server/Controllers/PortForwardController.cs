@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using Kubernetes.PortForward.Manager.Shared;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Kubernetes.PortForward.Manager.Server.Controllers
@@ -8,10 +10,17 @@ namespace Kubernetes.PortForward.Manager.Server.Controllers
     [Route("[controller]")]
     public class PortForwardController : ControllerBase
     {
-        [HttpGet]
-        public IEnumerable<Shared.PortForward> Get()
+        private readonly KubernetesService _kubernetesService;
+
+        public PortForwardController(KubernetesService kubernetesService)
         {
-            return Enumerable.Empty<Shared.PortForward>();
+            _kubernetesService = kubernetesService;
+        }
+
+        [HttpGet]
+        public async Task<IEnumerable<Pod>> Get()
+        {
+            return await _kubernetesService.ListPodsInAllNamespaces();
         }
     }
 }

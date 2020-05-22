@@ -15,20 +15,14 @@ else
     <table class="table">
         <thead>
             <tr>
-                <th>@nameof(PortForward.Namespace)</th>
-                <th>@nameof(PortForward.ApplicationName)</th>
-                <th>@nameof(PortForward.ContainerPort)</th>
-                <th>@nameof(PortForward.Port)</th>
+                <th>@nameof(Pod.Name)</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var portForward in _portForwards)
             {
                 <tr>
-                    <td>@portForward.Namespace</td>
-                    <td>@portForward.ApplicationName</td>
-                    <td>@portForward.ContainerPort</td>
-                    <td>@portForward.Port</td>
+                    <td>@portForward.Name</td>
                 </tr>
             }
         </tbody>
@@ -36,11 +30,11 @@ else
 }
 
 @code {
-    private PortForward[] _portForwards;
+    private Pod[] _portForwards;
 
     protected override async Task OnInitializedAsync()
     {
-        _portForwards = await Http.GetFromJsonAsync<PortForward[]>("PortForward");
+        _portForwards = await Http.GetFromJsonAsync<Pod[]>("PortForward");
     }
 
 }

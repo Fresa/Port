@@ -1,3 +1,4 @@
+using k8s;
 using Log.It;
 using Log.It.With.NLog;
 using Microsoft.AspNetCore.Builder;
@@ -7,12 +8,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NLog;
 using NLog.Extensions.Logging;
+using SimpleInjector;
 using LogFactory = Log.It.LogFactory;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
     public class Startup
     {
+        private readonly Container _container = new Container();
+
         static Startup()
         {
             LogFactory.Initialize(new NLogFactory(new LogicalThreadContext()));
@@ -31,10 +35,34 @@ namespace Kubernetes.PortForward.Manager.Server
 
             services.AddControllersWithViews();
             services.AddRazorPages();
+
+            services.AddSimpleInjector(_container, options =>
+            {
+                options
+                    .AddAspNetCore()
+                    .AddControllerActivation()
+                    .AddViewComponentActivation()
+                    .AddPageModelActivation()
+                    .AddTagHelperActivation();
+
+                options.AddLogging();
+            });
+
+            InitializeContainer();
+        }
+
+        private void InitializeContainer()
+        {
+            _container.Register<KubernetesService>(Lifestyle.Singleton);
+            _container.Register<IKubernetes>(
+                () => new k8s.Kubernetes(
+                    KubernetesClientConfiguration.BuildConfigFromConfigFile()), Lifestyle.Singleton);
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseSimpleInjector(_container);
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -58,6 +86,8 @@ namespace Kubernetes.PortForward.Manager.Server
                 endpoints.MapControllers();
                 endpoints.MapFallbackToFile("index.html");
             });
+
+            _container.Verify();
         }
     }
 }
