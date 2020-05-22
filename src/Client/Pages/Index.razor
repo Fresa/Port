@@ -6,35 +6,37 @@
 
 <p>Configured port forwards.</p>
 
-@if (_portForwards == null)
+@if (_pods == null)
 {
-    <p><em>Loading...</em></p>
+<p><em>Loading...</em></p>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>@nameof(Pod.Name)</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var portForward in _portForwards)
-            {
-                <tr>
-                    <td>@portForward.Name</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+<table class="table">
+    <thead>
+        <tr>
+            <th>@nameof(Pod.Namespace)</th>
+            <th>@nameof(Pod.Name)</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var pod in _pods)
+        {
+        <tr>
+            <td>@pod.Namespace</td>
+            <td>@pod.Name</td>
+        </tr>
+        }
+    </tbody>
+</table>
 }
 
 @code {
-    private Pod[] _portForwards;
+    private Pod[] _pods;
 
     protected override async Task OnInitializedAsync()
     {
-        _portForwards = await Http.GetFromJsonAsync<Pod[]>("PortForward");
+        _pods = await Http.GetFromJsonAsync<Pod[]>("Pod");
     }
 
 }

@@ -27,6 +27,7 @@ namespace Kubernetes.PortForward.Manager.Server
             var pods = await _client.ListPodForAllNamespacesAsync();
             return pods.Items.Select(pod => new Pod()
             {
+                Namespace = pod.Metadata.NamespaceProperty,
                 Name = pod.Metadata.Name
             });
         }
