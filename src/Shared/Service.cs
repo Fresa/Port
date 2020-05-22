@@ -6,6 +6,6 @@ namespace Kubernetes.PortForward.Manager.Shared
     {
         public string Name { get; set; }
         public string Namespace { get; set; }
-        public IEnumerable<int> Ports { get; set; }
+        public IEnumerable<Port> Ports { get; set; }
     }
 }

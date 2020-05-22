@@ -49,7 +49,8 @@ namespace Kubernetes.PortForward.Manager.Server
                 });
         }
 
-        internal async Task<IEnumerable<Service>> ListServicesInAllNamespacesAsync()
+        internal async Task<IEnumerable<Service>>
+            ListServicesInAllNamespacesAsync()
         {
             var services = await _client.ListServiceForAllNamespacesAsync();
             return services.Items.Select(
@@ -57,7 +58,13 @@ namespace Kubernetes.PortForward.Manager.Server
                 {
                     Namespace = service.Metadata.NamespaceProperty,
                     Name = service.Metadata.Name,
-                    Ports = service.Spec.Ports.Select(port => port.Port)
+                    Ports = service.Spec.Ports.Select(
+                        port => new Port
+                        {
+                            Number = port.Port,
+                            ProtocolType =
+                                Enum.Parse<ProtocolType>(port.Protocol, true)
+                        })
                 });
         }
 
@@ -65,24 +72,25 @@ namespace Kubernetes.PortForward.Manager.Server
             string @namespace,
             string podName,
             int fromPort,
-            int toPort)
+            int toPort,
+            ProtocolType protocolType)
         {
             _logger.Info("Starting port forward!");
 
             // Note this is single-threaded, it won't handle concurrent requests well...
             var webSocket =
                 await _client.WebSocketNamespacedPodPortForwardAsync(
-                    podName, @namespace, new[] {fromPort},
+                    podName, @namespace, new[] { fromPort },
                     "v4.channel.k8s.io");
             var demux = new StreamDemuxer(webSocket, StreamType.PortForward);
             demux.Start();
 
-            var stream = demux.GetStream((byte?) 0, (byte?) 0);
+            var stream = demux.GetStream((byte?)0, (byte?)0);
 
             var ipAddress = IPAddress.Loopback;
             var localEndPoint = new IPEndPoint(ipAddress, toPort);
             var listener = new Socket(
-                ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                ipAddress.AddressFamily, SocketType.Stream, protocolType);
             listener.Bind(localEndPoint);
             listener.Listen(100);
 

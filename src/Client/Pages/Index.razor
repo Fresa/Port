@@ -58,28 +58,39 @@ else
         <tr>
             <th>@nameof(Service.Namespace)</th>
             <th>@nameof(Service.Name)</th>
-            <th>@nameof(Service.Ports)</th>
+            <th>Container port</th>
+            <th>Protocol type</th>
+            <th>Host port</th>
         </tr>
         </thead>
         <tbody>
         @foreach (var service in _services)
         {
-            <tr>
-                <td>@service.Namespace</td>
-                <td>@service.Name</td>
-                <td>
-                    <table class="table">
-                        <tbody>
-                        @foreach (var port in service.Ports)
-                        {
-                            <tr>
-                                <td>@port</td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </td>
-            </tr>
+            var headItem = true;
+            @foreach (var port in service.Ports)
+            {
+                <tr>
+                    <td @attributes="RenderBorders(headItem)"> @(headItem ? service.Namespace : "")</td>
+                    <td @attributes="RenderBorders(headItem)">@(headItem ? service.Name : "")</td>
+                    <td>@port.Number</td>
+                    <td>@port.ProtocolType</td>
+                    <td>
+                        <input type="number"/>
+                    </td>
+                </tr>
+                headItem = false;
+
+                Dictionary<string, object> RenderBorders(
+                    bool headItem)
+                {
+                    if (headItem)
+                    {
+                        return new Dictionary<string, object>();
+                    }
+
+                    return new Dictionary<string, object> {{"style", "border-top: 0"}};
+                }
+            }
         }
         </tbody>
     </table>
