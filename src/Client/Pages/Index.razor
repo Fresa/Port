@@ -8,66 +8,81 @@
 
 @if (_pods == null)
 {
-<p><em>Loading...</em></p>
+    <p>
+        <em>Loading...</em>
+    </p>
 }
 else
 {
-<h2>Deployments</h2>
-<table class="table">
-    <thead>
+    <h2>Deployments</h2>
+    <table class="table">
+        <thead>
         <tr>
             <th>@nameof(Deployment.Namespace)</th>
             <th>@nameof(Deployment.Name)</th>
         </tr>
-    </thead>
-    <tbody>
+        </thead>
+        <tbody>
         @foreach (var deployment in _deployments)
-    {
-        <tr>
-            <td>@deployment.Namespace</td>
-            <td>@deployment.Name</td>
-        </tr>
-    }
-    </tbody>
-</table>
+        {
+            <tr>
+                <td>@deployment.Namespace</td>
+                <td>@deployment.Name</td>
+            </tr>
+        }
+        </tbody>
+    </table>
 
-<h2>Pods</h2>
-<table class="table">
-    <thead>
+    <h2>Pods</h2>
+    <table class="table">
+        <thead>
         <tr>
             <th>@nameof(Pod.Namespace)</th>
             <th>@nameof(Pod.Name)</th>
         </tr>
-    </thead>
-    <tbody>
+        </thead>
+        <tbody>
         @foreach (var pod in _pods)
         {
-        <tr>
-            <td>@pod.Namespace</td>
-            <td>@pod.Name</td>
-        </tr>
+            <tr>
+                <td>@pod.Namespace</td>
+                <td>@pod.Name</td>
+            </tr>
         }
-    </tbody>
-</table>
+        </tbody>
+    </table>
 
-<h2>Services</h2>
-<table class="table">
-    <thead>
+    <h2>Services</h2>
+    <table class="table">
+        <thead>
         <tr>
             <th>@nameof(Service.Namespace)</th>
             <th>@nameof(Service.Name)</th>
+            <th>@nameof(Service.Ports)</th>
         </tr>
-    </thead>
-    <tbody>
+        </thead>
+        <tbody>
         @foreach (var service in _services)
         {
-        <tr>
-            <td>@service.Namespace</td>
-            <td>@service.Name</td>
-        </tr>
+            <tr>
+                <td>@service.Namespace</td>
+                <td>@service.Name</td>
+                <td>
+                    <table class="table">
+                        <tbody>
+                        @foreach (var port in service.Ports)
+                        {
+                            <tr>
+                                <td>@port</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
         }
-    </tbody>
-</table>
+        </tbody>
+    </table>
 }
 
 @code

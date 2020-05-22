@@ -56,7 +56,8 @@ namespace Kubernetes.PortForward.Manager.Server
                 service => new Service
                 {
                     Namespace = service.Metadata.NamespaceProperty,
-                    Name = service.Metadata.Name
+                    Name = service.Metadata.Name,
+                    Ports = service.Spec.Ports.Select(port => port.Port)
                 });
         }
 
