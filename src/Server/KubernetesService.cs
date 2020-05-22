@@ -15,21 +15,49 @@ namespace Kubernetes.PortForward.Manager.Server
     public class KubernetesService
     {
         private readonly IKubernetes _client;
-        private readonly ILogger _logger = LogFactory.Create<KubernetesService>();
 
-        public KubernetesService(IKubernetes client)
+        private readonly ILogger _logger =
+            LogFactory.Create<KubernetesService>();
+
+        public KubernetesService(
+            IKubernetes client)
         {
             _client = client;
         }
 
-        internal async Task<IEnumerable<Pod>> ListPodsInAllNamespaces()
+        internal async Task<IEnumerable<Deployment>>
+            ListDeploymentsInAllNamespacesAsync()
+        {
+            var deployments =
+                await _client.ListDeploymentForAllNamespacesAsync();
+            return deployments.Items.Select(
+                pod => new Deployment
+                {
+                    Namespace = pod.Metadata.NamespaceProperty,
+                    Name = pod.Metadata.Name
+                });
+        }
+
+        internal async Task<IEnumerable<Pod>> ListPodsInAllNamespacesAsync()
         {
             var pods = await _client.ListPodForAllNamespacesAsync();
-            return pods.Items.Select(pod => new Pod()
-            {
-                Namespace = pod.Metadata.NamespaceProperty,
-                Name = pod.Metadata.Name
-            });
+            return pods.Items.Select(
+                pod => new Pod
+                {
+                    Namespace = pod.Metadata.NamespaceProperty,
+                    Name = pod.Metadata.Name
+                });
+        }
+
+        internal async Task<IEnumerable<Service>> ListServicesInAllNamespacesAsync()
+        {
+            var services = await _client.ListServiceForAllNamespacesAsync();
+            return services.Items.Select(
+                service => new Service
+                {
+                    Namespace = service.Metadata.NamespaceProperty,
+                    Name = service.Metadata.Name
+                });
         }
 
         internal async Task PortForward(
@@ -43,49 +71,54 @@ namespace Kubernetes.PortForward.Manager.Server
             // Note this is single-threaded, it won't handle concurrent requests well...
             var webSocket =
                 await _client.WebSocketNamespacedPodPortForwardAsync(
-                    podName, @namespace, new[] { fromPort },
+                    podName, @namespace, new[] {fromPort},
                     "v4.channel.k8s.io");
             var demux = new StreamDemuxer(webSocket, StreamType.PortForward);
             demux.Start();
 
-            var stream = demux.GetStream((byte?)0, (byte?)0);
+            var stream = demux.GetStream((byte?) 0, (byte?) 0);
 
             var ipAddress = IPAddress.Loopback;
             var localEndPoint = new IPEndPoint(ipAddress, toPort);
-            var listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            var listener = new Socket(
+                ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             listener.Bind(localEndPoint);
             listener.Listen(100);
 
             Socket handler = null;
 
             // Note this will only accept a single connection
-            var accept = Task.Run(() =>
-            {
-                while (true)
+            var accept = Task.Run(
+                () =>
                 {
-                    handler = listener.Accept();
-                    var bytes = new byte[4096];
                     while (true)
                     {
-                        var bytesRec = handler.Receive(bytes);
-                        stream.Write(bytes, 0, bytesRec);
-                        if (bytesRec == 0 || Encoding.ASCII.GetString(bytes, 0, bytesRec).IndexOf("<EOF>") > -1)
+                        handler = listener.Accept();
+                        var bytes = new byte[4096];
+                        while (true)
                         {
-                            break;
+                            var bytesRec = handler.Receive(bytes);
+                            stream.Write(bytes, 0, bytesRec);
+                            if (bytesRec == 0 || Encoding.ASCII
+                                .GetString(bytes, 0, bytesRec)
+                                .IndexOf("<EOF>") > -1)
+                            {
+                                break;
+                            }
                         }
                     }
-                }
-            });
+                });
 
-            var copy = Task.Run(() =>
-            {
-                var buff = new byte[4096];
-                while (true)
+            var copy = Task.Run(
+                () =>
                 {
-                    var read = stream.Read(buff, 0, 4096);
-                    handler.Send(buff, read, 0);
-                }
-            });
+                    var buff = new byte[4096];
+                    while (true)
+                    {
+                        var read = stream.Read(buff, 0, 4096);
+                        handler.Send(buff, read, 0);
+                    }
+                });
 
             await accept;
             await copy;
@@ -93,6 +126,7 @@ namespace Kubernetes.PortForward.Manager.Server
             {
                 handler.Close();
             }
+
             listener.Close();
         }
     }

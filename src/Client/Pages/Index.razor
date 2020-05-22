@@ -12,6 +12,26 @@
 }
 else
 {
+<h2>Deployments</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>@nameof(Deployment.Namespace)</th>
+            <th>@nameof(Deployment.Name)</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var deployment in _deployments)
+    {
+        <tr>
+            <td>@deployment.Namespace</td>
+            <td>@deployment.Name</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<h2>Pods</h2>
 <table class="table">
     <thead>
         <tr>
@@ -29,14 +49,37 @@ else
         }
     </tbody>
 </table>
+
+<h2>Services</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>@nameof(Service.Namespace)</th>
+            <th>@nameof(Service.Name)</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var service in _services)
+        {
+        <tr>
+            <td>@service.Namespace</td>
+            <td>@service.Name</td>
+        </tr>
+        }
+    </tbody>
+</table>
 }
 
-@code {
+@code
+{
+    private Deployment[] _deployments;
     private Pod[] _pods;
+    private Service[] _services;
 
     protected override async Task OnInitializedAsync()
     {
+        _deployments = await Http.GetFromJsonAsync<Deployment[]>("Deployment");
         _pods = await Http.GetFromJsonAsync<Pod[]>("Pod");
+        _services = await Http.GetFromJsonAsync<Service[]>("Service");
     }
-
 }
