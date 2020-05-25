@@ -12,24 +12,25 @@ using Log.It;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
-    public class KubernetesService
+    internal sealed class KubernetesService : IKubernetesService
     {
-        private readonly IKubernetes _client;
+        private readonly KubernetesClientFactory _clientFactory;
 
         private readonly ILogger _logger =
             LogFactory.Create<KubernetesService>();
 
         public KubernetesService(
-            IKubernetes client)
+            KubernetesClientFactory clientFactory)
         {
-            _client = client;
+            _clientFactory = clientFactory;
         }
 
-        internal async Task<IEnumerable<Deployment>>
-            ListDeploymentsInAllNamespacesAsync()
+        public async Task<IEnumerable<Deployment>>
+            ListDeploymentsInAllNamespacesAsync(string context)
         {
+            using var client = _clientFactory.Create(context);
             var deployments =
-                await _client.ListDeploymentForAllNamespacesAsync();
+                await client.ListDeploymentForAllNamespacesAsync();
             return deployments.Items.Select(
                 pod => new Deployment
                 {
@@ -38,9 +39,10 @@ namespace Kubernetes.PortForward.Manager.Server
                 });
         }
 
-        internal async Task<IEnumerable<Pod>> ListPodsInAllNamespacesAsync()
+        public async Task<IEnumerable<Pod>> ListPodsInAllNamespacesAsync(string context)
         {
-            var pods = await _client.ListPodForAllNamespacesAsync();
+            using var client = _clientFactory.Create(context);
+            var pods = await client.ListPodForAllNamespacesAsync();
             return pods.Items.Select(
                 pod => new Pod
                 {
@@ -49,10 +51,11 @@ namespace Kubernetes.PortForward.Manager.Server
                 });
         }
 
-        internal async Task<IEnumerable<Service>>
-            ListServicesInAllNamespacesAsync()
+        public async Task<IEnumerable<Service>>
+            ListServicesInAllNamespacesAsync(string context)
         {
-            var services = await _client.ListServiceForAllNamespacesAsync();
+            using var client = _clientFactory.Create(context);
+            var services = await client.ListServiceForAllNamespacesAsync();
             return services.Items.Select(
                 service => new Service
                 {
@@ -68,7 +71,8 @@ namespace Kubernetes.PortForward.Manager.Server
                 });
         }
 
-        internal async Task PortForward(
+        public async Task PortForward(
+            string context,
             string @namespace,
             string podName,
             int fromPort,
@@ -77,15 +81,16 @@ namespace Kubernetes.PortForward.Manager.Server
         {
             _logger.Info("Starting port forward!");
 
+            using var client = _clientFactory.Create(context);
             // Note this is single-threaded, it won't handle concurrent requests well...
             var webSocket =
-                await _client.WebSocketNamespacedPodPortForwardAsync(
-                    podName, @namespace, new[] { fromPort },
+                await client.WebSocketNamespacedPodPortForwardAsync(
+                    podName, @namespace, new[] {fromPort},
                     "v4.channel.k8s.io");
             var demux = new StreamDemuxer(webSocket, StreamType.PortForward);
             demux.Start();
 
-            var stream = demux.GetStream((byte?)0, (byte?)0);
+            var stream = demux.GetStream((byte?) 0, (byte?) 0);
 
             var ipAddress = IPAddress.Loopback;
             var localEndPoint = new IPEndPoint(ipAddress, toPort);

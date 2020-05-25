@@ -9,17 +9,20 @@ namespace Kubernetes.PortForward.Manager.Server.Controllers
     [Route("[controller]")]
     public class PodController : ControllerBase
     {
-        private readonly KubernetesService _kubernetesService;
+        private readonly IKubernetesService _kubernetesService;
 
-        public PodController(KubernetesService kubernetesService)
+        public PodController(
+            IKubernetesService kubernetesService)
         {
             _kubernetesService = kubernetesService;
         }
 
-        [HttpGet]
-        public async Task<IEnumerable<Pod>> GetAsync()
+        [HttpGet("{context}")]
+        public async Task<IEnumerable<Pod>> GetAsync(
+            string context)
         {
-            return await _kubernetesService.ListPodsInAllNamespacesAsync();
+            return await _kubernetesService.ListPodsInAllNamespacesAsync(
+                context);
         }
     }
 }

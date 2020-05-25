@@ -1,0 +1,107 @@
+@page "/contexts/{Context}"
+@using Kubernetes.PortForward.Manager.Shared
+@inject HttpClient Http
+
+<h1>Port forwards</h1>
+
+<p>Configured port forwards.</p>
+
+@if (_pods == null)
+{
+    <p>
+        <em>Loading...</em>
+    </p>
+}
+else
+{
+    <h2>Deployments</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>@nameof(Deployment.Namespace)</th>
+                <th>@nameof(Deployment.Name)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var deployment in _deployments)
+            {
+                <tr>
+                    <td>@deployment.Namespace</td>
+                    <td>@deployment.Name</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>Pods</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>@nameof(Pod.Namespace)</th>
+                <th>@nameof(Pod.Name)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var pod in _pods)
+            {
+                <tr>
+                    <td>@pod.Namespace</td>
+                    <td>@pod.Name</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>Services</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>@nameof(Service.Namespace)</th>
+                <th>@nameof(Service.Name)</th>
+                <th>Container port</th>
+                <th>Protocol type</th>
+                <th>Host port</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var service in _services)
+            {
+                var firstRow = true;
+                @foreach (var port in service.Ports)
+                {
+                    <tr>
+                        <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? service.Namespace : "")</td>
+                        <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? service.Name : "")</td>
+                        <td>@port.Number</td>
+                        <td>@port.ProtocolType</td>
+                        <td>
+                            <input type="number" />
+                        </td>
+                    </tr>
+                    firstRow = false;
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@code
+{
+    private Deployment[] _deployments;
+    private Pod[] _pods;
+    private Service[] _services;
+
+    [Parameter] public string Context { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _deployments = await Http.GetFromJsonAsync<Deployment[]>($"Deployment/{Context}");
+        _pods = await Http.GetFromJsonAsync<Pod[]>($"Pod/{Context}");
+        _services = await Http.GetFromJsonAsync<Service[]>($"Service/{Context}");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await OnInitializedAsync();
+    }
+}

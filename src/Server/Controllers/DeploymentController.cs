@@ -9,17 +9,17 @@ namespace Kubernetes.PortForward.Manager.Server.Controllers
     [Route("[controller]")]
     public class DeploymentController : ControllerBase
     {
-        private readonly KubernetesService _kubernetesService;
+        private readonly IKubernetesService _kubernetesService;
 
-        public DeploymentController(KubernetesService kubernetesService)
+        public DeploymentController(IKubernetesService kubernetesService)
         {
             _kubernetesService = kubernetesService;
         }
 
-        [HttpGet]
-        public async Task<IEnumerable<Deployment>> Get()
+        [HttpGet("{context}")]
+        public async Task<IEnumerable<Deployment>> Get(string context)
         {
-            return await _kubernetesService.ListDeploymentsInAllNamespacesAsync();
+            return await _kubernetesService.ListDeploymentsInAllNamespacesAsync(context);
         }
     }
 }

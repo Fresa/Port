@@ -1,0 +1,28 @@
+@using Kubernetes.PortForward.Manager.Shared
+@inject HttpClient Http
+
+@if (_contexts == null)
+{
+    <p>
+        <em>Loading...</em>
+    </p>
+}
+else
+{
+    @foreach (var context in _contexts)
+    {
+        <div>
+            <NavLink href="@($"contexts/{context.Name}")">@context.Name</NavLink>
+        </div>
+    }
+}
+
+@code
+{
+    private Context[] _contexts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _contexts = await Http.GetFromJsonAsync<Context[]>("Context");
+    }
+}

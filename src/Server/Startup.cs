@@ -22,44 +22,50 @@ namespace Kubernetes.PortForward.Manager.Server
             LogFactory.Initialize(new NLogFactory(new LogicalThreadContext()));
         }
 
-        public Startup(IConfiguration configuration)
+        public Startup(
+            IConfiguration configuration)
         {
             Configuration = configuration;
         }
 
         public IConfiguration Configuration { get; }
 
-        public void ConfigureServices(IServiceCollection services)
+        public void ConfigureServices(
+            IServiceCollection services)
         {
-            LogManager.Configuration = new NLogLoggingConfiguration(Configuration.GetSection("NLog"));
+            LogManager.Configuration =
+                new NLogLoggingConfiguration(Configuration.GetSection("NLog"));
 
             services.AddControllersWithViews();
             services.AddRazorPages();
 
-            services.AddSimpleInjector(_container, options =>
-            {
-                options
-                    .AddAspNetCore()
-                    .AddControllerActivation()
-                    .AddViewComponentActivation()
-                    .AddPageModelActivation()
-                    .AddTagHelperActivation();
+            services.AddSimpleInjector(
+                _container, options =>
+                {
+                    options
+                        .AddAspNetCore()
+                        .AddControllerActivation()
+                        .AddViewComponentActivation()
+                        .AddPageModelActivation()
+                        .AddTagHelperActivation();
 
-                options.AddLogging();
-            });
+                    options.AddLogging();
+                });
 
             InitializeContainer();
         }
 
         private void InitializeContainer()
         {
-            _container.Register<KubernetesService>(Lifestyle.Singleton);
-            _container.Register<IKubernetes>(
-                () => new k8s.Kubernetes(
-                    KubernetesClientConfiguration.BuildConfigFromConfigFile()), Lifestyle.Singleton);
+            _container.Register<IKubernetesService, KubernetesService>(
+                Lifestyle.Singleton);
+            _container.Register<KubernetesClientFactory>(
+                Lifestyle.Singleton);
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(
+            IApplicationBuilder app,
+            IWebHostEnvironment env)
         {
             app.UseSimpleInjector(_container);
 
@@ -80,12 +86,13 @@ namespace Kubernetes.PortForward.Manager.Server
 
             app.UseRouting();
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapRazorPages();
-                endpoints.MapControllers();
-                endpoints.MapFallbackToFile("index.html");
-            });
+            app.UseEndpoints(
+                endpoints =>
+                {
+                    endpoints.MapRazorPages();
+                    endpoints.MapControllers();
+                    endpoints.MapFallbackToFile("index.html");
+                });
 
             _container.Verify();
         }
