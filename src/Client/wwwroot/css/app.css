@@ -26,6 +26,10 @@ app {
     align-items: center;
 }
 
+td.no-borders {
+    border: 0
+}
+
 .main {
     flex: 1;
 }

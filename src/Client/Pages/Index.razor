@@ -66,30 +66,19 @@ else
         <tbody>
         @foreach (var service in _services)
         {
-            var headItem = true;
+            var firstRow = true;
             @foreach (var port in service.Ports)
             {
                 <tr>
-                    <td @attributes="RenderBorders(headItem)"> @(headItem ? service.Namespace : "")</td>
-                    <td @attributes="RenderBorders(headItem)">@(headItem ? service.Name : "")</td>
+                    <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? service.Namespace : "")</td>
+                    <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? service.Name : "")</td>
                     <td>@port.Number</td>
                     <td>@port.ProtocolType</td>
                     <td>
                         <input type="number"/>
                     </td>
                 </tr>
-                headItem = false;
-
-                Dictionary<string, object> RenderBorders(
-                    bool headItem)
-                {
-                    if (headItem)
-                    {
-                        return new Dictionary<string, object>();
-                    }
-
-                    return new Dictionary<string, object> {{"style", "border-top: 0"}};
-                }
+                firstRow = false;
             }
         }
         </tbody>
