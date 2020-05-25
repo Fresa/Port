@@ -1,28 +1,66 @@
 @using Kubernetes.PortForward.Manager.Shared
 @inject HttpClient Http
+@inject NavigationManager NavigationManager
+
+<div class="top-row pl-4 navbar navbar-dark">
+    <span>@_location</span>
+    <button class="navbar-toggler" @onclick="ToggleNavMenu">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+</div>
 
 @if (_contexts == null)
 {
     <p>
-        <em>Loading...</em>
+        <em>Loading contexts...</em>
     </p>
 }
 else
 {
-    @foreach (var context in _contexts)
-    {
-        <div>
-            <NavLink href="@($"contexts/{context.Name}")">@context.Name</NavLink>
-        </div>
-    }
+    <div class="@NavMenuCssClass">
+        <ul class="nav flex-column">
+            @foreach (var context in _contexts)
+            {
+                <li class="nav-item px-3">
+                    <NavLink class="nav-link"
+                             href="@($"contexts/{context.Name}")"
+                             Match="NavLinkMatch.All">
+                        <span>@context.Name</span>
+                    </NavLink>
+                </li>
+            }
+        </ul>
+    </div>
 }
 
 @code
 {
+    private bool _collapseContextMenu = true;
     private Context[] _contexts;
+    private string _location;
+
+    private string NavMenuCssClass => _collapseContextMenu ? "collapse" : null;
 
     protected override async Task OnInitializedAsync()
     {
+        NavigationManager.LocationChanged += (
+            sender,
+            args) =>
+        {
+            var positionOfLastSegment = args.Location.LastIndexOf('/');
+            _location = positionOfLastSegment >= 0 ? 
+                args.Location.Substring(positionOfLastSegment + 1) 
+                : "";
+            StateHasChanged();
+        };
+
         _contexts = await Http.GetFromJsonAsync<Context[]>("Context");
     }
+
+    private void ToggleNavMenu()
+    {
+        _collapseContextMenu = !_collapseContextMenu;
+    }
+
+
 }
