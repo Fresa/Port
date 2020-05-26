@@ -17,38 +17,38 @@ else
     <h2>Deployments</h2>
     <table class="table">
         <thead>
-            <tr>
-                <th>@nameof(Deployment.Namespace)</th>
-                <th>@nameof(Deployment.Name)</th>
-            </tr>
+        <tr>
+            <th>@nameof(Deployment.Namespace)</th>
+            <th>@nameof(Deployment.Name)</th>
+        </tr>
         </thead>
         <tbody>
-            @foreach (var deployment in _deployments)
-            {
-                <tr>
-                    <td>@deployment.Namespace</td>
-                    <td>@deployment.Name</td>
-                </tr>
-            }
+        @foreach (var deployment in _deployments)
+        {
+            <tr>
+                <td>@deployment.Namespace</td>
+                <td>@deployment.Name</td>
+            </tr>
+        }
         </tbody>
     </table>
 
     <h2>Pods</h2>
     <table class="table">
         <thead>
-            <tr>
-                <th>@nameof(Pod.Namespace)</th>
-                <th>@nameof(Pod.Name)</th>
-            </tr>
+        <tr>
+            <th>@nameof(Pod.Namespace)</th>
+            <th>@nameof(Pod.Name)</th>
+        </tr>
         </thead>
         <tbody>
-            @foreach (var pod in _pods)
-            {
-                <tr>
-                    <td>@pod.Namespace</td>
-                    <td>@pod.Name</td>
-                </tr>
-            }
+        @foreach (var pod in _pods)
+        {
+            <tr>
+                <td>@pod.Namespace</td>
+                <td>@pod.Name</td>
+            </tr>
+        }
         </tbody>
     </table>
 
@@ -61,26 +61,30 @@ else
                 <th>Container port</th>
                 <th>Protocol type</th>
                 <th>Host port</th>
+                <th>Enable / Disable</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var service in _services)
+        @foreach (var service in _services)
+        {
+            var firstRow = true;
+            @foreach (var portForward in service)
             {
-                var firstRow = true;
-                @foreach (var port in service.Ports)
-                {
-                    <tr>
-                        <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? service.Namespace : "")</td>
-                        <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? service.Name : "")</td>
-                        <td>@port.Number</td>
-                        <td>@port.ProtocolType</td>
-                        <td>
-                            <input type="number" />
-                        </td>
-                    </tr>
-                    firstRow = false;
-                }
+                <tr>
+                    <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Namespace : "")</td>
+                    <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Name : "")</td>
+                    <td>@portForward.From</td>
+                    <td>@portForward.ProtocolType</td>
+                    <td>
+                        <MatTextField TValue="int?" @bind-Value="@portForward.To"/>
+                    </td>
+                    <td>
+                        <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))"/>
+                    </td>
+                </tr>
+                firstRow = false;
             }
+        }
         </tbody>
     </table>
 }
@@ -89,19 +93,52 @@ else
 {
     private Deployment[] _deployments;
     private Pod[] _pods;
-    private Service[] _services;
 
-    [Parameter] public string Context { get; set; }
+    private List<IGrouping<string, Manager.Shared.PortForward>> _services;
+
+    [Parameter]
+    public string Context { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         _deployments = await Http.GetFromJsonAsync<Deployment[]>($"Deployment/{Context}");
         _pods = await Http.GetFromJsonAsync<Pod[]>($"Pod/{Context}");
-        _services = await Http.GetFromJsonAsync<Service[]>($"Service/{Context}");
+
+        _services = (await Http.GetFromJsonAsync<Service[]>($"Service/{Context}"))
+            .SelectMany(service =>
+                service.Ports
+                    .Select(port =>
+                        new Kubernetes.PortForward.Manager.Shared.PortForward
+                        {
+                            Namespace = service.Namespace,
+                            Name = service.Name,
+                            ProtocolType = port.ProtocolType,
+                            From = port.Number
+                        }))
+            .GroupBy(forward => $"{forward.Namespace}/{forward.Name}")
+            .ToList();
     }
 
     protected override async Task OnParametersSetAsync()
     {
         await OnInitializedAsync();
+    }
+
+    private async Task ChangePortForwardAsync(
+        Kubernetes.PortForward.Manager.Shared.PortForward portForward,
+        bool enable)
+    {
+        if (enable)
+        {
+            await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward);
+        }
+    }
+
+    private void UpdatePort(
+        ChangeEventArgs @event)
+    {
+        if (@event.Value is int intValue)
+        {
+        }
     }
 }

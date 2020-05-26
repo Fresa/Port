@@ -71,13 +71,9 @@ namespace Kubernetes.PortForward.Manager.Server
                 });
         }
 
-        public async Task PortForward(
+        public async Task PortForwardAsync(
             string context,
-            string @namespace,
-            string podName,
-            int fromPort,
-            int toPort,
-            ProtocolType protocolType)
+            Shared.PortForward portForward)
         {
             _logger.Info("Starting port forward!");
 
@@ -85,17 +81,17 @@ namespace Kubernetes.PortForward.Manager.Server
             // Note this is single-threaded, it won't handle concurrent requests well...
             var webSocket =
                 await client.WebSocketNamespacedPodPortForwardAsync(
-                    podName, @namespace, new[] {fromPort},
+                    portForward.Name, portForward.Namespace, new[] { portForward.From },
                     "v4.channel.k8s.io");
             var demux = new StreamDemuxer(webSocket, StreamType.PortForward);
             demux.Start();
 
-            var stream = demux.GetStream((byte?) 0, (byte?) 0);
+            var stream = demux.GetStream((byte?)0, (byte?)0);
 
             var ipAddress = IPAddress.Loopback;
-            var localEndPoint = new IPEndPoint(ipAddress, toPort);
+            var localEndPoint = new IPEndPoint(ipAddress, (int)portForward.To);
             var listener = new Socket(
-                ipAddress.AddressFamily, SocketType.Stream, protocolType);
+                ipAddress.AddressFamily, SocketType.Stream, portForward.ProtocolType);
             listener.Bind(localEndPoint);
             listener.Listen(100);
 

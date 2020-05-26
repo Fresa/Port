@@ -24,5 +24,14 @@ namespace Kubernetes.PortForward.Manager.Server.Controllers
             return await _kubernetesService.ListServicesInAllNamespacesAsync(
                 context);
         }
+
+        [HttpPost("{context}/portforward")]
+        public async Task PostAsync(
+            string context,
+            Shared.PortForward portForward)
+        {
+            await _kubernetesService.PortForwardAsync(context, portForward);
+        }
+
     }
 }

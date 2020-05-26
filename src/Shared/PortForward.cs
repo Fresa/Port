@@ -1,10 +1,13 @@
-﻿namespace Kubernetes.PortForward.Manager.Shared
+﻿using System.Net.Sockets;
+
+namespace Kubernetes.PortForward.Manager.Shared
 {
-    public class PortForward
+    public sealed class PortForward
     {
+        public string Name { get; set; }
         public string Namespace { get; set; }
-        public string ApplicationName { get; set; }
-        public int ContainerPort { get; set; }
-        public int Port { get; set; }
+        public ProtocolType ProtocolType { get; set; }
+        public int From { get; set; }
+        public int? To { get; set; }
     }
 }

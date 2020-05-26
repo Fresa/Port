@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Net.Sockets;
 using System.Threading.Tasks;
 using Kubernetes.PortForward.Manager.Shared;
 
@@ -15,12 +14,8 @@ namespace Kubernetes.PortForward.Manager.Server
         Task<IEnumerable<Service>>
             ListServicesInAllNamespacesAsync(string context);
 
-        Task PortForward(
+        Task PortForwardAsync(
             string context,
-            string @namespace,
-            string podName,
-            int fromPort,
-            int toPort,
-            ProtocolType protocolType);
+            Shared.PortForward portForward);
     }
 }
