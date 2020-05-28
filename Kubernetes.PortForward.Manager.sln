@@ -9,6 +9,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.PortForward.Mana
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.PortForward.Manager.Shared", "src\Shared\Kubernetes.PortForward.Manager.Shared.csproj", "{2B765321-2D77-4DE8-BA13-24D559D868B6}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{CC72268D-FDB0-40D5-83B2-3392A057FEC3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetees.PortForward.Manager.Server.Tests", "tests\Kubernetes.PortForward.Manager.Server.Tests\Kubernetees.PortForward.Manager.Server.Tests.csproj", "{B6CD0ED9-B520-44E6-B035-86E8036C9B21}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,9 +31,16 @@ Global
 		{2B765321-2D77-4DE8-BA13-24D559D868B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2B765321-2D77-4DE8-BA13-24D559D868B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2B765321-2D77-4DE8-BA13-24D559D868B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B6CD0ED9-B520-44E6-B035-86E8036C9B21} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {545068F2-D696-4259-B223-651868C08A1C}

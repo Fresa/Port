@@ -2,14 +2,21 @@
 
 namespace Kubernetes.PortForward.Manager.Server
 {
-    internal sealed class KubernetesClientFactory
+    internal interface IKubernetesClientFactory
     {
-        internal IKubernetes Create(
+        IKubernetes Create(
+            string context);
+    }
+
+    internal sealed class KubernetesClientFactory : IKubernetesClientFactory
+    {
+        public IKubernetes Create(
             string context)
         {
-            return new k8s.Kubernetes(
+            var a = new k8s.Kubernetes(
                 KubernetesClientConfiguration.BuildConfigFromConfigFile(
                     currentContext: context));
+            return a;
         }
     }
 }

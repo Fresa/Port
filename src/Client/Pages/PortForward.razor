@@ -65,7 +65,7 @@ else
             </tr>
         </thead>
         <tbody>
-        @foreach (var service in _services)
+        @foreach (var service in _portForwardedServices)
         {
             var firstRow = true;
             @foreach (var portForward in service)
@@ -94,7 +94,7 @@ else
     private Deployment[] _deployments;
     private Pod[] _pods;
 
-    private List<IGrouping<string, Manager.Shared.PortForward>> _services;
+    private List<IGrouping<string, Manager.Shared.PortForward>> _portForwardedServices;
 
     [Parameter]
     public string Context { get; set; }
@@ -104,7 +104,7 @@ else
         _deployments = await Http.GetFromJsonAsync<Deployment[]>($"Deployment/{Context}");
         _pods = await Http.GetFromJsonAsync<Pod[]>($"Pod/{Context}");
 
-        _services = (await Http.GetFromJsonAsync<Service[]>($"Service/{Context}"))
+        _portForwardedServices = (await Http.GetFromJsonAsync<Service[]>($"Service/{Context}"))
             .SelectMany(service =>
                 service.Ports
                     .Select(port =>
@@ -131,14 +131,6 @@ else
         if (enable)
         {
             await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward);
-        }
-    }
-
-    private void UpdatePort(
-        ChangeEventArgs @event)
-    {
-        if (@event.Value is int intValue)
-        {
         }
     }
 }
