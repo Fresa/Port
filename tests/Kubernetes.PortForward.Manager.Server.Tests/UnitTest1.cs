@@ -34,7 +34,8 @@ namespace Kubernetes.PortForward.Manager.Server.Tests
         [Fact]
         public async Task Test1()
         {
-            var factory = new MyKubernetesClientFactory();
+            var size = sizeof(byte);
+            var factory = new KubernetesClientFactory();
             var ks = new KubernetesService(factory);
             await ks.PortForwardAsync(
                 "kind-argo-demo-ci", new Shared.PortForward
@@ -43,7 +44,7 @@ namespace Kubernetes.PortForward.Manager.Server.Tests
                     From = 2746,
                     ProtocolType = ProtocolType.Tcp,
                     Namespace = "argo",
-                    Name = "argo-server-7495b6b74b-jkdp9"
+                    Name = "argo-server-7495b6b74b-4rqrg"
                 }).ConfigureAwait(false);
 
             await Task.Delay(int.MaxValue);

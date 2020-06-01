@@ -40,11 +40,6 @@ namespace Kubernetes.PortForward.Manager.Server
             return client;
         }
 
-        internal static SocketServer Start()
-        {
-            return Start(IPAddress.Any);
-        }
-
         internal static SocketServer Start(
             IPAddress address,
             int port = 0,

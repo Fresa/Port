@@ -21,12 +21,20 @@ namespace Kubernetes.PortForward.Manager.Server
 
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
-        public StreamForwarder(
+        private StreamForwarder(
             INetworkServer networkServer,
             WebSocket webSocket)
         {
             _networkServer = networkServer;
             _webSocket = webSocket;
+        }
+
+        internal static IAsyncDisposable Start(
+            INetworkServer networkServer,
+            WebSocket webSocket)
+        {
+            return new StreamForwarder(networkServer, webSocket)
+                .Start();
         }
 
         public IAsyncDisposable Start()
