@@ -34,7 +34,6 @@ namespace Kubernetes.PortForward.Manager.Server.Tests
         [Fact]
         public async Task Test1()
         {
-            var size = sizeof(byte);
             var factory = new KubernetesClientFactory();
             var ks = new KubernetesService(factory);
             await ks.PortForwardAsync(
