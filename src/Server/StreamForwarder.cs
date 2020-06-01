@@ -1,7 +1,6 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Pipelines;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +10,6 @@ namespace Kubernetes.PortForward.Manager.Server
 {
     internal sealed class StreamForwarder : IAsyncDisposable
     {
-        private readonly StreamDemuxer _stream;
         private readonly INetworkServer _networkServer;
         private readonly WebSocket _webSocket;
         private const int Stopped = 0;
@@ -24,11 +22,9 @@ namespace Kubernetes.PortForward.Manager.Server
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
         public StreamForwarder(
-            StreamDemuxer stream,
             INetworkServer networkServer,
             WebSocket webSocket)
         {
-            _stream = stream;
             _networkServer = networkServer;
             _webSocket = webSocket;
         }
@@ -44,7 +40,6 @@ namespace Kubernetes.PortForward.Manager.Server
             var task = Task.Run(
                 async () =>
                 {
-                    var start = true;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
@@ -54,9 +49,8 @@ namespace Kubernetes.PortForward.Manager.Server
                                 .WaitForConnectedClientAsync(
                                     _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
-                            //if (start)
+
                             StartCrossWiring(client);
-                            start = false;
                         }
                         catch when (_cancellationTokenSource
                             .IsCancellationRequested)
@@ -69,23 +63,21 @@ namespace Kubernetes.PortForward.Manager.Server
             return this;
         }
 
-
         private void StartCrossWiring(
             INetworkClient networkClient)
         {
-            //var stream = _stream.GetStream(
-            //    ChannelIndex.StdIn, ChannelIndex.StdIn);
             var receiveTask = Task.Run(
                 async () =>
                 {
+                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                    var memory = memoryOwner.Memory;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
                         try
                         {
-                            var buff = new byte[4096];
-                            var memory = new Memory<byte>(buff);
-                            var read = await _webSocket.ReceiveAsync(
+                            var read = await _webSocket
+                                .ReceiveAsync(
                                     memory, _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
 
@@ -96,9 +88,7 @@ namespace Kubernetes.PortForward.Manager.Server
                                 continue;
                             }
 
-                            await networkClient.SendAsync(
-                                    memory.Slice(1),
-                                    _cancellationTokenSource.Token)
+                            await networkClient.SendAsync(memory.Slice(1))
                                 .ConfigureAwait(false);
                         }
                         catch when (_cancellationTokenSource
@@ -114,24 +104,27 @@ namespace Kubernetes.PortForward.Manager.Server
             var sendTask = Task.Run(
                 async () =>
                 {
-                    var memory = new Memory<byte>(new byte[4096]);
+                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                    var memory = memoryOwner.Memory;
                     // The port forward stream looks like this when sending:
                     // [Stream index][Data 1]..[Data n]
-                    memory.Span[0] = (byte) ChannelIndex.StdOut;
+                    memory.Span[0] = (byte)ChannelIndex.StdIn;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
                         try
                         {
                             var bytesRec = await networkClient
-                                .ReceiveAsync(memory.Slice(1))
+                                .ReceiveAsync(memory.Slice(1),
+                                    _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
                             if (bytesRec == 0)
                             {
                                 continue;
                             }
 
-                            await _webSocket.SendAsync(
+                            await _webSocket
+                                .SendAsync(
                                     memory, WebSocketMessageType.Binary, false,
                                     _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
