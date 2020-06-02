@@ -2,9 +2,11 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
+using Log.It;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
@@ -20,6 +22,8 @@ namespace Kubernetes.PortForward.Manager.Server
             new CancellationTokenSource();
 
         private readonly List<Task> _backgroundTasks = new List<Task>();
+
+        private readonly ILogger _logger = LogFactory.Create<StreamForwarder>();
 
         private StreamForwarder(
             INetworkServer networkServer,
@@ -77,18 +81,17 @@ namespace Kubernetes.PortForward.Manager.Server
             var receiveTask = Task.Run(
                 async () =>
                 {
-                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
-                    var memory = memoryOwner.Memory;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
+                        using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                        var memory = memoryOwner.Memory;
                         try
                         {
                             var read = await _webSocket
                                 .ReceiveAsync(
                                     memory, _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
-
                             // The port forward stream looks like this when receiving:
                             // [Stream index][High port byte][Low port byte][Data 1]..[Data n]
                             if (read.Count <= 3)
@@ -96,13 +99,18 @@ namespace Kubernetes.PortForward.Manager.Server
                                 continue;
                             }
 
-                            await networkClient.SendAsync(memory.Slice(1))
+                            await networkClient.SendAsync(memory.Slice(1, read.Count - 1))
                                 .ConfigureAwait(false);
                         }
                         catch when (_cancellationTokenSource
                             .IsCancellationRequested)
                         {
                             return;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, "Failed receiving from k8s websocket");
+                            throw;
                         }
                     }
                 });
@@ -112,18 +120,19 @@ namespace Kubernetes.PortForward.Manager.Server
             var sendTask = Task.Run(
                 async () =>
                 {
-                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
-                    var memory = memoryOwner.Memory;
-                    // The port forward stream looks like this when sending:
-                    // [Stream index][Data 1]..[Data n]
-                    memory.Span[0] = (byte)ChannelIndex.StdIn;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
+                        using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                        var memory = memoryOwner.Memory;
+                        // The port forward stream looks like this when sending:
+                        // [Stream index][Data 1]..[Data n]
+                        memory.Span[0] = (byte)ChannelIndex.StdIn;
                         try
                         {
                             var bytesRec = await networkClient
-                                .ReceiveAsync(memory.Slice(1),
+                                .ReceiveAsync(
+                                    memory.Slice(1),
                                     _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
                             if (bytesRec == 0)
@@ -133,7 +142,7 @@ namespace Kubernetes.PortForward.Manager.Server
 
                             await _webSocket
                                 .SendAsync(
-                                    memory, WebSocketMessageType.Binary, false,
+                                    memory.Slice(0, bytesRec + 1), WebSocketMessageType.Binary, false,
                                     _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
                         }
@@ -141,6 +150,11 @@ namespace Kubernetes.PortForward.Manager.Server
                             .IsCancellationRequested)
                         {
                             return;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, "Failed receiving from host");
+                            throw;
                         }
                     }
                 });
