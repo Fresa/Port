@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using k8s;
 using Log.It;
+using Microsoft.AspNetCore.Components.RenderTree;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
@@ -81,11 +82,11 @@ namespace Kubernetes.PortForward.Manager.Server
             var receiveTask = Task.Run(
                 async () =>
                 {
+                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                    var memory = memoryOwner.Memory;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
-                        using var memoryOwner = MemoryPool<byte>.Shared.Rent();
-                        var memory = memoryOwner.Memory;
                         try
                         {
                             ValueWebSocketReceiveResult received;
@@ -131,11 +132,11 @@ namespace Kubernetes.PortForward.Manager.Server
             var sendTask = Task.Run(
                 async () =>
                 {
+                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                    var memory = memoryOwner.Memory;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
-                        using var memoryOwner = MemoryPool<byte>.Shared.Rent();
-                        var memory = memoryOwner.Memory;
                         // The port forward stream looks like this when sending:
                         // [Stream index][Data 1]..[Data n]
                         memory.Span[0] = (byte) ChannelIndex.StdIn;
