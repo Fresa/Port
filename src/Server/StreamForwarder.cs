@@ -2,12 +2,10 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
 using Log.It;
-using Microsoft.AspNetCore.Components.RenderTree;
 
 namespace Kubernetes.PortForward.Manager.Server
 {
@@ -19,8 +17,15 @@ namespace Kubernetes.PortForward.Manager.Server
         private const int Started = 1;
         private int _status = Stopped;
 
+        private readonly SemaphoreSlimGate _webSocketReceiveGate = 
+            SemaphoreSlimGate.OneAtATime;
+        private readonly SemaphoreSlimGate _webSocketSendGate =
+            SemaphoreSlimGate.OneAtATime;
+
         private readonly CancellationTokenSource _cancellationTokenSource =
             new CancellationTokenSource();
+        private CancellationToken CancellationToken
+            => _cancellationTokenSource.Token;
 
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
@@ -50,6 +55,8 @@ namespace Kubernetes.PortForward.Manager.Server
                 return this;
             }
 
+            // ReSharper disable once MethodSupportsCancellation
+            // Background task
             var task = Task.Run(
                 async () =>
                 {
@@ -60,7 +67,7 @@ namespace Kubernetes.PortForward.Manager.Server
                         {
                             var client = await _networkServer
                                 .WaitForConnectedClientAsync(
-                                    _cancellationTokenSource.Token)
+                                    CancellationToken)
                                 .ConfigureAwait(false);
 
                             StartCrossWiring(client);
@@ -79,6 +86,8 @@ namespace Kubernetes.PortForward.Manager.Server
         private void StartCrossWiring(
             INetworkClient networkClient)
         {
+            // ReSharper disable once MethodSupportsCancellation
+            // Background task
             var receiveTask = Task.Run(
                 async () =>
                 {
@@ -89,16 +98,22 @@ namespace Kubernetes.PortForward.Manager.Server
                     {
                         try
                         {
-                            ValueWebSocketReceiveResult received;
                             var receivedBytes = 0;
-                            do
+                            using (await _webSocketReceiveGate
+                                .WaitAsync(CancellationToken)
+                                .ConfigureAwait(false))
                             {
-                                received = await _webSocket
-                                    .ReceiveAsync(
-                                        memory.Slice(receivedBytes), _cancellationTokenSource.Token)
-                                    .ConfigureAwait(false);
-                                receivedBytes += received.Count;
-                            } while (received.EndOfMessage == false);
+                                ValueWebSocketReceiveResult received;
+                                do
+                                {
+                                    received = await _webSocket
+                                        .ReceiveAsync(
+                                            memory.Slice(receivedBytes),
+                                            CancellationToken)
+                                        .ConfigureAwait(false);
+                                    receivedBytes += received.Count;
+                                } while (received.EndOfMessage == false);
+                            }
 
                             // The port forward stream first sends port number:
                             // [Stream index][High port byte][Low port byte]
@@ -110,7 +125,7 @@ namespace Kubernetes.PortForward.Manager.Server
                             // When port number has been sent, data is sent:
                             // [Stream index][Data 1]..[Data n]
                             await networkClient
-                                .SendAsync(memory.Slice(1, receivedBytes - 1))
+                                .SendAsync(memory.Slice(1, receivedBytes - 1), CancellationToken)
                                 .ConfigureAwait(false);
                         }
                         catch when (_cancellationTokenSource
@@ -129,35 +144,42 @@ namespace Kubernetes.PortForward.Manager.Server
 
             _backgroundTasks.Add(receiveTask);
 
+            // ReSharper disable once MethodSupportsCancellation
+            // Background task
             var sendTask = Task.Run(
                 async () =>
                 {
                     using var memoryOwner = MemoryPool<byte>.Shared.Rent();
                     var memory = memoryOwner.Memory;
+                    // The port forward stream looks like this when sending:
+                    // [Stream index][Data 1]..[Data n]
+                    memory.Span[0] = (byte) ChannelIndex.StdIn;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
                     {
-                        // The port forward stream looks like this when sending:
-                        // [Stream index][Data 1]..[Data n]
-                        memory.Span[0] = (byte) ChannelIndex.StdIn;
                         try
                         {
                             var bytesRec = await networkClient
                                 .ReceiveAsync(
                                     memory.Slice(1),
-                                    _cancellationTokenSource.Token)
+                                    CancellationToken)
                                 .ConfigureAwait(false);
                             if (bytesRec == 0)
                             {
                                 continue;
                             }
 
-                            await _webSocket
-                                .SendAsync(
-                                    memory.Slice(0, bytesRec + 1),
-                                    WebSocketMessageType.Binary, true,
-                                    _cancellationTokenSource.Token)
-                                .ConfigureAwait(false);
+                            using (await _webSocketSendGate
+                                .WaitAsync(CancellationToken)
+                                .ConfigureAwait(false))
+                            {
+                                await _webSocket
+                                    .SendAsync(
+                                        memory.Slice(0, bytesRec + 1),
+                                        WebSocketMessageType.Binary, true,
+                                        CancellationToken)
+                                    .ConfigureAwait(false);
+                            }
                         }
                         catch when (_cancellationTokenSource
                             .IsCancellationRequested)
@@ -180,6 +202,9 @@ namespace Kubernetes.PortForward.Manager.Server
             _cancellationTokenSource.Cancel();
 
             await Task.WhenAll(_backgroundTasks);
+            
+            _webSocketReceiveGate.Dispose();
+            _webSocketSendGate.Dispose();
         }
     }
 }
