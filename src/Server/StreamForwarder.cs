@@ -12,7 +12,7 @@ namespace Kubernetes.PortForward.Manager.Server
     internal sealed class StreamForwarder : IAsyncDisposable
     {
         private readonly INetworkServer _networkServer;
-        private readonly WebSocket _webSocket;
+        private readonly WebSocket _remoteSocket;
         private const int Stopped = 0;
         private const int Started = 1;
         private int _status = Stopped;
@@ -33,10 +33,10 @@ namespace Kubernetes.PortForward.Manager.Server
 
         private StreamForwarder(
             INetworkServer networkServer,
-            WebSocket webSocket)
+            WebSocket remoteSocket)
         {
             _networkServer = networkServer;
-            _webSocket = webSocket;
+            _remoteSocket = remoteSocket;
         }
 
         internal static IAsyncDisposable Start(
@@ -84,14 +84,14 @@ namespace Kubernetes.PortForward.Manager.Server
         }
 
         private void StartCrossWiring(
-            INetworkClient networkClient)
+            INetworkClient localSocket)
         {
             // ReSharper disable once MethodSupportsCancellation
             // Background task
             var receiveTask = Task.Run(
                 async () =>
                 {
-                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                    using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
                     var memory = memoryOwner.Memory;
                     while (_cancellationTokenSource.IsCancellationRequested ==
                            false)
@@ -106,13 +106,26 @@ namespace Kubernetes.PortForward.Manager.Server
                                 ValueWebSocketReceiveResult received;
                                 do
                                 {
-                                    received = await _webSocket
+                                    _logger.Info("Receiving from remote socket");
+                                    received = await _remoteSocket
                                         .ReceiveAsync(
                                             memory.Slice(receivedBytes),
                                             CancellationToken)
                                         .ConfigureAwait(false);
                                     receivedBytes += received.Count;
+                                    _logger.Info("Received {bytes}/{total} from remote socket, {next}", received.Count, receivedBytes, received.EndOfMessage ? "done" : "continuing");
+                                    
+                                    if (received.Count == 0 && received.EndOfMessage == false)
+                                    {
+                                        throw new InvalidOperationException("Received 0 bytes from socket, but socket indicates there is more data. Is there enough room in the memory buffer?");
+                                    }
                                 } while (received.EndOfMessage == false);
+                            }
+
+                            if (receivedBytes == 0)
+                            {
+                                _logger.Info("Received 0 bytes, aborting remote socket");
+                                return;
                             }
 
                             // The port forward stream first sends port number:
@@ -122,9 +135,10 @@ namespace Kubernetes.PortForward.Manager.Server
                                 continue;
                             }
 
+                            _logger.Info("Sending {bytes} bytes to local socket", receivedBytes - 1);
                             // When port number has been sent, data is sent:
                             // [Stream index][Data 1]..[Data n]
-                            await networkClient
+                            await localSocket
                                 .SendAsync(memory.Slice(1, receivedBytes - 1), CancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -149,7 +163,7 @@ namespace Kubernetes.PortForward.Manager.Server
             var sendTask = Task.Run(
                 async () =>
                 {
-                    using var memoryOwner = MemoryPool<byte>.Shared.Rent();
+                    using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
                     var memory = memoryOwner.Memory;
                     // The port forward stream looks like this when sending:
                     // [Stream index][Data 1]..[Data n]
@@ -159,21 +173,24 @@ namespace Kubernetes.PortForward.Manager.Server
                     {
                         try
                         {
-                            var bytesRec = await networkClient
+                            _logger.Info("Receiving from local socket");
+                            var bytesRec = await localSocket
                                 .ReceiveAsync(
                                     memory.Slice(1),
                                     CancellationToken)
                                 .ConfigureAwait(false);
                             if (bytesRec == 0)
                             {
-                                continue;
+                                _logger.Info("Received 0 bytes, aborting local socket");
+                                return;
                             }
 
                             using (await _webSocketSendGate
                                 .WaitAsync(CancellationToken)
                                 .ConfigureAwait(false))
                             {
-                                await _webSocket
+                                _logger.Info("Sending {bytes} bytes to remote socket", bytesRec + 1);
+                                await _remoteSocket
                                     .SendAsync(
                                         memory.Slice(0, bytesRec + 1),
                                         WebSocketMessageType.Binary, true,
