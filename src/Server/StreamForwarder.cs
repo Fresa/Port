@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
@@ -72,7 +74,7 @@ namespace Kubernetes.PortForward.Manager.Server
                         .WaitForConnectedClientAsync(CancellationToken)
                         .ConfigureAwait(false);
 
-                    StartCrossWiring(client);
+                    await StartCrossWiring(client);
                 }
                 catch when (_cancellationTokenSource
                     .IsCancellationRequested)
@@ -84,20 +86,21 @@ namespace Kubernetes.PortForward.Manager.Server
 
         private bool _started;
 
-        private void StartCrossWiring(
+        private async Task StartCrossWiring(
             INetworkClient localSocket)
         {
-            if (_started)
-            {
-                return;
-            }
+            //if (_started)
+            //{
+            //    return;
+            //}
 
-            _started = true;
+            //_started = true;
 
-            _backgroundTasks.Add(
-                StartTransferDataFromRemoteToLocalSocket(localSocket));
-            _backgroundTasks.Add(
+            await Task.WhenAll(
+                StartTransferDataFromRemoteToLocalSocket(localSocket),
                 StartTransferDataFromLocalToRemoteSocket(localSocket));
+            await localSocket.DisposeAsync();
+            _logger.Debug("Local socket disconnected");
         }
 
         private async Task StartTransferDataFromLocalToRemoteSocket(
@@ -107,49 +110,40 @@ namespace Kubernetes.PortForward.Manager.Server
             var memory = memoryOwner.Memory;
             // The port forward stream looks like this when sending:
             // [Stream index][Data 1]..[Data n]
-            memory.Span[0] = (byte) ChannelIndex.StdIn;
-            while (_cancellationTokenSource.IsCancellationRequested ==
-                   false)
+            memory.Span[0] = (byte)ChannelIndex.StdIn;
+            try
             {
-                try
+                _logger.Info("Receiving from local socket");
+                var bytesRec = await localSocket
+                    .ReceiveAsync(
+                        memory.Slice(1),
+                        CancellationToken)
+                    .ConfigureAwait(false);
+
+                using (await _webSocketSendGate
+                    .WaitAsync(CancellationToken)
+                    .ConfigureAwait(false))
                 {
-                    _logger.Info("Receiving from local socket");
-                    var bytesRec = await localSocket
-                        .ReceiveAsync(
-                            memory.Slice(1),
+                    _logger.Info(
+                        "Sending {bytes} bytes to remote socket",
+                        bytesRec + 1);
+                    await _remoteSocket
+                        .SendAsync(
+                            memory.Slice(0, bytesRec + 1),
+                            WebSocketMessageType.Binary, false,
                             CancellationToken)
                         .ConfigureAwait(false);
-                    if (bytesRec == 0)
-                    {
-                        _logger.Info("Received 0 bytes, aborting local socket");
-                        return;
-                    }
-
-                    using (await _webSocketSendGate
-                        .WaitAsync(CancellationToken)
-                        .ConfigureAwait(false))
-                    {
-                        _logger.Info(
-                            "Sending {bytes} bytes to remote socket",
-                            bytesRec + 1);
-                        await _remoteSocket
-                            .SendAsync(
-                                memory.Slice(0, bytesRec + 1),
-                                WebSocketMessageType.Binary, true,
-                                CancellationToken)
-                            .ConfigureAwait(false);
-                    }
                 }
-                catch when (_cancellationTokenSource
-                    .IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, "Failed receiving from host");
-                    throw;
-                }
+            }
+            catch when (_cancellationTokenSource
+                .IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed receiving from host");
+                throw;
             }
         }
 
@@ -158,10 +152,12 @@ namespace Kubernetes.PortForward.Manager.Server
         {
             using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
             var memory = memoryOwner.Memory;
-            while (_cancellationTokenSource.IsCancellationRequested ==
-                   false)
+            try
             {
-                try
+                var httpResponseContentLength = 0;
+                var httpResponseHeaderLength = 0;
+                var totallyReceivedBytes = 0;
+                while (true)
                 {
                     var receivedBytes = 0;
                     using (await _webSocketReceiveGate
@@ -181,11 +177,8 @@ namespace Kubernetes.PortForward.Manager.Server
                             receivedBytes += received.Count;
 
                             _logger.Info(
-                                "Received {bytes} of totally {total} bytes from remote socket, {next}",
-                                received.Count, receivedBytes,
-                                received.EndOfMessage
-                                    ? "done"
-                                    : "continuing");
+                                "Received {@received} from remote socket",
+                                received);
 
                             if (received.Count == 0 &&
                                 received.EndOfMessage == false)
@@ -213,6 +206,46 @@ namespace Kubernetes.PortForward.Manager.Server
                     _logger.Info(
                         "Sending {bytes} bytes to local socket",
                         receivedBytes - 1);
+
+                    if (httpResponseContentLength == 0)
+                    {
+                        var searchFor = "Content-Length: ";
+                        var searchForLength = searchFor.Length;
+                        var bytes = new List<byte>();
+                        for (var i = 0; i < receivedBytes - searchForLength; i++)
+                        {
+                            var found = Encoding.ASCII.GetString(memory.Slice(i, searchForLength).ToArray());
+                            if (found == searchFor)
+                            {
+                                i += searchForLength;
+                                while (memory.Span[i] >= 48 && memory.Span[i] <= 57)
+                                {
+                                    bytes.Add(memory.Span[i]);
+                                    i++;
+                                }
+
+                                httpResponseContentLength = Int32.Parse(Encoding.ASCII.GetString(bytes.ToArray())); 
+                                while (memory.Span[i] != 13 ||
+                                       memory.Span[i + 1] != 10 ||
+                                       memory.Span[i + 2] != 13 ||
+                                       memory.Span[i + 3] != 10)
+                                {
+                                    i++;
+                                }
+                                httpResponseHeaderLength = i + 4;
+                                break;
+                            }
+                        }
+
+                        if (httpResponseContentLength == 0)
+                            throw new InvalidOperationException($"Expected to find '{searchFor}'");
+                    }
+
+                    await using (var writer = new BinaryWriter(File.Open("c:\\Temp\\favicon.txt", FileMode.Append, FileAccess.Write)))
+                    {
+                        writer.Write(memory.Slice(httpResponseHeaderLength, receivedBytes - httpResponseHeaderLength).ToArray());
+                    }
+
                     // When port number has been sent, data is sent:
                     // [Stream index][Data 1]..[Data n]
                     await localSocket
@@ -220,17 +253,25 @@ namespace Kubernetes.PortForward.Manager.Server
                             memory.Slice(1, receivedBytes - 1),
                             CancellationToken)
                         .ConfigureAwait(false);
+
+                    totallyReceivedBytes += receivedBytes;
+                    if (totallyReceivedBytes == httpResponseHeaderLength +
+                        httpResponseContentLength)
+                    {
+                        _logger.Info("Totally received {total} bytes, exiting", totallyReceivedBytes);
+                        break;
+                    }
                 }
-                catch when (_cancellationTokenSource
-                    .IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, "Failed receiving from k8s websocket");
-                    throw;
-                }
+            }
+            catch when (_cancellationTokenSource
+                .IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed receiving from k8s websocket");
+                throw;
             }
         }
 

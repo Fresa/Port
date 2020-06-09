@@ -26,7 +26,7 @@ namespace Kubernetes.PortForward.Manager.Server.Tests
                     From = 2746,
                     ProtocolType = ProtocolType.Tcp,
                     Namespace = "argo",
-                    Name = "argo-server-7495b6b74b-4rqrg"
+                    Name = "argo-server-5f5c647dcb-bkcz6"
                 }).ConfigureAwait(false);
 
             await Task.Delay(int.MaxValue);
