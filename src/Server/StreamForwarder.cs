@@ -35,6 +35,12 @@ namespace Kubernetes.PortForward.Manager.Server
 
         private readonly ILogger _logger = LogFactory.Create<StreamForwarder>();
 
+        private static readonly string ContentLengthKey ="Content-Length: ";
+        private static readonly byte[] ContentLengthKeyAsBytes =
+            Encoding.ASCII.GetBytes(ContentLengthKey);
+        private static readonly int ContentLengthKeyLength =
+            ContentLengthKey.Length;
+
         private StreamForwarder(
             INetworkServer networkServer,
             WebSocket remoteSocket)
@@ -110,7 +116,7 @@ namespace Kubernetes.PortForward.Manager.Server
             var memory = memoryOwner.Memory;
             // The port forward stream looks like this when sending:
             // [Stream index][Data 1]..[Data n]
-            memory.Span[0] = (byte)ChannelIndex.StdIn;
+            memory.Span[0] = (byte) ChannelIndex.StdIn;
             try
             {
                 _logger.Info("Receiving from local socket");
@@ -156,7 +162,7 @@ namespace Kubernetes.PortForward.Manager.Server
             {
                 var httpResponseContentLength = 0;
                 var httpResponseHeaderLength = 0;
-                var totallyReceivedBytes = 0;
+                var totalReceivedBytes = 0;
                 while (true)
                 {
                     var receivedBytes = 0;
@@ -209,22 +215,25 @@ namespace Kubernetes.PortForward.Manager.Server
 
                     if (httpResponseContentLength == 0)
                     {
-                        var searchFor = "Content-Length: ";
-                        var searchForLength = searchFor.Length;
                         var bytes = new List<byte>();
-                        for (var i = 0; i < receivedBytes - searchForLength; i++)
+                        for (var i = 0;
+                            i < receivedBytes - ContentLengthKeyLength;
+                            i++)
                         {
-                            var found = Encoding.ASCII.GetString(memory.Slice(i, searchForLength).ToArray());
-                            if (found == searchFor)
+                            if (memory.Slice(i, ContentLengthKeyLength)
+                                    .Span.SequenceCompareTo(ContentLengthKeyAsBytes) ==
+                                0)
                             {
-                                i += searchForLength;
-                                while (memory.Span[i] >= 48 && memory.Span[i] <= 57)
+                                i += ContentLengthKeyLength;
+                                while (memory.Span[i] >= 48 &&
+                                       memory.Span[i] <= 57)
                                 {
                                     bytes.Add(memory.Span[i]);
                                     i++;
                                 }
 
-                                httpResponseContentLength = Int32.Parse(Encoding.ASCII.GetString(bytes.ToArray())); 
+                                httpResponseContentLength = int.Parse(
+                                    Encoding.ASCII.GetString(bytes.ToArray()));
                                 while (memory.Span[i] != 13 ||
                                        memory.Span[i + 1] != 10 ||
                                        memory.Span[i + 2] != 13 ||
@@ -232,18 +241,17 @@ namespace Kubernetes.PortForward.Manager.Server
                                 {
                                     i++;
                                 }
+
                                 httpResponseHeaderLength = i + 4;
                                 break;
                             }
                         }
 
                         if (httpResponseContentLength == 0)
-                            throw new InvalidOperationException($"Expected to find '{searchFor}'");
-                    }
-
-                    await using (var writer = new BinaryWriter(File.Open("c:\\Temp\\favicon.txt", FileMode.Append, FileAccess.Write)))
-                    {
-                        writer.Write(memory.Slice(httpResponseHeaderLength, receivedBytes - httpResponseHeaderLength).ToArray());
+                        {
+                            throw new InvalidOperationException(
+                                $"Expected to find '{ContentLengthKey}'");
+                        }
                     }
 
                     // When port number has been sent, data is sent:
@@ -254,11 +262,13 @@ namespace Kubernetes.PortForward.Manager.Server
                             CancellationToken)
                         .ConfigureAwait(false);
 
-                    totallyReceivedBytes += receivedBytes;
-                    if (totallyReceivedBytes == httpResponseHeaderLength +
+                    totalReceivedBytes += receivedBytes;
+                    if (totalReceivedBytes == httpResponseHeaderLength +
                         httpResponseContentLength)
                     {
-                        _logger.Info("Totally received {total} bytes, exiting", totallyReceivedBytes);
+                        _logger.Info(
+                            "Received {total} bytes in total, exiting",
+                            totalReceivedBytes);
                         break;
                     }
                 }
