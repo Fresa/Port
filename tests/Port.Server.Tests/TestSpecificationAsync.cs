@@ -6,7 +6,7 @@ using NLog.Extensions.Logging;
 using Test.It.With.XUnit;
 using Xunit.Abstractions;
 
-namespace Kubernetes.PortForward.Manager.Server.Tests
+namespace Port.Server.IntegrationTests
 {
     public class TestSpecificationAsync : XUnit2SpecificationAsync
     {

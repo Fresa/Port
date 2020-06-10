@@ -1,6 +1,6 @@
 ﻿using k8s;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     internal interface IKubernetesClientFactory
     {

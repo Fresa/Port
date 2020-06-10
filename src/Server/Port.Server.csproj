@@ -16,8 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client\Kubernetes.PortForward.Manager.Client.csproj" />
-    <ProjectReference Include="..\Shared\Kubernetes.PortForward.Manager.Shared.csproj" />
+    <ProjectReference Include="..\Client\Port.Client.csproj" />
+    <ProjectReference Include="..\Shared\Port.Shared.csproj" />
   </ItemGroup>
 
 

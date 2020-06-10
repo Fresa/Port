@@ -1,9 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
-using Kubernetes.PortForward.Manager.Shared;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Kubernetes.PortForward.Manager.Server.Controllers
+namespace Port.Server.Controllers
 {
     [ApiController]
     [Route("[controller]")]
@@ -18,7 +17,7 @@ namespace Kubernetes.PortForward.Manager.Server.Controllers
         }
 
         [HttpGet("{context}")]
-        public async Task<IEnumerable<Pod>> GetAsync(
+        public async Task<IEnumerable<Shared.Pod>> GetAsync(
             string context)
         {
             return await _kubernetesService.ListPodsInAllNamespacesAsync(

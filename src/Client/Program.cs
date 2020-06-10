@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Kubernetes.PortForward.Manager.Client
+namespace Port.Client
 {
     public class Program
     {

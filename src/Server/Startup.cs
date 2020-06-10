@@ -1,4 +1,3 @@
-using k8s;
 using Log.It;
 using Log.It.With.NLog;
 using Microsoft.AspNetCore.Builder;
@@ -11,7 +10,7 @@ using NLog.Extensions.Logging;
 using SimpleInjector;
 using LogFactory = Log.It.LogFactory;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     public class Startup
     {

@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Kubernetes.PortForward.Manager.Server.Tests
+namespace Port.Server.IntegrationTests
 {
     public class UnitTest1 : TestSpecificationAsync
     {

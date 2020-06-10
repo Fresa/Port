@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -9,7 +8,7 @@ using System.Threading.Tasks;
 using k8s;
 using Log.It;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     internal sealed class StreamForwarder : IAsyncDisposable
     {

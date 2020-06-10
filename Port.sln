@@ -3,15 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.PortForward.Manager.Client", "src\Client\Kubernetes.PortForward.Manager.Client.csproj", "{7260A6CB-E9F9-40BD-8270-69F5CFAC888D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Client", "src\Client\Port.Client.csproj", "{7260A6CB-E9F9-40BD-8270-69F5CFAC888D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.PortForward.Manager.Server", "src\Server\Kubernetes.PortForward.Manager.Server.csproj", "{04C9C561-5AFD-4DC3-9401-C8DAA6C88DCA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Server", "src\Server\Port.Server.csproj", "{04C9C561-5AFD-4DC3-9401-C8DAA6C88DCA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.PortForward.Manager.Shared", "src\Shared\Kubernetes.PortForward.Manager.Shared.csproj", "{2B765321-2D77-4DE8-BA13-24D559D868B6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Shared", "src\Shared\Port.Shared.csproj", "{2B765321-2D77-4DE8-BA13-24D559D868B6}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{CC72268D-FDB0-40D5-83B2-3392A057FEC3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetees.PortForward.Manager.Server.Tests", "tests\Kubernetes.PortForward.Manager.Server.Tests\Kubernetees.PortForward.Manager.Server.Tests.csproj", "{B6CD0ED9-B520-44E6-B035-86E8036C9B21}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Server.IntegrationTests", "tests\Port.Server.Tests\Port.Server.IntegrationTests.csproj", "{AE1A02CC-613D-461F-989C-C00D8F77199D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,16 +31,16 @@ Global
 		{2B765321-2D77-4DE8-BA13-24D559D868B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2B765321-2D77-4DE8-BA13-24D559D868B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2B765321-2D77-4DE8-BA13-24D559D868B6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B6CD0ED9-B520-44E6-B035-86E8036C9B21}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE1A02CC-613D-461F-989C-C00D8F77199D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE1A02CC-613D-461F-989C-C00D8F77199D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE1A02CC-613D-461F-989C-C00D8F77199D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE1A02CC-613D-461F-989C-C00D8F77199D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{B6CD0ED9-B520-44E6-B035-86E8036C9B21} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
+		{AE1A02CC-613D-461F-989C-C00D8F77199D} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {545068F2-D696-4259-B223-651868C08A1C}

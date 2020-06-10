@@ -1,5 +1,5 @@
 @page "/contexts/{Context}"
-@using Kubernetes.PortForward.Manager.Shared
+@using Port.Shared
 @inject HttpClient Http
 
 <h1>Port forwards</h1>
@@ -94,7 +94,7 @@ else
     private Deployment[] _deployments;
     private Pod[] _pods;
 
-    private List<IGrouping<string, Manager.Shared.PortForward>> _portForwardedServices;
+    private List<IGrouping<string, global::Port.Shared.PortForward>> _portForwardedServices;
 
     [Parameter]
     public string Context { get; set; }
@@ -108,7 +108,7 @@ else
             .SelectMany(service =>
                 service.Ports
                     .Select(port =>
-                        new Kubernetes.PortForward.Manager.Shared.PortForward
+                        new global::Port.Shared.PortForward
                         {
                             Namespace = service.Namespace,
                             Name = service.Name,
@@ -125,7 +125,7 @@ else
     }
 
     private async Task ChangePortForwardAsync(
-        Kubernetes.PortForward.Manager.Shared.PortForward portForward,
+        global::Port.Shared.PortForward portForward,
         bool enable)
     {
         if (enable)

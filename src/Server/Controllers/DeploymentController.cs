@@ -1,9 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
-using Kubernetes.PortForward.Manager.Shared;
 using Microsoft.AspNetCore.Mvc;
+using Port.Shared;
 
-namespace Kubernetes.PortForward.Manager.Server.Controllers
+namespace Port.Server.Controllers
 {
     [ApiController]
     [Route("[controller]")]

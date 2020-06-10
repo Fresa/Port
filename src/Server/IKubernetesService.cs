@@ -1,15 +1,15 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
-using Kubernetes.PortForward.Manager.Shared;
+using Port.Shared;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     public interface IKubernetesService
     {
         Task<IEnumerable<Deployment>>
             ListDeploymentsInAllNamespacesAsync(string context);
 
-        Task<IEnumerable<Pod>> ListPodsInAllNamespacesAsync(string context);
+        Task<IEnumerable<Shared.Pod>> ListPodsInAllNamespacesAsync(string context);
 
         Task<IEnumerable<Service>>
             ListServicesInAllNamespacesAsync(string context);

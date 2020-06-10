@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     internal sealed class SemaphoreSlimGate : IDisposable
     {

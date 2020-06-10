@@ -1,4 +1,4 @@
-﻿namespace Kubernetes.PortForward.Manager.Shared
+﻿namespace Port.Shared
 {
     public sealed class Deployment
     {

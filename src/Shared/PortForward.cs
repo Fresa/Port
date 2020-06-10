@@ -1,6 +1,6 @@
 ﻿using System.Net.Sockets;
 
-namespace Kubernetes.PortForward.Manager.Shared
+namespace Port.Shared
 {
     public sealed class PortForward
     {

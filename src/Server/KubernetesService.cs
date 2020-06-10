@@ -6,9 +6,9 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
-using Kubernetes.PortForward.Manager.Shared;
+using Port.Shared;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     internal sealed class KubernetesService : IKubernetesService,
         IAsyncDisposable
@@ -42,13 +42,13 @@ namespace Kubernetes.PortForward.Manager.Server
                 });
         }
 
-        public async Task<IEnumerable<Pod>> ListPodsInAllNamespacesAsync(
+        public async Task<IEnumerable<Shared.Pod>> ListPodsInAllNamespacesAsync(
             string context)
         {
             using var client = _clientFactory.Create(context);
             var pods = await client.ListPodForAllNamespacesAsync();
             return pods.Items.Select(
-                pod => new Pod
+                pod => new Shared.Pod
                 {
                     Namespace = pod.Metadata.NamespaceProperty,
                     Name = pod.Metadata.Name
@@ -67,7 +67,7 @@ namespace Kubernetes.PortForward.Manager.Server
                     Namespace = service.Metadata.NamespaceProperty,
                     Name = service.Metadata.Name,
                     Ports = service.Spec.Ports.Select(
-                        port => new Port
+                        port => new Shared.Port
                         {
                             Number = port.Port,
                             ProtocolType =
@@ -93,6 +93,55 @@ namespace Kubernetes.PortForward.Manager.Server
                         new[] { portForward.From },
                         "v4.channel.k8s.io")
                     .ConfigureAwait(false);
+
+            //var demux = new StreamDemuxer(webSocket, StreamType.PortForward);
+            //demux.Start();
+
+            //var stream = demux.GetStream(
+            //    ChannelIndex.StdIn, ChannelIndex.StdIn);
+
+            //IPAddress ipAddress = IPAddress.Loopback;
+            //IPEndPoint localEndPoint = new IPEndPoint(ipAddress, (int)portForward.To);
+            //Socket listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, portForward.ProtocolType);
+            //listener.Bind(localEndPoint);
+            //listener.Listen(100);
+
+            //Socket handler = null;
+
+            //// Note this will only accept a single connection
+            //var accept = Task.Run(() => {
+            //    while (true)
+            //    {
+            //        handler = listener.Accept();
+            //        var bytes = new byte[4096];
+            //        while (true)
+            //        {
+            //            int bytesRec = handler.Receive(bytes);
+            //            stream.Write(bytes, 0, bytesRec);
+            //            if (bytesRec == 0 || Encoding.ASCII.GetString(bytes, 0, bytesRec).IndexOf("<EOF>") > -1)
+            //            {
+            //                break;
+            //            }
+            //        }
+            //    }
+            //});
+
+            //var copy = Task.Run(() => {
+            //    var buff = new byte[4096];
+            //    while (true)
+            //    {
+            //        var read = stream.Read(buff, 0, 4096);
+            //        handler.Send(buff, read, 0);
+            //    }
+            //});
+
+            //await accept;
+            //await copy;
+            //if (handler != null)
+            //{
+            //    handler.Close();
+            //}
+            //listener.Close();
 
             var socketServer = SocketServer.Start(
                 IPAddress.Any,

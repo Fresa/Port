@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog.Web;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     public class Program
     {

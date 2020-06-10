@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     internal class DisposableAction : IDisposable
     {

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Log.It;
 
-namespace Kubernetes.PortForward.Manager.Server
+namespace Port.Server
 {
     internal class SocketServer : INetworkServer, IAsyncDisposable
     {
