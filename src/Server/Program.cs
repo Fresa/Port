@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog.Web;
@@ -21,6 +22,13 @@ namespace Port.Server
                 .ConfigureLogging(builder =>
                 {
                     builder.ClearProviders();
+                })
+                .ConfigureAppConfiguration((context, configurationBuilder) =>
+                {
+                    configurationBuilder
+                        .AddJsonFile("appsettings.json", false, true)
+                        .AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", true, true)
+                        .AddEnvironmentVariables();
                 })
                 .UseNLog();
     }

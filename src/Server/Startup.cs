@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
+using NLog.Web;
 using SimpleInjector;
 using LogFactory = Log.It.LogFactory;
 
@@ -32,9 +34,6 @@ namespace Port.Server
         public void ConfigureServices(
             IServiceCollection services)
         {
-            LogManager.Configuration =
-                new NLogLoggingConfiguration(Configuration.GetSection("NLog"));
-
             services.AddControllersWithViews();
             services.AddRazorPages();
 
@@ -51,6 +50,16 @@ namespace Port.Server
                     options.AddLogging();
                 });
 
+            services.AddLogging(
+                builder =>
+                {
+                    builder.ClearProviders();
+                    builder.AddNLog(Configuration);
+                    var nLogConfig = new NLogLoggingConfiguration(
+                        Configuration.GetSection("NLog"));
+                    LogManager.Configuration = nLogConfig;
+                });
+
             InitializeContainer();
         }
 
@@ -58,7 +67,7 @@ namespace Port.Server
         {
             _container.Register<IKubernetesService, KubernetesService>(
                 Lifestyle.Singleton);
-            _container.Register<KubernetesClientFactory>(
+            _container.Register<IKubernetesClientFactory, KubernetesClientFactory>(
                 Lifestyle.Singleton);
         }
 

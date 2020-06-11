@@ -6,7 +6,7 @@ using NLog.Extensions.Logging;
 using Test.It.With.XUnit;
 using Xunit.Abstractions;
 
-namespace Port.Server.IntegrationTests
+namespace Port.Server.IntegrationTests.TestFramework
 {
     public class TestSpecificationAsync : XUnit2SpecificationAsync
     {
