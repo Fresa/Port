@@ -3,11 +3,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
 
-namespace Port.Server.IntegrationTests.TestFramework
+namespace Port.Server
 {
     internal sealed class LogItHttpMessageHandlerDecorator : DelegatingHandler
     {
         private readonly ILogger _logger = LogFactory.Create<LogItHttpMessageHandlerDecorator>();
+
+        public LogItHttpMessageHandlerDecorator()
+        {
+            
+        }
 
         internal LogItHttpMessageHandlerDecorator(HttpMessageHandler httpMessageHandler) :
             base(httpMessageHandler)

@@ -12,7 +12,8 @@ namespace Port.Server.IntegrationTests
     public class Given_a_port_forwarding_endpoint
     {
         public partial class
-            When_requesting_to_port_forward : XUnit2ServiceSpecificationAsync<PortServerHost>
+            When_requesting_to_port_forward : XUnit2ServiceSpecificationAsync<
+                PortServerHost>
         {
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
@@ -23,10 +24,12 @@ namespace Port.Server.IntegrationTests
             protected override void Given(
                 IServiceContainer configurer)
             {
-                
+                configurer.RegisterSingleton(
+                    () => new KubernetesConfiguration());
             }
 
-            protected override async Task WhenAsync(CancellationToken cancellationToken)
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
             {
                 await Server.CreateHttpClient()
                     .PostAsJsonAsync(
@@ -40,7 +43,6 @@ namespace Port.Server.IntegrationTests
                 It_should_establish_a_web_socket_connection_to_k8s_api_server()
             {
             }
-
         }
     }
 }

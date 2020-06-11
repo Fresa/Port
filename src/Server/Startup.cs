@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Log.It;
 using Log.It.With.NLog;
 using Microsoft.AspNetCore.Builder;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
-using NLog.Web;
 using SimpleInjector;
 using LogFactory = Log.It.LogFactory;
 
@@ -65,10 +65,17 @@ namespace Port.Server
 
         private void InitializeContainer()
         {
-            _container.Register<IKubernetesService, KubernetesService>(
-                Lifestyle.Singleton);
-            _container.Register<IKubernetesClientFactory, KubernetesClientFactory>(
-                Lifestyle.Singleton);
+            _container
+                .RegisterSingleton<IKubernetesService, KubernetesService>();
+            _container
+                .RegisterSingleton<IKubernetesClientFactory,
+                    KubernetesClientFactory>();
+            _container.RegisterSingleton(
+                () => new KubernetesConfiguration(
+                    handlers: new DelegatingHandler[]
+                    {
+                        new LogItHttpMessageHandlerDecorator()
+                    }));
         }
 
         public void Configure(

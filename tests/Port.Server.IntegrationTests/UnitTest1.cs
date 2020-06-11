@@ -15,10 +15,10 @@ namespace Port.Server.IntegrationTests
         {
         }
 
-        [Fact]
+        [Fact(Skip = "Dependent on a real k8s cluster and services")]
         public async Task Test1()
         {
-            var factory = new KubernetesClientFactory();
+            var factory = new KubernetesClientFactory(new KubernetesConfiguration());
             var ks = new KubernetesService(factory);
             await ks.PortForwardAsync(
                 "kind-argo-demo-ci", new Shared.PortForward

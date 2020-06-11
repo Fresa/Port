@@ -3,8 +3,10 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Port.Server.IntegrationTests.TestFramework;
+using SimpleInjector;
 using Test.It.Specifications;
 using Test.It.While.Hosting.Your.Web.Application;
 
@@ -21,6 +23,11 @@ namespace Port.Server.IntegrationTests
             if (_host == null)
             {
                 _host = Program.CreateHostBuilder(new string[0])
+                    .ConfigureServices(
+                        collection => testConfigurer.Configure(
+                            new SimpleInjectorServiceContainer(
+                                collection.BuildServiceProvider()
+                                    .GetService<Container>())))
                     .ConfigureWebHost(builder => builder.UseTestServer())
                     .Build();
                 await _host.StartAsync(cancellationToken);
@@ -29,7 +36,8 @@ namespace Port.Server.IntegrationTests
             return this;
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken = default)
+        public async Task StopAsync(
+            CancellationToken cancellationToken = default)
         {
             if (_host != null)
             {
@@ -44,14 +52,18 @@ namespace Port.Server.IntegrationTests
 
         public HttpMessageHandler CreateHttpMessageHandler()
         {
-            return _host.GetTestServer().CreateHandler();
+            return _host.GetTestServer()
+                .CreateHandler();
         }
 
         public IWebSocketClient CreateWebSocketClient()
         {
-            return new TestServerWebSocketClient(_host.GetTestServer().CreateWebSocketClient());
+            return new TestServerWebSocketClient(
+                _host.GetTestServer()
+                    .CreateWebSocketClient());
         }
 
-        public Uri BaseAddress => _host.GetTestServer().BaseAddress;
+        public Uri BaseAddress => _host.GetTestServer()
+            .BaseAddress;
     }
 }

@@ -16,6 +16,7 @@ namespace Port.Server.IntegrationTests.TestFramework
     {
         private TWebApplicationHost _webApplicationHost;
         private readonly IDisposable _output;
+        private bool _stopped;
 
         protected XUnit2ServiceSpecificationAsync(ITestOutputHelper testOutputHelper)
         {
@@ -53,14 +54,18 @@ namespace Port.Server.IntegrationTests.TestFramework
         protected async Task StopAsync(CancellationToken cancellationToken = default)
         {
             await _webApplicationHost.StopAsync(cancellationToken);
+            _stopped = true;
         }
 
-        public virtual Task DisposeAsync()
+        public virtual async Task DisposeAsync()
         {
+            if (!_stopped)
+            {
+                await StopAsync();
+            }
             _webApplicationHost.Dispose();
             NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
             _output.Dispose();
-            return Task.CompletedTask;
         }
     }
 }

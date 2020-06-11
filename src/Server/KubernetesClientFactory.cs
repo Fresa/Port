@@ -4,12 +4,22 @@ namespace Port.Server
 {
     internal sealed class KubernetesClientFactory : IKubernetesClientFactory
     {
+        private readonly KubernetesConfiguration _configuration;
+
+        public KubernetesClientFactory(
+            KubernetesConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
+
         public IKubernetes Create(
             string context)
         {
-            return new k8s.Kubernetes(
+            return new Kubernetes(
                 KubernetesClientConfiguration.BuildConfigFromConfigFile(
-                    currentContext: context));
+                    currentContext: context,
+                    kubeconfigPath: _configuration.KubernetesConfigPath),
+                _configuration.Handlers);
         }
     }
 }
