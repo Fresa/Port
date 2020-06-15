@@ -16,6 +16,13 @@ namespace Port.Server.IntegrationTests
     {
         private IHost _host;
 
+        private TestServer GetTestServer()
+        {
+            var testServer = _host.GetTestServer();
+            testServer.PreserveExecutionContext = true;
+            return testServer;
+        }
+
         public async Task<IServer> StartAsync(
             ITestConfigurer testConfigurer,
             CancellationToken cancellationToken = default)
@@ -24,10 +31,16 @@ namespace Port.Server.IntegrationTests
             {
                 _host = Program.CreateHostBuilder(new string[0])
                     .ConfigureServices(
-                        collection => testConfigurer.Configure(
-                            new SimpleInjectorServiceContainer(
-                                collection.BuildServiceProvider()
-                                    .GetService<Container>())))
+                        collection =>
+                        {
+                            collection.AddControllers(options =>
+                                options.Filters.Add(new HttpResponseExceptionFilter()));
+                            testConfigurer.Configure(
+                                new SimpleInjectorServiceContainer(
+                                    collection.BuildServiceProvider()
+                                        .GetService<Container>()));
+
+                        })
                     .ConfigureWebHost(builder => builder.UseTestServer())
                     .Build();
                 await _host.StartAsync(cancellationToken);
@@ -52,18 +65,18 @@ namespace Port.Server.IntegrationTests
 
         public HttpMessageHandler CreateHttpMessageHandler()
         {
-            return _host.GetTestServer()
+            return GetTestServer()
                 .CreateHandler();
         }
 
         public IWebSocketClient CreateWebSocketClient()
         {
             return new TestServerWebSocketClient(
-                _host.GetTestServer()
+                GetTestServer()
                     .CreateWebSocketClient());
         }
 
-        public Uri BaseAddress => _host.GetTestServer()
+        public Uri BaseAddress => GetTestServer()
             .BaseAddress;
     }
 }
