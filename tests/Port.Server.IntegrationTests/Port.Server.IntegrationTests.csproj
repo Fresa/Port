@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="5.10.3" />
     <PackageReference Include="KubernetesClient" Version="2.0.22" />
     <PackageReference Include="Log.It.With.NLog" Version="2.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="3.1.5" />
@@ -24,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Server\Port.Server.csproj" />
+    <ProjectReference Include="..\Kubernetes.Test.API.Server\Kubernetes.Test.API.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

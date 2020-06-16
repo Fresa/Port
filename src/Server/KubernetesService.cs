@@ -94,55 +94,6 @@ namespace Port.Server
                         "v4.channel.k8s.io")
                     .ConfigureAwait(false);
 
-            //var demux = new StreamDemuxer(webSocket, StreamType.PortForward);
-            //demux.Start();
-
-            //var stream = demux.GetStream(
-            //    ChannelIndex.StdIn, ChannelIndex.StdIn);
-
-            //IPAddress ipAddress = IPAddress.Loopback;
-            //IPEndPoint localEndPoint = new IPEndPoint(ipAddress, (int)portForward.To);
-            //Socket listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, portForward.ProtocolType);
-            //listener.Bind(localEndPoint);
-            //listener.Listen(100);
-
-            //Socket handler = null;
-
-            //// Note this will only accept a single connection
-            //var accept = Task.Run(() => {
-            //    while (true)
-            //    {
-            //        handler = listener.Accept();
-            //        var bytes = new byte[4096];
-            //        while (true)
-            //        {
-            //            int bytesRec = handler.Receive(bytes);
-            //            stream.Write(bytes, 0, bytesRec);
-            //            if (bytesRec == 0 || Encoding.ASCII.GetString(bytes, 0, bytesRec).IndexOf("<EOF>") > -1)
-            //            {
-            //                break;
-            //            }
-            //        }
-            //    }
-            //});
-
-            //var copy = Task.Run(() => {
-            //    var buff = new byte[4096];
-            //    while (true)
-            //    {
-            //        var read = stream.Read(buff, 0, 4096);
-            //        handler.Send(buff, read, 0);
-            //    }
-            //});
-
-            //await accept;
-            //await copy;
-            //if (handler != null)
-            //{
-            //    handler.Close();
-            //}
-            //listener.Close();
-
             var socketServer = SocketServer.Start(
                 IPAddress.Any,
                 (int)portForward.To,

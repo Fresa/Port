@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,13 +16,18 @@ namespace Port.Server.IntegrationTests.TestFramework
         where TWebApplicationHost : IWebApplicationHost, new()
     {
         private TWebApplicationHost _webApplicationHost;
-        private readonly IDisposable _output;
         private bool _stopped;
 
-        protected XUnit2ServiceSpecificationAsync(ITestOutputHelper testOutputHelper)
+        private readonly List<IDisposable> _disposables =
+            new List<IDisposable>();
+        private readonly List<IAsyncDisposable> _asyncDisposables =
+            new List<IAsyncDisposable>();
+
+        protected XUnit2ServiceSpecificationAsync(
+            ITestOutputHelper testOutputHelper)
         {
             // Capture logs written to NLog and redirect it to the current session (if it belongs to it)
-            _output = Output.WriteTo(testOutputHelper);
+            DisposeOnTearDown(Output.WriteTo(testOutputHelper));
             NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
@@ -42,7 +48,8 @@ namespace Port.Server.IntegrationTests.TestFramework
             _webApplicationHost = new TWebApplicationHost();
             try
             {
-                await SetConfigurationAsync(_webApplicationHost, cancellationTokenSource.Token);
+                await SetConfigurationAsync(
+                    _webApplicationHost, cancellationTokenSource.Token);
             }
             finally
             {
@@ -51,21 +58,39 @@ namespace Port.Server.IntegrationTests.TestFramework
             }
         }
 
-        protected async Task StopAsync(CancellationToken cancellationToken = default)
+        protected T DisposeOnTearDown<T>(
+            T disposable)
+            where T : IDisposable
         {
-            await _webApplicationHost.StopAsync(cancellationToken);
-            _stopped = true;
+            _disposables.Add(disposable);
+            return disposable;
+        }
+
+        protected T DisposeAsyncOnTearDown<T>(
+            T disposable)
+            where T : IAsyncDisposable
+        {
+            _asyncDisposables.Add(disposable);
+            return disposable;
         }
 
         public virtual async Task DisposeAsync()
         {
-            if (!_stopped)
-            {
-                await StopAsync();
-            }
+            await _webApplicationHost.StopAsync();
+
             _webApplicationHost.Dispose();
+
+            foreach (var disposable in _disposables)
+            {
+                disposable.Dispose();
+            }
+
+            foreach (var asyncDisposable in _asyncDisposables)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+
             NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
-            _output.Dispose();
         }
     }
 }
