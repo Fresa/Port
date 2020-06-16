@@ -19,7 +19,11 @@ namespace Port.Server
                 KubernetesClientConfiguration.BuildConfigFromConfigFile(
                     currentContext: context,
                     kubeconfigPath: _configuration.KubernetesConfigPath),
-                _configuration.Handlers);
+                _configuration.Handlers)
+            {
+                CreateWebSocketBuilder =
+                    () => _configuration.WebSocketBuilder
+            };
         }
     }
 }
