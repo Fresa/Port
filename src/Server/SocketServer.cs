@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -9,7 +8,7 @@ using Log.It;
 
 namespace Port.Server
 {
-    internal class SocketServer : INetworkServer, IAsyncDisposable
+    internal class SocketServer : INetworkServer
     {
         private readonly ConcurrentQueue<INetworkClient> _clients =
             new ConcurrentQueue<INetworkClient>();

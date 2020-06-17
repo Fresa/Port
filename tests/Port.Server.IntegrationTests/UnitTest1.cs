@@ -19,7 +19,7 @@ namespace Port.Server.IntegrationTests
         public async Task Test1()
         {
             var factory = new KubernetesClientFactory(new KubernetesConfiguration());
-            var ks = new KubernetesService(factory);
+            var ks = new KubernetesService(factory, new SocketNetworkServerFactory());
             await ks.PortForwardAsync(
                 "kind-argo-demo-ci", new Shared.PortForward
                 {

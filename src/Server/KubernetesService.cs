@@ -14,6 +14,7 @@ namespace Port.Server
         IAsyncDisposable
     {
         private readonly IKubernetesClientFactory _clientFactory;
+        private readonly INetworkServerFactory _networkServerFactory;
 
         private readonly CancellationTokenSource _cancellationSource =
             new CancellationTokenSource();
@@ -22,9 +23,11 @@ namespace Port.Server
             new List<IAsyncDisposable>();
 
         public KubernetesService(
-            IKubernetesClientFactory clientFactory)
+            IKubernetesClientFactory clientFactory,
+            INetworkServerFactory networkServerFactory)
         {
             _clientFactory = clientFactory;
+            _networkServerFactory = networkServerFactory;
         }
 
         public async Task<IEnumerable<Deployment>>
@@ -94,7 +97,7 @@ namespace Port.Server
                         "v4.channel.k8s.io")
                     .ConfigureAwait(false);
 
-            var socketServer = SocketServer.Start(
+            var socketServer = _networkServerFactory.CreateAndStart(
                 IPAddress.Any,
                 (int)portForward.To,
                 portForward.ProtocolType);

@@ -76,6 +76,7 @@ namespace Port.Server
                     {
                         new LogItHttpMessageHandlerDecorator()
                     }));
+            _container.RegisterSingleton<INetworkServerFactory, SocketNetworkServerFactory>();
         }
 
         public void Configure(

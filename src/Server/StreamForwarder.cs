@@ -89,18 +89,9 @@ namespace Port.Server
             }
         }
 
-        private bool _started;
-
         private async Task StartCrossWiring(
             INetworkClient localSocket)
         {
-            //if (_started)
-            //{
-            //    return;
-            //}
-
-            //_started = true;
-
             await Task.WhenAll(
                 StartTransferDataFromRemoteToLocalSocket(localSocket),
                 StartTransferDataFromLocalToRemoteSocket(localSocket));

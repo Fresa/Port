@@ -50,7 +50,7 @@ namespace Port.Server.IntegrationTests
                             Name = "service1",
                             ProtocolType = ProtocolType.Tcp,
                             From = 2001,
-                            To = 5040
+                            To = 0
                         }, cancellationToken)
                     .ConfigureAwait(false);
             }
