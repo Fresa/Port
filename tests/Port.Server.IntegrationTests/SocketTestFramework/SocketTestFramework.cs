@@ -12,10 +12,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
-        public static InMemoryTestFramework InMemory(
+        public static InMemorySocketTestFramework InMemory(
             IMessageClientFactory messageClientFactory)
         {
-            return new InMemoryTestFramework(
+            return new InMemorySocketTestFramework(
                 messageClientFactory);
         }
 

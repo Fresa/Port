@@ -6,11 +6,11 @@ using System.Threading.Tasks.Dataflow;
 
 namespace Port.Server.IntegrationTests.SocketTestFramework
 {
-    internal sealed class InMemoryTestFramework : SocketTestFramework
+    internal sealed class InMemorySocketTestFramework : SocketTestFramework
     {
         private readonly IMessageClientFactory _messageClientFactory;
 
-        internal InMemoryTestFramework(
+        internal InMemorySocketTestFramework(
             IMessageClientFactory messageClientFactory)
         {
             _messageClientFactory = messageClientFactory;
