@@ -2,6 +2,7 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,7 +73,7 @@ namespace Kubernetes.Test.API.Server
                     })
                 .ConfigureWebHost(builder => builder.UseTestServer())
                 .UseNLog();
-            
+
             var testFramework = new TestFramework(hostBuilder);
             testFramework.Start();
             return testFramework;
@@ -86,11 +87,20 @@ namespace Kubernetes.Test.API.Server
 
         public WebSocketClient CreateWebSocketClient()
         {
-            return GetTestServer()
+            var webSocketClient = GetTestServer()
                 .CreateWebSocketClient();
+            webSocketClient.ConfigureRequest =
+                WebSocketRequestSubscription.WebSocketRequest;
+            return webSocketClient;
         }
 
-        public PodSubscriptions PodSubscriptions { get; } = new PodSubscriptions();
+        public PodSubscriptions PodSubscriptions { get; } =
+            new PodSubscriptions();
+
+        public WebSocketRequestSubscription WebSocketRequestSubscription
+        {
+            get;
+        } = new WebSocketRequestSubscription();
 
         public async ValueTask DisposeAsync()
         {
@@ -98,6 +108,4 @@ namespace Kubernetes.Test.API.Server
             _host.Dispose();
         }
     }
-
-    
 }
