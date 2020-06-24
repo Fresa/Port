@@ -1,8 +1,8 @@
 ﻿namespace Port.Server.IntegrationTests.SocketTestFramework
 {
-    internal interface IMessageClientFactory
+    internal interface IMessageClientFactory<T>
     {
-        IMessageClient Create(
+        IMessageClient<T> Create(
             INetworkClient networkClient);
     }
 }

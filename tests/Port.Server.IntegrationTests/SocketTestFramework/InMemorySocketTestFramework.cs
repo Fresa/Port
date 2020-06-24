@@ -8,20 +8,13 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 {
     internal sealed class InMemorySocketTestFramework : SocketTestFramework
     {
-        private readonly IMessageClientFactory _messageClientFactory;
-
-        internal InMemorySocketTestFramework(
-            IMessageClientFactory messageClientFactory)
-        {
-            _messageClientFactory = messageClientFactory;
-        }
-
         private readonly InMemoryNetworkServerFactory _networkServerFactory =
             new InMemoryNetworkServerFactory();
         public INetworkServerFactory NetworkServerFactory
             => _networkServerFactory;
     
-        public async Task<ISendingClient> CreateClientAsync(
+        public async Task<ISendingClient<T>> ConnectAsync<T>(
+            IMessageClientFactory<T> messageClientFactory,
             IPAddress address,
             int port,
             ProtocolType protocolType,
@@ -35,15 +28,13 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                 new CrossWiredMemoryNetworkClient(second, first);
             
             var requestMessageClient =
-                _messageClientFactory.Create(requestClient);
+                messageClientFactory.Create(requestClient);
             ReceiveMessagesFor(requestMessageClient);
-            
             var server = _networkServerFactory.Get(
                 address, port, protocolType);
             await server
                 .SendAsync(responseClient, cancellationToken)
                 .ConfigureAwait(false);
-            
             return requestMessageClient;
         }
     }

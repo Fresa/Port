@@ -1,11 +1,12 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Port.Server.IntegrationTests.SocketTestFramework
 {
-    public interface IReceivingClient
+    public interface IReceivingClient<T> : IAsyncDisposable
     {
-        ValueTask<IMessage> ReceiveAsync(
+        ValueTask<T> ReceiveAsync(
             CancellationToken cancellationToken = default);
     }
 }

@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks.Dataflow;
@@ -7,10 +9,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 {
     internal sealed class InMemoryNetworkServerFactory : INetworkServerFactory
     {
-        private readonly Dictionary<string, BufferBlock<INetworkClient>>
+        private readonly ConcurrentDictionary<string, BufferBlock<INetworkClient>>
             _networkServers
-                = new Dictionary<string, BufferBlock<INetworkClient>>();
-
+                = new ConcurrentDictionary<string, BufferBlock<INetworkClient>>();
+        
         internal BufferBlock<INetworkClient> Get(
             IPAddress address,
             int port,
@@ -30,8 +32,13 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             int port,
             ProtocolType protocolType)
         {
+            var socketId = GetSocketId(address, port, protocolType);
             var clients = new BufferBlock<INetworkClient>();
-            _networkServers.Add(GetSocketId(address, port, protocolType), clients);
+            if (_networkServers.TryAdd(
+                socketId, clients) == false)
+            {
+                throw new InvalidOperationException($"Socket {socketId} has already started");
+            }
             return InMemoryServer.Start(clients);
         }
     }

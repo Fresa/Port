@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,15 +13,13 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
-        public static InMemorySocketTestFramework InMemory(
-            IMessageClientFactory messageClientFactory)
+        public static InMemorySocketTestFramework InMemory()
         {
-            return new InMemorySocketTestFramework(
-                messageClientFactory);
+            return new InMemorySocketTestFramework();
         }
 
-        protected void ReceiveMessagesFor(
-            IMessageClient client)
+        protected void ReceiveMessagesFor<T>(
+            IReceivingClient<T> client)
         {
             var task = Task.Run(
                 async () =>
@@ -36,11 +35,11 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                                 .ConfigureAwait(false);
 
                             if (!_subscriptions.TryGetValue(
-                                receivedMessage.Type,
+                                receivedMessage.GetType(),
                                 out var subscription))
                             {
                                 throw new InvalidOperationException(
-                                    $"Missing subscription for {receivedMessage.Type}");
+                                    $"Missing subscription for {receivedMessage.GetType()}");
                             }
 
                             await subscription(
@@ -61,13 +60,11 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             new Dictionary<Type, MessageSubscription>();
 
         private delegate Task MessageSubscription(
-            IMessage message,
+            object message,
             CancellationToken cancellationToken = default);
 
-        public SocketTestFramework On<TRequestMessage, TResponseMessage>(
+        public SocketTestFramework On<TRequestMessage>(
             Action<TRequestMessage> subscription)
-            where TRequestMessage : IRespond<TResponseMessage>, IMessage
-            where TResponseMessage : IMessage
         {
             _subscriptions.Add(
                 typeof(TRequestMessage),
@@ -81,8 +78,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         public SocketTestFramework On<TRequestMessage, TResponseMessage>(
             Func<TRequestMessage, Task> subscription)
-            where TRequestMessage : IRespond<TResponseMessage>, IMessage
-            where TResponseMessage : IMessage
+            where TRequestMessage : IRespond<TResponseMessage>
         {
             _subscriptions.Add(
                 typeof(TRequestMessage),
@@ -95,8 +91,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         public SocketTestFramework On<TRequestMessage, TResponseMessage>(
             Func<TRequestMessage, CancellationToken, Task>
                 subscription)
-            where TRequestMessage : IRespond<TResponseMessage>, IMessage
-            where TResponseMessage : IMessage
+            where TRequestMessage : IRespond<TResponseMessage>
         {
             _subscriptions.Add(
                 typeof(TRequestMessage),
