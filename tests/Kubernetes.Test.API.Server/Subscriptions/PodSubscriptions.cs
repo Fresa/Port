@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Kubernetes.Test.API.Server.Controllers;
+using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Kubernetes.Test.API.Server.Subscriptions

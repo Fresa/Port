@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Kubernetes.Test.API.Server.Controllers
@@ -24,43 +25,5 @@ namespace Kubernetes.Test.API.Server.Controllers
             return await _testFramework.PodSubscriptions.PortForward(
                 new PortForward(@namespace, name, ports));
         }
-    }
-
-    public abstract class Workload
-    {
-        protected internal Workload(
-            string @namespace)
-        {
-            Namespace = @namespace;
-        }
-
-        public string Namespace { get; }
-    }
-
-    public abstract class Pod : Workload
-    {
-        protected internal Pod(
-            string @namespace,
-            string name)
-            : base(@namespace)
-        {
-            Name = name;
-        }
-
-        public string Name { get; }
-    }
-
-    public sealed class PortForward : Pod
-    {
-        internal PortForward(
-            string @namespace,
-            string name,
-            int[] ports)
-            : base(@namespace, name)
-        {
-            Ports = ports;
-        }
-
-        public int[] Ports { get; }
     }
 }
