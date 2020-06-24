@@ -14,19 +14,15 @@ using Xunit.Abstractions;
 
 namespace Port.Server.IntegrationTests
 {
-    public class Given_a_port_forwarding_endpoint
+    public partial class Given_a_port_forwarding_endpoint
     {
         public partial class
             When_requesting_to_port_forward : XUnit2ServiceSpecificationAsync<
                 PortServerHost>
         {
-            private Kubernetes.Test.API.Server.TestFramework _k8sApiServer;
             private HttpResponseMessage _response;
-
-            private InMemorySocketTestFramework
-                _portforwardingSocketTestFramework;
-
             private HttpRequest _webSocketRequest;
+            private Fixture _fixture;
 
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
@@ -37,21 +33,13 @@ namespace Port.Server.IntegrationTests
             protected override void Given(
                 IServiceContainer configurer)
             {
-                _portforwardingSocketTestFramework =
-                    DisposeAsyncOnTearDown(
-                        SocketTestFramework.SocketTestFramework.InMemory());
-                _portforwardingSocketTestFramework.On<byte[]>(respond => { });
-                configurer.RegisterSingleton(
-                    () => _portforwardingSocketTestFramework
-                        .NetworkServerFactory);
+                _fixture = DisposeAsyncOnTearDown(new Fixture(configurer));
+                _fixture.PortforwardingSocketTestFramework.On<byte[]>(
+                    respond => { });
 
-                _k8sApiServer =
-                    DisposeAsyncOnTearDown(
-                        Kubernetes.Test.API.Server.TestFramework.Start());
-                _k8sApiServer.WebSocketRequestSubscription.OnWebSocketRequest(
-                    request => { _webSocketRequest = request; });
-                configurer.RegisterSingleton(
-                    () => _k8sApiServer.CreateKubernetesConfiguration());
+                _fixture.K8sApiServer.WebSocketRequestSubscription
+                    .OnWebSocketRequest(
+                        request => { _webSocketRequest = request; });
             }
 
             protected override async Task WhenAsync(
@@ -71,9 +59,10 @@ namespace Port.Server.IntegrationTests
                     .ConfigureAwait(false);
 
                 var client =
-                    await _portforwardingSocketTestFramework.ConnectAsync(
-                        new ByteArrayMessageClientFactory(), IPAddress.Any,
-                        1000, ProtocolType.Tcp, cancellationToken);
+                    await _fixture.PortforwardingSocketTestFramework
+                        .ConnectAsync(
+                            new ByteArrayMessageClientFactory(), IPAddress.Any,
+                            1000, ProtocolType.Tcp, cancellationToken);
             }
 
             [Fact]
