@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
 using Test.It;
@@ -24,7 +26,7 @@ namespace Port.Server.IntegrationTests
             private HttpResponseMessage _response;
             private Fixture _fixture;
             private string _portForwardResponse;
-            private ReadOnlyMemory<byte> _webSocketMessageReveived;
+            private ReadOnlySequence<byte> _webSocketMessageReveived;
 
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
@@ -41,11 +43,12 @@ namespace Port.Server.IntegrationTests
                         Encoding.ASCII.GetString(bytes));
 
                 _fixture.K8sApiServer.WebSocketRequestSubscription
-                    .OnWebSocketMessage("/api/v1/namespaces/test/pods/service1/portforward", 2001, memory =>
-                    {
-                        _webSocketMessageReveived = memory;
-                        return new ValueTask<byte[]>();
-                    });
+                    .OnWebSocketMessage(
+                        new PortForward("test", "service1", 2001), memory =>
+                        {
+                            _webSocketMessageReveived = memory;
+                            return new ValueTask<byte[]>();
+                        });
             }
 
             protected override async Task WhenAsync(
@@ -80,8 +83,8 @@ namespace Port.Server.IntegrationTests
             public void
                 It_should_request_a_web_socket_connection_to_k8s_api_server_at_a_port()
             {
-                _webSocketMessageReveived.Should()
-                    .NotBeNull();
+                _webSocketMessageReveived.Length.Should()
+                    .BeGreaterThan(0);
             }
 
             [Fact(DisplayName = "It should start port forwarding")]

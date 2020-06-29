@@ -19,7 +19,9 @@ namespace Kubernetes.Test.API.Server
         public void ConfigureServices(
             IServiceCollection services)
         {
-            services.AddTransient<WebSocketMiddleware>();
+            services.AddControllers();
+            services.AddMvc();
+            services.AddTransient<WebSocketReceiver>();
         }
 
         public void Configure(
@@ -30,9 +32,17 @@ namespace Kubernetes.Test.API.Server
             {
                 app.UseDeveloperExceptionPage();
             }
-
+            
+            app.UseHttpsRedirection();
+            app.UseRouting();
             app.UseWebSockets();
-            app.UseMiddleware<WebSocketMiddleware>();
+
+            app.UseEndpoints(
+                endpoints =>
+                {
+                    endpoints.MapControllers();
+                });
+
         }
     }
 }

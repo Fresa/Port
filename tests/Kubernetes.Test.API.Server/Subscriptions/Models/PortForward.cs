@@ -1,13 +1,20 @@
-﻿namespace Kubernetes.Test.API.Server.Subscriptions.Models
+﻿using System;
+using System.Linq;
+
+namespace Kubernetes.Test.API.Server.Subscriptions.Models
 {
     public sealed class PortForward : Pod
     {
-        internal PortForward(
+        public PortForward(
             string @namespace,
             string name,
-            int[] ports)
+            params int[] ports)
             : base(@namespace, name)
         {
+            if (ports.Any() == false)
+            {
+                throw new ArgumentOutOfRangeException(nameof(ports), "Must specify at least one port");
+            }
             Ports = ports;
         }
 
