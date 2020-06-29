@@ -23,8 +23,8 @@ namespace Port.Server.IntegrationTests
             await ks.PortForwardAsync(
                 "kind-argo-demo-ci", new Shared.PortForward
                 {
-                    To = 2746,
-                    From = 2746,
+                    LocalPort = 2746,
+                    PodPort = 2746,
                     ProtocolType = ProtocolType.Tcp,
                     Namespace = "argo",
                     Name = "argo-server-5f5c647dcb-bkcz6"

@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
 using Test.It;
@@ -23,9 +22,9 @@ namespace Port.Server.IntegrationTests
                 PortServerHost>
         {
             private HttpResponseMessage _response;
-            private HttpRequest _webSocketRequest;
             private Fixture _fixture;
             private string _portForwardResponse;
+            private ReadOnlyMemory<byte> _webSocketMessageReveived;
 
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
@@ -42,8 +41,11 @@ namespace Port.Server.IntegrationTests
                         Encoding.ASCII.GetString(bytes));
 
                 _fixture.K8sApiServer.WebSocketRequestSubscription
-                    .OnWebSocketRequest(
-                        request => { _webSocketRequest = request; });
+                    .OnWebSocketMessage("/api/v1/namespaces/test/pods/service1/portforward", 2001, memory =>
+                    {
+                        _webSocketMessageReveived = memory;
+                        return new ValueTask<byte[]>();
+                    });
             }
 
             protected override async Task WhenAsync(
@@ -57,8 +59,8 @@ namespace Port.Server.IntegrationTests
                             Namespace = "test",
                             Name = "service1",
                             ProtocolType = ProtocolType.Tcp,
-                            From = 2001,
-                            To = 1000
+                            PodPort = 2001,
+                            LocalPort = 1000
                         }, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -78,14 +80,8 @@ namespace Port.Server.IntegrationTests
             public void
                 It_should_request_a_web_socket_connection_to_k8s_api_server_at_a_port()
             {
-                _webSocketRequest.Path.Value.Should()
-                    .Be("/api/v1/namespaces/test/pods/service1/portforward");
-                _webSocketRequest.Query.Should()
-                    .HaveCount(1)
-                    .And
-                    .Contain(
-                        pair => pair.Key == "ports" &&
-                                pair.Value == "2001");
+                _webSocketMessageReveived.Should()
+                    .NotBeNull();
             }
 
             [Fact(DisplayName = "It should start port forwarding")]

@@ -2,7 +2,6 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,11 +86,8 @@ namespace Kubernetes.Test.API.Server
 
         public WebSocketClient CreateWebSocketClient()
         {
-            var webSocketClient = GetTestServer()
+            return GetTestServer()
                 .CreateWebSocketClient();
-            webSocketClient.ConfigureRequest =
-                WebSocketRequestSubscription.WebSocketRequest;
-            return webSocketClient;
         }
 
         public PodSubscriptions PodSubscriptions { get; } =

@@ -7,7 +7,7 @@ namespace Port.Shared
         public string Name { get; set; }
         public string Namespace { get; set; }
         public ProtocolType ProtocolType { get; set; }
-        public int From { get; set; }
-        public int? To { get; set; }
+        public int PodPort { get; set; }
+        public int? LocalPort { get; set; }
     }
 }

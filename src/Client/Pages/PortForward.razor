@@ -73,10 +73,10 @@ else
                 <tr>
                     <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Namespace : "")</td>
                     <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Name : "")</td>
-                    <td>@portForward.From</td>
+                    <td>@portForward.PodPort</td>
                     <td>@portForward.ProtocolType</td>
                     <td>
-                        <MatTextField TValue="int?" @bind-Value="@portForward.To"/>
+                        <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort"/>
                     </td>
                     <td>
                         <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))"/>
@@ -113,7 +113,7 @@ else
                             Namespace = service.Namespace,
                             Name = service.Name,
                             ProtocolType = port.ProtocolType,
-                            From = port.Number
+                            PodPort = port.Number
                         }))
             .GroupBy(forward => $"{forward.Namespace}/{forward.Name}")
             .ToList();

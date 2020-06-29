@@ -1,4 +1,3 @@
-using System.Net.WebSockets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -9,18 +8,23 @@ namespace Kubernetes.Test.API.Server
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
+        public Startup(
+            IConfiguration configuration)
         {
             Configuration = configuration;
         }
 
         public IConfiguration Configuration { get; }
 
-        public void ConfigureServices(IServiceCollection _)
+        public void ConfigureServices(
+            IServiceCollection services)
         {
+            services.AddTransient<WebSocketMiddleware>();
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(
+            IApplicationBuilder app,
+            IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -28,18 +32,7 @@ namespace Kubernetes.Test.API.Server
             }
 
             app.UseWebSockets();
-
-            app.Use(async (context, next) =>
-            {
-                if (context.WebSockets.IsWebSocketRequest)
-                {
-                    WebSocket webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                }
-                else
-                {
-                    await next();
-                }
-            });
+            app.UseMiddleware<WebSocketMiddleware>();
         }
     }
 }

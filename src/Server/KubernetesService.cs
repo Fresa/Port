@@ -83,7 +83,7 @@ namespace Port.Server
             string context,
             Shared.PortForward portForward)
         {
-            if (!portForward.To.HasValue)
+            if (!portForward.LocalPort.HasValue)
             {
                 return;
             }
@@ -93,13 +93,13 @@ namespace Port.Server
             var webSocket =
                 await client.WebSocketNamespacedPodPortForwardAsync(
                         portForward.Name, portForward.Namespace,
-                        new[] { portForward.From },
+                        new[] { portForward.PodPort },
                         "v4.channel.k8s.io")
                     .ConfigureAwait(false);
 
             var socketServer = _networkServerFactory.CreateAndStart(
                 IPAddress.Any,
-                (int)portForward.To,
+                (int)portForward.LocalPort,
                 portForward.ProtocolType);
             _disposables.Add(socketServer);
 
