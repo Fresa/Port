@@ -16,7 +16,6 @@ namespace Port.Server.IntegrationTests.TestFramework
         where TWebApplicationHost : IWebApplicationHost, new()
     {
         private TWebApplicationHost _webApplicationHost;
-        private bool _stopped;
 
         private readonly List<IDisposable> _disposables =
             new List<IDisposable>();

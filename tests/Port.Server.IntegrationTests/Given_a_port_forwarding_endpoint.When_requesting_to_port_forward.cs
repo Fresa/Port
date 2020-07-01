@@ -17,6 +17,8 @@ using Port.Server.IntegrationTests.TestFramework;
 using Test.It;
 using Xunit;
 using Xunit.Abstractions;
+using Console = System.Console;
+using Exception = System.Exception;
 
 namespace Port.Server.IntegrationTests
 {
@@ -29,8 +31,10 @@ namespace Port.Server.IntegrationTests
             private HttpResponseMessage _response;
             private Fixture _fixture;
             private string _portForwardResponse;
-            private readonly List<byte> _webSocketMessageReveived = new List<byte>();
-            
+
+            private readonly List<byte> _webSocketMessageReveived =
+                new List<byte>();
+
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
                 : base(testOutputHelper)
@@ -47,19 +51,55 @@ namespace Port.Server.IntegrationTests
 
                 _fixture.K8sApiServer.Pod.PortForward
                     .OnConnected(
-                        new PortForward("test", "service1", 2001), async (WebSocket socket, CancellationToken cancellationToken) =>
+                        new PortForward("test", "service1", 2001), async (
+                            socket,
+                            cancellationToken) =>
                         {
-                            using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
-                            var memory = memoryOwner.Memory;
-                            ValueWebSocketReceiveResult readResult;
-                            do
+                            try
                             {
-                                readResult = await socket.ReceiveAsync(
-                                        memory,
-                                        cancellationToken)
+                                // todo: send [channel][port high byte][port low byte]
+                                using var memoryOwner =
+                                    MemoryPool<byte>.Shared.Rent(65536);
+                                var memory = memoryOwner.Memory;
+                                ValueWebSocketReceiveResult readResult;
+                                do
+                                {
+                                    readResult = await socket.ReceiveAsync(
+                                            memory,
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
+                                    _webSocketMessageReveived.AddRange(
+                                        memory.Slice(0, readResult.Count)
+                                            .ToArray());
+                                } while (readResult.EndOfMessage == false &&
+                                         cancellationToken
+                                             .IsCancellationRequested == false);
+
+                                // todo: send response
+                            }
+                            catch when (cancellationToken
+                                .IsCancellationRequested)
+                            {
+                                await socket.CloseOutputAsync(
+                                        WebSocketCloseStatus.NormalClosure,
+                                        "Socket closed",
+                                        CancellationToken.None)
                                     .ConfigureAwait(false);
-                                _webSocketMessageReveived.AddRange(memory.Slice(0, readResult.Count).ToArray());
-                            } while (readResult.EndOfMessage == false);
+                            }
+                            catch
+                            {
+                                if (socket.State != WebSocketState.Closed &&
+                                    socket.State != WebSocketState.Aborted)
+                                {
+                                    await socket.CloseAsync(
+                                            WebSocketCloseStatus.NormalClosure,
+                                            "Socket closed",
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
+                                }
+
+                                throw;
+                            }
                         });
             }
 
@@ -96,9 +136,14 @@ namespace Port.Server.IntegrationTests
             {
                 _webSocketMessageReveived.Should()
                     .HaveCount(_fixture.Request.Length + 1);
-                _webSocketMessageReveived[0].Should()
+                _webSocketMessageReveived[0]
+                    .Should()
                     .Be((byte)ChannelIndex.StdIn);
-                Encoding.ASCII.GetString(_webSocketMessageReveived.GetRange(1, _fixture.Request.Length).ToArray()).Should()
+                Encoding.ASCII.GetString(
+                        _webSocketMessageReveived.GetRange(
+                                1, _fixture.Request.Length)
+                            .ToArray())
+                    .Should()
                     .Be(_fixture.Request);
             }
 
