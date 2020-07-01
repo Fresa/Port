@@ -90,13 +90,8 @@ namespace Kubernetes.Test.API.Server
                 .CreateWebSocketClient();
         }
 
-        public PodSubscriptions PodSubscriptions { get; } =
+        public PodSubscriptions Pod { get; } =
             new PodSubscriptions();
-
-        public WebSocketRequestSubscription WebSocketRequestSubscription
-        {
-            get;
-        } = new WebSocketRequestSubscription();
 
         public async ValueTask DisposeAsync()
         {

@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using k8s;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
@@ -26,8 +29,8 @@ namespace Port.Server.IntegrationTests
             private HttpResponseMessage _response;
             private Fixture _fixture;
             private string _portForwardResponse;
-            private ReadOnlySequence<byte> _webSocketMessageReveived;
-
+            private readonly List<byte> _webSocketMessageReveived = new List<byte>();
+            
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
                 : base(testOutputHelper)
@@ -42,12 +45,21 @@ namespace Port.Server.IntegrationTests
                     bytes => _portForwardResponse =
                         Encoding.ASCII.GetString(bytes));
 
-                _fixture.K8sApiServer.WebSocketRequestSubscription
-                    .OnWebSocketMessage(
-                        new PortForward("test", "service1", 2001), memory =>
+                _fixture.K8sApiServer.Pod.PortForward
+                    .OnConnected(
+                        new PortForward("test", "service1", 2001), async (WebSocket socket, CancellationToken cancellationToken) =>
                         {
-                            _webSocketMessageReveived = memory;
-                            return new ValueTask<byte[]>();
+                            using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
+                            var memory = memoryOwner.Memory;
+                            ValueWebSocketReceiveResult readResult;
+                            do
+                            {
+                                readResult = await socket.ReceiveAsync(
+                                        memory,
+                                        cancellationToken)
+                                    .ConfigureAwait(false);
+                                _webSocketMessageReveived.AddRange(memory.Slice(0, readResult.Count).ToArray());
+                            } while (readResult.EndOfMessage == false);
                         });
             }
 
@@ -79,20 +91,30 @@ namespace Port.Server.IntegrationTests
 
             [Fact(
                 DisplayName =
-                    @"It should request a web socket connection to k8s api server at a port")]
-            public void
-                It_should_request_a_web_socket_connection_to_k8s_api_server_at_a_port()
+                    "k8s api server should receive the request message sent")]
+            public void TestReceiveRequestMessage()
             {
-                _webSocketMessageReveived.Length.Should()
-                    .BeGreaterThan(0);
+                _webSocketMessageReveived.Should()
+                    .HaveCount(_fixture.Request.Length + 1);
+                _webSocketMessageReveived[0].Should()
+                    .Be((byte)ChannelIndex.StdIn);
+                Encoding.ASCII.GetString(_webSocketMessageReveived.GetRange(1, _fixture.Request.Length).ToArray()).Should()
+                    .Be(_fixture.Request);
             }
 
             [Fact(DisplayName = "It should start port forwarding")]
             public void
-                It_should_start_port_forwarding()
+                TestStartPortForwarding()
             {
                 _response.StatusCode.Should()
                     .Be(HttpStatusCode.OK);
+            }
+
+            [Fact(DisplayName = "It should receive a http response")]
+            public void TestReceiveResponse()
+            {
+                _portForwardResponse.Should()
+                    .Be(_fixture.Response);
             }
 
             internal sealed class Fixture : IAsyncDisposable

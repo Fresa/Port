@@ -1,5 +1,4 @@
-﻿using System.IO.Pipelines;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -11,14 +10,14 @@ namespace Kubernetes.Test.API.Server.Controllers
     public class PodController : ControllerBase
     {
         private readonly TestFramework _testFramework;
-        private readonly WebSocketReceiver _webSocketReceiver;
+        private readonly PortForwardSocketFactory _portForwardSocketFactory;
 
         public PodController(
             TestFramework testFramework,
-            WebSocketReceiver webSocketReceiver)
+            PortForwardSocketFactory portForwardSocketFactory)
         {
             _testFramework = testFramework;
-            _webSocketReceiver = webSocketReceiver;
+            _portForwardSocketFactory = portForwardSocketFactory;
         }
 
         [HttpGet("{name}/portforward")]
@@ -34,22 +33,34 @@ namespace Kubernetes.Test.API.Server.Controllers
                 var webSocket = await HttpContext.WebSockets
                     .AcceptWebSocketAsync()
                     .ConfigureAwait(false);
-                var reader = _webSocketReceiver.Start(webSocket);
-                ReadResult result;
-                do
-                {
-                    result = await reader.ReadAsync(cancellationToken)
-                        .ConfigureAwait(false);
-                    await _testFramework.WebSocketRequestSubscription
-                        .WebSocketMessageReceivedAsync(
-                            new PortForward(@namespace, name, ports), result.Buffer)
-                        .ConfigureAwait(false);
 
-                } while (result.IsCanceled == false &&
-                         result.IsCompleted == false);
-
-                await reader.CompleteAsync()
+                //var portForwarder = _portForwardSocketFactory
+                //    .Create(webSocket);
+                //await using (portForwarder
+                //    .ConfigureAwait(false))
+                //{
+                var subscription = new PortForward(@namespace, name, ports);
+                await _testFramework.Pod.PortForward.WaitAsync(
+                        subscription, webSocket, cancellationToken)
                     .ConfigureAwait(false);
+
+                //ReadResult result;
+                //do
+                //{
+                //    result = await portForwarder.Reader.ReadAsync(cancellationToken)
+                //        .ConfigureAwait(false);
+                //    await _testFramework.Pod.PortForward
+                //        .MessageReceivedAsync(
+                //            new PortForward(@namespace, name, ports), result.Buffer)
+                //        .ConfigureAwait(false);
+
+                //} while (result.IsCanceled == false &&
+                //         result.IsCompleted == false);
+
+                //    await portForwarder.Reader.CompleteAsync()
+                //        .ConfigureAwait(false);
+                //}
+
                 return Ok();
             }
 

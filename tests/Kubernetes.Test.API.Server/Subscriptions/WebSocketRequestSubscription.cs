@@ -1,8 +1,9 @@
 using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.WebSockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
 
@@ -11,25 +12,69 @@ namespace Kubernetes.Test.API.Server.Subscriptions
     public sealed class WebSocketRequestSubscription
     {
         private readonly ConcurrentDictionary<string,
-                Func<ReadOnlySequence<byte>, ValueTask<byte[]>>>
-            _onWebSocketMessageSubscriptions =
-                new ConcurrentDictionary<string,
-                    Func<ReadOnlySequence<byte>, ValueTask<byte[]>>
-                >();
+                OnConnectedSocketAsync>
+            _onConnectedPortForwarderSubscriptions =
+                new ConcurrentDictionary<string, OnConnectedSocketAsync>();
 
-        internal async ValueTask WebSocketMessageReceivedAsync(
+        private readonly ConcurrentDictionary<PortForward,
+                OnConnectedWebSocketAsync>
+            _onConnectedWebSocketSubscriptions =
+                new ConcurrentDictionary<PortForward, OnConnectedWebSocketAsync>();
+
+
+        public delegate Task OnConnectedSocketAsync(
+            PortForwardSocket portForwardSocket,
+            CancellationToken cancellationToken = default);
+
+        public delegate Task OnConnectedWebSocketAsync(
+            WebSocket portForwardSocket,
+            CancellationToken cancellationToken = default);
+
+        internal async Task WaitAsync(
             PortForward portForward,
-            ReadOnlySequence<byte> message)
+            WebSocket webSocket,
+            CancellationToken cancellationToken = default)
+        {
+            if (_onConnectedWebSocketSubscriptions.TryGetValue(
+                portForward, out var subscription))
+            {
+                await subscription.Invoke(webSocket, cancellationToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Missing subscription for websocket messages sent to {portForward}");
+        }
+
+        public void OnConnected(
+            PortForward portForward,
+            OnConnectedWebSocketAsync asyncSubscription)
+        {
+            if (_onConnectedWebSocketSubscriptions.TryAdd(
+                portForward, asyncSubscription))
+            {
+                return;
+            }
+
+            throw new ArgumentException(
+                $"Subscription for {portForward} already exists");
+        }
+
+
+        internal async Task WaitAsync(
+            PortForward portForward,
+            PortForwardSocket portForwardSocket)
         {
             var keys = GetWebSocketMessageSubscriptionIds(portForward);
             var tasks = keys.Select(
                 async
                     key =>
                 {
-                    if (_onWebSocketMessageSubscriptions.TryGetValue(
+                    if (_onConnectedPortForwarderSubscriptions.TryGetValue(
                         key, out var subscription))
                     {
-                        await subscription.Invoke(message)
+                        await subscription.Invoke(portForwardSocket)
                             .ConfigureAwait(false);
                         return;
                     }
@@ -40,15 +85,15 @@ namespace Kubernetes.Test.API.Server.Subscriptions
             await Task.WhenAll(tasks);
         }
 
-        public void OnWebSocketMessage(
+        public void OnConnected(
             PortForward portForward,
-            Func<ReadOnlySequence<byte>, ValueTask<byte[]>> subscription)
+            OnConnectedSocketAsync asyncSubscription)
         {
-            var keys = GetWebSocketMessageSubscriptionIds(
-                portForward);
+            var keys = GetWebSocketMessageSubscriptionIds(portForward);
             foreach (var key in keys)
             {
-                if (_onWebSocketMessageSubscriptions.TryAdd(key, subscription))
+                if (_onConnectedPortForwarderSubscriptions.TryAdd(
+                    key, asyncSubscription))
                 {
                     return;
                 }

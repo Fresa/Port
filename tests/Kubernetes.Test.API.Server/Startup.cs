@@ -21,7 +21,7 @@ namespace Kubernetes.Test.API.Server
         {
             services.AddControllers();
             services.AddMvc();
-            services.AddTransient<WebSocketReceiver>();
+            services.AddTransient<PortForwardSocketFactory>();
         }
 
         public void Configure(
