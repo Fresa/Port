@@ -10,14 +10,11 @@ namespace Kubernetes.Test.API.Server.Controllers
     public class PodController : ControllerBase
     {
         private readonly TestFramework _testFramework;
-        private readonly PortForwardSocketFactory _portForwardSocketFactory;
 
         public PodController(
-            TestFramework testFramework,
-            PortForwardSocketFactory portForwardSocketFactory)
+            TestFramework testFramework)
         {
             _testFramework = testFramework;
-            _portForwardSocketFactory = portForwardSocketFactory;
         }
 
         [HttpGet("{name}/portforward")]
@@ -34,32 +31,10 @@ namespace Kubernetes.Test.API.Server.Controllers
                     .AcceptWebSocketAsync()
                     .ConfigureAwait(false);
 
-                //var portForwarder = _portForwardSocketFactory
-                //    .Create(webSocket);
-                //await using (portForwarder
-                //    .ConfigureAwait(false))
-                //{
                 var subscription = new PortForward(@namespace, name, ports);
                 await _testFramework.Pod.PortForward.WaitAsync(
                         subscription, webSocket, cancellationToken)
                     .ConfigureAwait(false);
-
-                //ReadResult result;
-                //do
-                //{
-                //    result = await portForwarder.Reader.ReadAsync(cancellationToken)
-                //        .ConfigureAwait(false);
-                //    await _testFramework.Pod.PortForward
-                //        .MessageReceivedAsync(
-                //            new PortForward(@namespace, name, ports), result.Buffer)
-                //        .ConfigureAwait(false);
-
-                //} while (result.IsCanceled == false &&
-                //         result.IsCompleted == false);
-
-                //    await portForwarder.Reader.CompleteAsync()
-                //        .ConfigureAwait(false);
-                //}
 
                 return Ok();
             }
