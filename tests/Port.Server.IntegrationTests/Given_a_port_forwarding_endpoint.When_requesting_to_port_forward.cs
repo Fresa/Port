@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -30,15 +29,6 @@ namespace Port.Server.IntegrationTests
         {
             private HttpResponseMessage _response;
             private Fixture _fixture;
-            private string _portForwardResponse;
-
-            private readonly List<byte> _webSocketMessageReceived =
-                new List<byte>();
-
-            private bool _responseSent;
-
-            private readonly SemaphoreSlim _responseSentNotifier =
-                new SemaphoreSlim(0, 1);
 
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
@@ -51,12 +41,7 @@ namespace Port.Server.IntegrationTests
             {
                 _fixture = DisposeAsyncOnTearDown(new Fixture(configurer));
                 _fixture.PortForwardingSocket.On<byte[]>(
-                    bytes =>
-                    {
-                        _portForwardResponse =
-                            Encoding.ASCII.GetString(bytes);
-                        _responseSentNotifier.Release();
-                    });
+                    bytes => { _fixture.PortForwardResponseReceived(bytes); });
 
                 _fixture.KubernetesApiServer.Pod.PortForward
                     .OnConnected(
@@ -66,12 +51,11 @@ namespace Port.Server.IntegrationTests
                         {
                             try
                             {
-                                using var memoryOwner =
-                                    MemoryPool<byte>.Shared.Rent(65536);
-                                var memory = memoryOwner.Memory;
+                                var memory = _fixture.Memory;
                                 ValueWebSocketReceiveResult readResult;
 
-                                await WebSocketExtensions.SendPortAsync(socket, 9999, cancellationToken)
+                                await socket.SendPortAsync(
+                                        9999, cancellationToken)
                                     .ConfigureAwait(false);
 
                                 do
@@ -80,7 +64,7 @@ namespace Port.Server.IntegrationTests
                                             memory,
                                             cancellationToken)
                                         .ConfigureAwait(false);
-                                    _webSocketMessageReceived.AddRange(
+                                    _fixture.WebSocketMessageReceived.AddRange(
                                         memory.Slice(0, readResult.Count)
                                             .ToArray());
 
@@ -96,28 +80,10 @@ namespace Port.Server.IntegrationTests
                                         return;
                                     }
 
-                                    if (_webSocketMessageReceived.Count >
-                                        _fixture.Request.Length &&
-                                        _responseSent == false)
-                                    {
-                                        _responseSent = true;
-                                        memory.Span[0] =
-                                            _webSocketMessageReceived[0];
-                                        Encoding.ASCII.GetBytes(
-                                                _fixture.Response)
-                                            .CopyTo(memory.Slice(1));
-                                        await socket.SendAsync(
-                                                memory.Slice(
-                                                    0,
-                                                    _fixture.Response.Length +
-                                                    1),
-                                                WebSocketMessageType.Binary,
-                                                true,
-                                                cancellationToken)
-                                            .ConfigureAwait(false);
-                                        return;
-                                    }
-                                } while (readResult.EndOfMessage == false &&
+                                    await _fixture.TrySendResponseOnceAsync(
+                                        socket, cancellationToken)
+                                        .ConfigureAwait(false);
+                                } while (readResult.EndOfMessage == false ||
                                          cancellationToken
                                              .IsCancellationRequested == false);
                             }
@@ -169,11 +135,12 @@ namespace Port.Server.IntegrationTests
                         .ConnectAsync(
                             new ByteArrayMessageClientFactory(), IPAddress.Any,
                             1000, ProtocolType.Tcp, cancellationToken);
+
                 await client.SendAsync(
                     Encoding.ASCII.GetBytes(_fixture.Request),
                     cancellationToken);
-                await _responseSentNotifier.WaitAsync(
-                        TimeSpan.FromSeconds(5), cancellationToken)
+
+                await _fixture.WaitForResponseAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -182,13 +149,13 @@ namespace Port.Server.IntegrationTests
                     "k8s api server should receive the request message sent")]
             public void TestReceiveRequestMessage()
             {
-                _webSocketMessageReceived.Should()
+                _fixture.WebSocketMessageReceived.Should()
                     .HaveCount(_fixture.Request.Length + 1);
-                _webSocketMessageReceived[0]
+                _fixture.WebSocketMessageReceived[0]
                     .Should()
                     .Be((byte)ChannelIndex.StdIn);
                 Encoding.ASCII.GetString(
-                        _webSocketMessageReceived.GetRange(
+                        _fixture.WebSocketMessageReceived.GetRange(
                                 1, _fixture.Request.Length)
                             .ToArray())
                     .Should()
@@ -206,7 +173,7 @@ namespace Port.Server.IntegrationTests
             [Fact(DisplayName = "It should receive a http response")]
             public void TestReceiveResponse()
             {
-                _portForwardResponse.Should()
+                _fixture.PortForwardResponse.Should()
                     .Be(_fixture.Response);
             }
 
@@ -269,11 +236,67 @@ Connection: Closed
    <p>The request line contained invalid characters following the protocol string.</p>
 </body>
 </html>";
+                private readonly IMemoryOwner<byte> _memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
+                internal Memory<byte> Memory => _memoryOwner.Memory;
+
+                internal List<byte> WebSocketMessageReceived =
+                    new List<byte>();
+
+                private bool _responseSent;
+
+                internal string PortForwardResponse { get; private set; }
+
+                internal void PortForwardResponseReceived(
+                    byte[] buffer)
+                {
+                    PortForwardResponse =
+                        Encoding.ASCII.GetString(buffer);
+                    _responseReceived.Release();
+                }
+
+                private readonly SemaphoreSlim _responseReceived =
+                    new SemaphoreSlim(0, 1);
+
+
+                internal async Task WaitForResponseAsync(
+                    CancellationToken cancellationToken)
+                {
+                    await _responseReceived.WaitAsync(
+                            TimeSpan.FromSeconds(5), cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                internal async ValueTask TrySendResponseOnceAsync(WebSocket webSocket,
+                    CancellationToken cancellationToken)
+                {
+                    if (WebSocketMessageReceived.Count >
+                        Request.Length &&
+                        _responseSent == false)
+                    {
+                        _responseSent = true;
+                        // Set channel
+                        Memory.Span[0] =
+                            WebSocketMessageReceived[0];
+                        Encoding.ASCII.GetBytes(
+                                Response)
+                            .CopyTo(Memory.Slice(1));
+                        await webSocket.SendAsync(
+                                Memory.Slice(
+                                    0,
+                                    Response.Length +
+                                    1),
+                                WebSocketMessageType.Binary,
+                                true,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                }
 
                 public async ValueTask DisposeAsync()
                 {
                     await PortForwardingSocket.DisposeAsync();
                     await KubernetesApiServer.DisposeAsync();
+                    _memoryOwner.Dispose();
                 }
             }
         }
