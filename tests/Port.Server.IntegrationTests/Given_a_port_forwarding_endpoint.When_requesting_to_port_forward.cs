@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -12,6 +13,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using k8s;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
+using Port.Server.IntegrationTests.k8s;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
 using Test.It;
@@ -30,12 +32,12 @@ namespace Port.Server.IntegrationTests
             private Fixture _fixture;
             private string _portForwardResponse;
 
-            private readonly List<byte> _webSocketMessageReveived =
+            private readonly List<byte> _webSocketMessageReceived =
                 new List<byte>();
 
             private bool _responseSent;
 
-            private SemaphoreSlim _responseSentNotifier =
+            private readonly SemaphoreSlim _responseSentNotifier =
                 new SemaphoreSlim(0, 1);
 
             public When_requesting_to_port_forward(
@@ -64,18 +66,21 @@ namespace Port.Server.IntegrationTests
                         {
                             try
                             {
-                                // todo: send [channel][port high byte][port low byte]
                                 using var memoryOwner =
                                     MemoryPool<byte>.Shared.Rent(65536);
                                 var memory = memoryOwner.Memory;
                                 ValueWebSocketReceiveResult readResult;
+
+                                await WebSocketExtensions.SendPortAsync(socket, 9999, cancellationToken)
+                                    .ConfigureAwait(false);
+
                                 do
                                 {
                                     readResult = await socket.ReceiveAsync(
                                             memory,
                                             cancellationToken)
                                         .ConfigureAwait(false);
-                                    _webSocketMessageReveived.AddRange(
+                                    _webSocketMessageReceived.AddRange(
                                         memory.Slice(0, readResult.Count)
                                             .ToArray());
 
@@ -91,13 +96,13 @@ namespace Port.Server.IntegrationTests
                                         return;
                                     }
 
-                                    if (_webSocketMessageReveived.Count >
+                                    if (_webSocketMessageReceived.Count >
                                         _fixture.Request.Length &&
                                         _responseSent == false)
                                     {
                                         _responseSent = true;
                                         memory.Span[0] =
-                                            _webSocketMessageReveived[0];
+                                            _webSocketMessageReceived[0];
                                         Encoding.ASCII.GetBytes(
                                                 _fixture.Response)
                                             .CopyTo(memory.Slice(1));
@@ -177,13 +182,13 @@ namespace Port.Server.IntegrationTests
                     "k8s api server should receive the request message sent")]
             public void TestReceiveRequestMessage()
             {
-                _webSocketMessageReveived.Should()
+                _webSocketMessageReceived.Should()
                     .HaveCount(_fixture.Request.Length + 1);
-                _webSocketMessageReveived[0]
+                _webSocketMessageReceived[0]
                     .Should()
-                    .Be((byte) ChannelIndex.StdIn);
+                    .Be((byte)ChannelIndex.StdIn);
                 Encoding.ASCII.GetString(
-                        _webSocketMessageReveived.GetRange(
+                        _webSocketMessageReceived.GetRange(
                                 1, _fixture.Request.Length)
                             .ToArray())
                     .Should()
@@ -229,7 +234,8 @@ namespace Port.Server.IntegrationTests
                 }
 
                 internal Kubernetes.Test.API.Server.TestFramework
-                    KubernetesApiServer { get; }
+                    KubernetesApiServer
+                { get; }
 
                 internal string Request => @"
 POST /cgi-bin/process.cgi HTTP/1.1
