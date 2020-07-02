@@ -176,6 +176,17 @@ namespace Port.Server
                                 "Received {@received} from remote socket",
                                 received);
 
+                            if (received.MessageType ==
+                                WebSocketMessageType.Close)
+                            {
+                                await _remoteSocket.CloseOutputAsync(
+                                        WebSocketCloseStatus.NormalClosure,
+                                        "Close received", CancellationToken)
+                                    .ConfigureAwait(false);
+                                _cancellationTokenSource.Cancel(false);
+                                return;
+                            }
+
                             if (received.Count == 0 &&
                                 received.EndOfMessage == false)
                             {

@@ -19,8 +19,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
             var memory = memoryOwner.Memory;
 
-            await _networkClient.ReceiveAsync(memory, cancellationToken);
-            return memory.ToArray();
+            var length = await _networkClient.ReceiveAsync(memory, cancellationToken);
+            return memory.Slice(0, length).ToArray();
         }
 
         public ValueTask DisposeAsync()

@@ -17,8 +17,6 @@ using Port.Server.IntegrationTests.TestFramework;
 using Test.It;
 using Xunit;
 using Xunit.Abstractions;
-using Console = System.Console;
-using Exception = System.Exception;
 
 namespace Port.Server.IntegrationTests
 {
@@ -35,6 +33,11 @@ namespace Port.Server.IntegrationTests
             private readonly List<byte> _webSocketMessageReveived =
                 new List<byte>();
 
+            private bool _responseSent;
+
+            private SemaphoreSlim _responseSentNotifier =
+                new SemaphoreSlim(0, 1);
+
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
                 : base(testOutputHelper)
@@ -45,11 +48,15 @@ namespace Port.Server.IntegrationTests
                 IServiceContainer configurer)
             {
                 _fixture = DisposeAsyncOnTearDown(new Fixture(configurer));
-                _fixture.PortforwardingSocket.On<byte[]>(
-                    bytes => _portForwardResponse =
-                        Encoding.ASCII.GetString(bytes));
+                _fixture.PortForwardingSocket.On<byte[]>(
+                    bytes =>
+                    {
+                        _portForwardResponse =
+                            Encoding.ASCII.GetString(bytes);
+                        _responseSentNotifier.Release();
+                    });
 
-                _fixture.K8sApiServer.Pod.PortForward
+                _fixture.KubernetesApiServer.Pod.PortForward
                     .OnConnected(
                         new PortForward("test", "service1", 2001), async (
                             socket,
@@ -71,11 +78,43 @@ namespace Port.Server.IntegrationTests
                                     _webSocketMessageReveived.AddRange(
                                         memory.Slice(0, readResult.Count)
                                             .ToArray());
+
+                                    if (readResult.MessageType ==
+                                        WebSocketMessageType.Close)
+                                    {
+                                        await socket.CloseOutputAsync(
+                                                WebSocketCloseStatus
+                                                    .NormalClosure,
+                                                "Close received",
+                                                cancellationToken)
+                                            .ConfigureAwait(false);
+                                        return;
+                                    }
+
+                                    if (_webSocketMessageReveived.Count >
+                                        _fixture.Request.Length &&
+                                        _responseSent == false)
+                                    {
+                                        _responseSent = true;
+                                        memory.Span[0] =
+                                            _webSocketMessageReveived[0];
+                                        Encoding.ASCII.GetBytes(
+                                                _fixture.Response)
+                                            .CopyTo(memory.Slice(1));
+                                        await socket.SendAsync(
+                                                memory.Slice(
+                                                    0,
+                                                    _fixture.Response.Length +
+                                                    1),
+                                                WebSocketMessageType.Binary,
+                                                true,
+                                                cancellationToken)
+                                            .ConfigureAwait(false);
+                                        return;
+                                    }
                                 } while (readResult.EndOfMessage == false &&
                                          cancellationToken
                                              .IsCancellationRequested == false);
-
-                                // todo: send response
                             }
                             catch when (cancellationToken
                                 .IsCancellationRequested)
@@ -86,14 +125,15 @@ namespace Port.Server.IntegrationTests
                                         CancellationToken.None)
                                     .ConfigureAwait(false);
                             }
-                            catch
+                            catch (Exception ex)
                             {
                                 if (socket.State != WebSocketState.Closed &&
                                     socket.State != WebSocketState.Aborted)
                                 {
                                     await socket.CloseAsync(
-                                            WebSocketCloseStatus.NormalClosure,
-                                            "Socket closed",
+                                            WebSocketCloseStatus
+                                                .InternalServerError,
+                                            $"Error: {ex.Message}",
                                             cancellationToken)
                                         .ConfigureAwait(false);
                                 }
@@ -120,13 +160,16 @@ namespace Port.Server.IntegrationTests
                     .ConfigureAwait(false);
 
                 var client =
-                    await _fixture.PortforwardingSocket
+                    await _fixture.PortForwardingSocket
                         .ConnectAsync(
                             new ByteArrayMessageClientFactory(), IPAddress.Any,
                             1000, ProtocolType.Tcp, cancellationToken);
                 await client.SendAsync(
                     Encoding.ASCII.GetBytes(_fixture.Request),
                     cancellationToken);
+                await _responseSentNotifier.WaitAsync(
+                        TimeSpan.FromSeconds(5), cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             [Fact(
@@ -138,7 +181,7 @@ namespace Port.Server.IntegrationTests
                     .HaveCount(_fixture.Request.Length + 1);
                 _webSocketMessageReveived[0]
                     .Should()
-                    .Be((byte)ChannelIndex.StdIn);
+                    .Be((byte) ChannelIndex.StdIn);
                 Encoding.ASCII.GetString(
                         _webSocketMessageReveived.GetRange(
                                 1, _fixture.Request.Length)
@@ -167,27 +210,26 @@ namespace Port.Server.IntegrationTests
                 public Fixture(
                     IServiceContainer container)
                 {
-                    PortforwardingSocket =
+                    PortForwardingSocket =
                         SocketTestFramework.SocketTestFramework.InMemory();
                     container.RegisterSingleton(
-                        () => PortforwardingSocket
+                        () => PortForwardingSocket
                             .NetworkServerFactory);
 
-                    K8sApiServer =
+                    KubernetesApiServer =
                         Kubernetes.Test.API.Server.TestFramework.Start();
                     container.RegisterSingleton(
-                        () => K8sApiServer.CreateKubernetesConfiguration());
+                        () => KubernetesApiServer
+                            .CreateKubernetesConfiguration());
                 }
 
-                internal InMemorySocketTestFramework PortforwardingSocket
+                internal InMemorySocketTestFramework PortForwardingSocket
                 {
                     get;
                 }
 
-                internal Kubernetes.Test.API.Server.TestFramework K8sApiServer
-                {
-                    get;
-                }
+                internal Kubernetes.Test.API.Server.TestFramework
+                    KubernetesApiServer { get; }
 
                 internal string Request => @"
 POST /cgi-bin/process.cgi HTTP/1.1
@@ -224,8 +266,8 @@ Connection: Closed
 
                 public async ValueTask DisposeAsync()
                 {
-                    await PortforwardingSocket.DisposeAsync();
-                    await K8sApiServer.DisposeAsync();
+                    await PortForwardingSocket.DisposeAsync();
+                    await KubernetesApiServer.DisposeAsync();
                 }
             }
         }
