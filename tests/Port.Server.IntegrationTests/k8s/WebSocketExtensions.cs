@@ -1,4 +1,5 @@
-﻿using System.Net.WebSockets;
+﻿using System;
+using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
@@ -25,6 +26,52 @@ namespace Port.Server.IntegrationTests.k8s
                         WebSocketMessageType.Binary, true,
                         cancellationToken)
                     .ConfigureAwait(false);
+            }
+        }
+
+        internal static async Task HandleClosing(
+            this WebSocket webSocket,
+            CancellationToken cancellationToken,
+            Func<Task> action)
+        {
+            try
+            {
+                await action().ConfigureAwait(false);
+                
+                if (webSocket.State != WebSocketState.Closed &&
+                    webSocket.State != WebSocketState.Aborted)
+                {
+                    await webSocket.CloseOutputAsync(
+                            WebSocketCloseStatus
+                                .NormalClosure,
+                            "Close received",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch when (cancellationToken
+                .IsCancellationRequested)
+            {
+                await webSocket.CloseOutputAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Socket closed",
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                if (webSocket.State != WebSocketState.Closed &&
+                    webSocket.State != WebSocketState.Aborted)
+                {
+                    await webSocket.CloseAsync(
+                            WebSocketCloseStatus
+                                .InternalServerError,
+                            $"Error: {ex.Message}",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                throw;
             }
         }
     }

@@ -49,68 +49,42 @@ namespace Port.Server.IntegrationTests
                             socket,
                             cancellationToken) =>
                         {
-                            try
-                            {
-                                var memory = _fixture.Memory;
-                                ValueWebSocketReceiveResult readResult;
-
-                                await socket.SendPortAsync(
-                                        9999, cancellationToken)
-                                    .ConfigureAwait(false);
-
-                                do
+                            await socket.HandleClosing(
+                                cancellationToken, async () =>
                                 {
-                                    readResult = await socket.ReceiveAsync(
-                                            memory,
-                                            cancellationToken)
-                                        .ConfigureAwait(false);
-                                    _fixture.WebSocketMessageReceived.AddRange(
-                                        memory.Slice(0, readResult.Count)
-                                            .ToArray());
+                                    var memory = _fixture.Memory;
+                                    ValueWebSocketReceiveResult readResult;
 
-                                    if (readResult.MessageType ==
-                                        WebSocketMessageType.Close)
+                                    await socket.SendPortAsync(
+                                            9999, cancellationToken)
+                                        .ConfigureAwait(false);
+
+                                    do
                                     {
-                                        await socket.CloseOutputAsync(
-                                                WebSocketCloseStatus
-                                                    .NormalClosure,
-                                                "Close received",
+                                        readResult = await socket.ReceiveAsync(
+                                                memory,
                                                 cancellationToken)
                                             .ConfigureAwait(false);
-                                        return;
-                                    }
+                                        _fixture.WebSocketMessageReceived
+                                            .AddRange(
+                                                memory.Slice(
+                                                        0, readResult.Count)
+                                                    .ToArray());
 
-                                    await _fixture.TrySendResponseOnceAsync(
-                                        socket, cancellationToken)
-                                        .ConfigureAwait(false);
-                                } while (readResult.EndOfMessage == false ||
-                                         cancellationToken
-                                             .IsCancellationRequested == false);
-                            }
-                            catch when (cancellationToken
-                                .IsCancellationRequested)
-                            {
-                                await socket.CloseOutputAsync(
-                                        WebSocketCloseStatus.NormalClosure,
-                                        "Socket closed",
-                                        CancellationToken.None)
-                                    .ConfigureAwait(false);
-                            }
-                            catch (Exception ex)
-                            {
-                                if (socket.State != WebSocketState.Closed &&
-                                    socket.State != WebSocketState.Aborted)
-                                {
-                                    await socket.CloseAsync(
-                                            WebSocketCloseStatus
-                                                .InternalServerError,
-                                            $"Error: {ex.Message}",
-                                            cancellationToken)
-                                        .ConfigureAwait(false);
-                                }
+                                        if (readResult.MessageType ==
+                                            WebSocketMessageType.Close)
+                                        {
+                                            return;
+                                        }
 
-                                throw;
-                            }
+                                        await _fixture.TrySendResponseOnceAsync(
+                                                socket, cancellationToken)
+                                            .ConfigureAwait(false);
+                                    } while (readResult.EndOfMessage == false ||
+                                             cancellationToken
+                                                 .IsCancellationRequested ==
+                                             false);
+                                }).ConfigureAwait(false);
                         });
             }
 
