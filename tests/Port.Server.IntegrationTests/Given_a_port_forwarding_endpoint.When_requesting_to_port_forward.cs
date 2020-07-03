@@ -50,41 +50,42 @@ namespace Port.Server.IntegrationTests
                             cancellationToken) =>
                         {
                             await socket.HandleClosing(
-                                cancellationToken, async () =>
-                                {
-                                    var memory = _fixture.Memory;
-                                    ValueWebSocketReceiveResult readResult;
-
-                                    await socket.SendPortAsync(
-                                            9999, cancellationToken)
-                                        .ConfigureAwait(false);
-
-                                    do
+                                    cancellationToken,
+                                    async () =>
                                     {
-                                        readResult = await socket.ReceiveAsync(
-                                                memory,
-                                                cancellationToken)
+                                        await socket.SendPortAsync(
+                                                9999, cancellationToken)
                                             .ConfigureAwait(false);
-                                        _fixture.WebSocketMessageReceived
-                                            .AddRange(
-                                                memory.Slice(
-                                                        0, readResult.Count)
-                                                    .ToArray());
 
-                                        if (readResult.MessageType ==
-                                            WebSocketMessageType.Close)
+                                        ValueWebSocketReceiveResult readResult;
+                                        do
                                         {
-                                            return;
-                                        }
+                                            readResult = await _fixture
+                                                .ReceiveAsync(
+                                                    socket,
+                                                    cancellationToken)
+                                                .ConfigureAwait(false);
 
-                                        await _fixture.TrySendResponseOnceAsync(
-                                                socket, cancellationToken)
-                                            .ConfigureAwait(false);
-                                    } while (readResult.EndOfMessage == false ||
-                                             cancellationToken
-                                                 .IsCancellationRequested ==
-                                             false);
-                                }).ConfigureAwait(false);
+                                            if (readResult.MessageType ==
+                                                WebSocketMessageType.Close)
+                                            {
+                                                return;
+                                            }
+
+                                            if (await _fixture
+                                                .TrySendResponseAsync(
+                                                    socket, cancellationToken)
+                                                .ConfigureAwait(false))
+                                            {
+                                                return;
+                                            }
+                                        } while (readResult.EndOfMessage ==
+                                                 false ||
+                                                 cancellationToken
+                                                     .IsCancellationRequested ==
+                                                 false);
+                                    })
+                                .ConfigureAwait(false);
                         });
             }
 
@@ -127,7 +128,7 @@ namespace Port.Server.IntegrationTests
                     .HaveCount(_fixture.Request.Length + 1);
                 _fixture.WebSocketMessageReceived[0]
                     .Should()
-                    .Be((byte)ChannelIndex.StdIn);
+                    .Be((byte) ChannelIndex.StdIn);
                 Encoding.ASCII.GetString(
                         _fixture.WebSocketMessageReceived.GetRange(
                                 1, _fixture.Request.Length)
@@ -175,8 +176,7 @@ namespace Port.Server.IntegrationTests
                 }
 
                 internal Kubernetes.Test.API.Server.TestFramework
-                    KubernetesApiServer
-                { get; }
+                    KubernetesApiServer { get; }
 
                 internal string Request => @"
 POST /cgi-bin/process.cgi HTTP/1.1
@@ -210,13 +210,14 @@ Connection: Closed
    <p>The request line contained invalid characters following the protocol string.</p>
 </body>
 </html>";
-                private readonly IMemoryOwner<byte> _memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
+
+                private readonly IMemoryOwner<byte> _memoryOwner =
+                    MemoryPool<byte>.Shared.Rent(65536);
+
                 internal Memory<byte> Memory => _memoryOwner.Memory;
 
                 internal List<byte> WebSocketMessageReceived =
                     new List<byte>();
-
-                private bool _responseSent;
 
                 internal string PortForwardResponse { get; private set; }
 
@@ -240,19 +241,17 @@ Connection: Closed
                         .ConfigureAwait(false);
                 }
 
-                internal async ValueTask TrySendResponseOnceAsync(WebSocket webSocket,
+                internal async ValueTask<bool> TrySendResponseAsync(
+                    WebSocket webSocket,
                     CancellationToken cancellationToken)
                 {
                     if (WebSocketMessageReceived.Count >
-                        Request.Length &&
-                        _responseSent == false)
+                        Request.Length)
                     {
-                        _responseSent = true;
                         // Set channel
                         Memory.Span[0] =
                             WebSocketMessageReceived[0];
-                        Encoding.ASCII.GetBytes(
-                                Response)
+                        Encoding.ASCII.GetBytes(Response)
                             .CopyTo(Memory.Slice(1));
                         await webSocket.SendAsync(
                                 Memory.Slice(
@@ -263,7 +262,26 @@ Connection: Closed
                                 true,
                                 cancellationToken)
                             .ConfigureAwait(false);
+                        return true;
                     }
+
+                    return false;
+                }
+
+                internal async Task<ValueWebSocketReceiveResult> ReceiveAsync(
+                    WebSocket socket,
+                    CancellationToken cancellationToken)
+                {
+                    var readResult = await socket
+                        .ReceiveAsync(
+                            Memory,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    WebSocketMessageReceived
+                        .AddRange(
+                            Memory.Slice(0, readResult.Count)
+                                .ToArray());
+                    return readResult;
                 }
 
                 public async ValueTask DisposeAsync()
