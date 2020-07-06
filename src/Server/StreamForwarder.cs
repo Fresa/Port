@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using k8s;
 using Log.It;
-using Org.BouncyCastle.Asn1;
 
 namespace Port.Server
 {
@@ -34,14 +33,6 @@ namespace Port.Server
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
         private readonly ILogger _logger = LogFactory.Create<StreamForwarder>();
-
-        private static readonly string ContentLengthKey = "Content-Length: ";
-
-        private static readonly byte[] ContentLengthKeyAsBytes =
-            Encoding.ASCII.GetBytes(ContentLengthKey);
-
-        private static readonly int ContentLengthKeyLength =
-            ContentLengthKey.Length;
 
         private StreamForwarder(
             INetworkServer networkServer,
@@ -113,9 +104,9 @@ namespace Port.Server
             try
             {
                 _logger.Info("Receiving from local socket");
-                var bytesRec = await localSocket
+                var bytesReceived = await localSocket
                     .ReceiveAsync(
-                        memory.Slice(1),
+                        memory[1..],
                         CancellationToken)
                     .ConfigureAwait(false);
 
@@ -125,10 +116,10 @@ namespace Port.Server
                 {
                     _logger.Info(
                         "Sending {bytes} bytes to remote socket",
-                        bytesRec + 1);
+                        bytesReceived + 1);
                     await _remoteSocket
                         .SendAsync(
-                            memory.Slice(0, bytesRec + 1),
+                            memory.Slice(0, bytesReceived + 1),
                             WebSocketMessageType.Binary, false,
                             CancellationToken)
                         .ConfigureAwait(false);
@@ -170,7 +161,7 @@ namespace Port.Server
 
                             received = await _remoteSocket
                                 .ReceiveAsync(
-                                    memory.Slice(receivedBytes),
+                                    memory[receivedBytes..],
                                     CancellationToken)
                                 .ConfigureAwait(false);
                             receivedBytes += received.Count;
