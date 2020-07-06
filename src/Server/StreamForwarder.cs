@@ -213,26 +213,27 @@ namespace Port.Server
                         continue;
                     }
 
+                    // When port number has been sent, data is sent:
+                    // [Stream index][Data 1]..[Data n]
+                    var content = memory[1..receivedBytes];
                     _logger.Info(
                         "Sending {bytes} bytes to local socket",
-                        receivedBytes - 1);
+                        content.Length);
 
                     if (httpResponseContentLength == 0)
                     {
                         (httpResponseHeaderLength, httpResponseContentLength) =
-                            memory.Slice(1, receivedBytes - 1)
+                            content
                                 .GetHttpResponseLength();
                     }
 
-                    // When port number has been sent, data is sent:
-                    // [Stream index][Data 1]..[Data n]
                     await localSocket
                         .SendAsync(
-                            memory.Slice(1, receivedBytes - 1),
+                            content,
                             CancellationToken)
                         .ConfigureAwait(false);
 
-                    totalReceivedBytes += receivedBytes - 1;
+                    totalReceivedBytes += content.Length;
                     if (totalReceivedBytes == httpResponseHeaderLength +
                         httpResponseContentLength)
                     {
