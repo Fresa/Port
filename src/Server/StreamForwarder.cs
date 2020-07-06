@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using k8s;
 using Log.It;
+using Org.BouncyCastle.Asn1;
 
 namespace Port.Server
 {
@@ -34,9 +35,11 @@ namespace Port.Server
 
         private readonly ILogger _logger = LogFactory.Create<StreamForwarder>();
 
-        private static readonly string ContentLengthKey ="Content-Length: ";
+        private static readonly string ContentLengthKey = "Content-Length: ";
+
         private static readonly byte[] ContentLengthKeyAsBytes =
             Encoding.ASCII.GetBytes(ContentLengthKey);
+
         private static readonly int ContentLengthKeyLength =
             ContentLengthKey.Length;
 
@@ -106,7 +109,7 @@ namespace Port.Server
             var memory = memoryOwner.Memory;
             // The port forward stream looks like this when sending:
             // [Stream index][Data 1]..[Data n]
-            memory.Span[0] = (byte) ChannelIndex.StdIn;
+            memory.Span[0] = (byte)ChannelIndex.StdIn;
             try
             {
                 _logger.Info("Receiving from local socket");
@@ -216,43 +219,9 @@ namespace Port.Server
 
                     if (httpResponseContentLength == 0)
                     {
-                        var bytes = new List<byte>();
-                        for (var i = 0;
-                            i < receivedBytes - ContentLengthKeyLength;
-                            i++)
-                        {
-                            if (memory.Slice(i, ContentLengthKeyLength)
-                                    .Span.SequenceCompareTo(ContentLengthKeyAsBytes) ==
-                                0)
-                            {
-                                i += ContentLengthKeyLength;
-                                while (memory.Span[i] >= 48 &&
-                                       memory.Span[i] <= 57)
-                                {
-                                    bytes.Add(memory.Span[i]);
-                                    i++;
-                                }
-
-                                httpResponseContentLength = int.Parse(
-                                    Encoding.ASCII.GetString(bytes.ToArray()));
-                                while (memory.Span[i] != 13 ||
-                                       memory.Span[i + 1] != 10 ||
-                                       memory.Span[i + 2] != 13 ||
-                                       memory.Span[i + 3] != 10)
-                                {
-                                    i++;
-                                }
-
-                                httpResponseHeaderLength = i + 4;
-                                break;
-                            }
-                        }
-
-                        if (httpResponseContentLength == 0)
-                        {
-                            throw new InvalidOperationException(
-                                $"Expected to find '{ContentLengthKey}'");
-                        }
+                        (httpResponseHeaderLength, httpResponseContentLength) =
+                            memory.Slice(1, receivedBytes - 1)
+                                .GetHttpResponseLength();
                     }
 
                     // When port number has been sent, data is sent:
@@ -263,7 +232,7 @@ namespace Port.Server
                             CancellationToken)
                         .ConfigureAwait(false);
 
-                    totalReceivedBytes += receivedBytes;
+                    totalReceivedBytes += receivedBytes - 1;
                     if (totalReceivedBytes == httpResponseHeaderLength +
                         httpResponseContentLength)
                     {
