@@ -8,13 +8,13 @@ namespace Port.Server.IntegrationTests.TestFramework
             this Kubernetes.Test.API.Server.TestFramework testFramework)
         {
             return new KubernetesConfiguration(
-                handlers: () => new DelegatingHandler[]
+                createHandlers: () => new DelegatingHandler[]
                 {
                     new LogItHttpMessageHandlerDecorator(
                         testFramework.CreateHttpMessageHandler())
                 },
                 kubernetesConfigPath: "config",
-                webSocketBuilder: new WebSocketClientBuilder(
+                createWebSocketBuilder: () => new WebSocketClientBuilder(
                     testFramework.CreateWebSocketClient()));
         }
     }

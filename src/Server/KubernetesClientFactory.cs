@@ -22,7 +22,7 @@ namespace Port.Server
                 _configuration.CreateHandlers())
             {
                 CreateWebSocketBuilder =
-                    () => _configuration.WebSocketBuilder
+                    _configuration.CreateWebSocketBuilder
             };
         }
     }
