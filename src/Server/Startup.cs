@@ -72,7 +72,7 @@ namespace Port.Server
                     KubernetesClientFactory>();
             _container.RegisterSingleton(
                 () => new KubernetesConfiguration(
-                    handlers: new DelegatingHandler[]
+                    handlers: () => new DelegatingHandler[]
                     {
                         new LogItHttpMessageHandlerDecorator()
                     }));

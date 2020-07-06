@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
 using k8s;
 
 namespace Port.Server
@@ -8,16 +9,16 @@ namespace Port.Server
         public KubernetesConfiguration(
             string? kubernetesConfigPath = default,
             WebSocketBuilder webSocketBuilder = default,
-            DelegatingHandler[] handlers = default)
+            Func<DelegatingHandler[]> handlers = default)
         {
             KubernetesConfigPath = kubernetesConfigPath;
-            Handlers = handlers ?? new DelegatingHandler[0];
+            CreateHandlers = handlers ?? (() => new DelegatingHandler[0]);
             WebSocketBuilder = webSocketBuilder ?? new WebSocketBuilder();
         }
 
         public string? KubernetesConfigPath { get; }
 
-        public DelegatingHandler[] Handlers { get; }
+        public Func<DelegatingHandler[]> CreateHandlers { get; }
 
         public WebSocketBuilder WebSocketBuilder { get; }
     }
