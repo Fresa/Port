@@ -241,9 +241,12 @@ Connection: Closed
                 internal async Task WaitForResponseAsync(
                     CancellationToken cancellationToken)
                 {
-                    await _responseReceived.WaitAsync(
-                            TimeSpan.FromSeconds(5), cancellationToken)
-                        .ConfigureAwait(false);
+                    foreach (var _ in FragmentedResponses)
+                    {
+                        await _responseReceived.WaitAsync(
+                                TimeSpan.FromSeconds(5), cancellationToken)
+                            .ConfigureAwait(false);
+                    }
                 }
 
                 internal async ValueTask<bool> TrySendResponseAsync(
