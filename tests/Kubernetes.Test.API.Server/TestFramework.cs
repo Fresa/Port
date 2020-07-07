@@ -15,7 +15,7 @@ namespace Kubernetes.Test.API.Server
     public sealed class TestFramework : IAsyncDisposable
     {
         private readonly IHostBuilder _hostBuilder;
-        private IHost _host;
+        private IHost? _host;
 
         private TestServer GetTestServer()
         {
@@ -47,7 +47,7 @@ namespace Kubernetes.Test.API.Server
         public static TestFramework Start(
             params string[] args)
         {
-            IConfiguration configuration = null;
+            IConfiguration configuration = default!;
             var hostBuilder = Program.CreateHostBuilder(args)
                 .ConfigureAppConfiguration(
                     (
@@ -95,8 +95,11 @@ namespace Kubernetes.Test.API.Server
 
         public async ValueTask DisposeAsync()
         {
-            await _host.StopAsync();
-            _host.Dispose();
+            if (_host != null)
+            {
+                await _host.StopAsync();
+            }
+            _host?.Dispose();
         }
     }
 }
