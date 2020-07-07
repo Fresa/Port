@@ -91,13 +91,13 @@ else
 
 @code
 {
-    private Deployment[] _deployments;
-    private Pod[] _pods;
+    private Deployment[] _deployments = new Deployment[0];
+    private Pod[] _pods = new Pod[0];
 
-    private List<IGrouping<string, global::Port.Shared.PortForward>> _portForwardedServices;
+    private List<IGrouping<string, global::Port.Shared.PortForward>> _portForwardedServices = new List<IGrouping<string, global::Port.Shared.PortForward>>();
 
     [Parameter]
-    public string Context { get; set; }
+    public string Context { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {

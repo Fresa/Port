@@ -36,10 +36,10 @@ else
 @code
 {
     private bool _collapseContextMenu = true;
-    private Context[] _contexts;
-    private string _location;
+    private Context[] _contexts = new Context[0];
+    private string _location = "";
 
-    private string NavMenuCssClass => _collapseContextMenu ? "collapse" : null;
+    private string? NavMenuCssClass => _collapseContextMenu ? "collapse" : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -61,6 +61,4 @@ else
     {
         _collapseContextMenu = !_collapseContextMenu;
     }
-
-
 }
