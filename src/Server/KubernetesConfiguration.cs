@@ -8,8 +8,8 @@ namespace Port.Server
     {
         public KubernetesConfiguration(
             string? kubernetesConfigPath = default,
-            Func<WebSocketBuilder> createWebSocketBuilder = default,
-            Func<DelegatingHandler[]> createHandlers = default)
+            Func<WebSocketBuilder>? createWebSocketBuilder = default,
+            Func<DelegatingHandler[]>? createHandlers = default)
         {
             KubernetesConfigPath = kubernetesConfigPath;
             CreateHandlers = createHandlers ?? (() => new DelegatingHandler[0]);

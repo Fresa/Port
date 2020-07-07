@@ -26,7 +26,7 @@ namespace Port.Server
             LogFactory.Create<SocketServer>();
 
         internal int Port { get; private set; }
-        internal IPAddress Address { get; private set; }
+        internal IPAddress Address { get; private set; } = IPAddress.None;
 
         public async Task<INetworkClient> WaitForConnectedClientAsync(
             CancellationToken cancellationToken = default)
@@ -37,6 +37,10 @@ namespace Port.Server
             Logger.Debug("Client accepted {@client}", client);
             _clients.Enqueue(client);
             return client;
+        }
+
+        private SocketServer()
+        {
         }
 
         internal static SocketServer Start(
