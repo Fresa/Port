@@ -4,10 +4,22 @@ namespace Port.Shared
 {
     public sealed class PortForward
     {
-        public string Name { get; set; }
-        public string Namespace { get; set; }
-        public ProtocolType ProtocolType { get; set; }
-        public int PodPort { get; set; }
+        public PortForward(
+            string @namespace,
+            string name,
+            ProtocolType protocolType,
+            int podPort)
+        {
+            Name = name;
+            Namespace = @namespace;
+            ProtocolType = protocolType;
+            PodPort = podPort;
+        }
+
+        public string Name { get; }
+        public string Namespace { get; }
+        public ProtocolType ProtocolType { get; }
+        public int PodPort { get; }
         public int? LocalPort { get; set; }
     }
 }

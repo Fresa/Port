@@ -22,13 +22,13 @@ namespace Port.Server.IntegrationTests
             var ks = new KubernetesService(factory, new SocketNetworkServerFactory());
             await ks.PortForwardAsync(
                 "kind-argo-demo-ci", new Shared.PortForward
-                {
-                    LocalPort = 2746,
-                    PodPort = 2746,
-                    ProtocolType = ProtocolType.Tcp,
-                    Namespace = "argo",
-                    Name = "argo-server-5f5c647dcb-bkcz6"
-                }).ConfigureAwait(false);
+                (
+                    podPort: 2746,
+                    protocolType: ProtocolType.Tcp,
+                    @namespace: "argo",
+                    name: "argo-server-5f5c647dcb-bkcz6"
+                )
+                { LocalPort = 2746 }).ConfigureAwait(false);
 
             await Task.Delay(int.MaxValue);
         }

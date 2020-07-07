@@ -93,14 +93,12 @@ namespace Port.Server.IntegrationTests
                 _response = await Server.CreateHttpClient()
                     .PostAsJsonAsync(
                         "service/test/portforward",
-                        new Shared.PortForward
-                        {
-                            Namespace = "test",
-                            Name = "service1",
-                            ProtocolType = ProtocolType.Tcp,
-                            PodPort = 2001,
-                            LocalPort = 1000
-                        }, cancellationToken)
+                        new Shared.PortForward(
+                                "test",
+                                "service1",
+                                ProtocolType.Tcp,
+                                2001)
+                        { LocalPort = 1000 }, cancellationToken)
                     .ConfigureAwait(false);
 
                 var client =
@@ -147,9 +145,11 @@ namespace Port.Server.IntegrationTests
             public void TestReceiveResponse()
             {
                 _fixture.PortForwardResponse.Should()
-                    .Be(_fixture.FragmentedResponses.Aggregate("", (
-                        total,
-                        response) => total + response));
+                    .Be(
+                        _fixture.FragmentedResponses.Aggregate(
+                            "", (
+                                total,
+                                response) => total + response));
             }
 
             internal sealed class Fixture : IAsyncDisposable
@@ -273,6 +273,7 @@ Connection: Closed
                                     cancellationToken)
                                 .ConfigureAwait(false);
                         }
+
                         return true;
                     }
 

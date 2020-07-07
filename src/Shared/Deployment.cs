@@ -2,7 +2,15 @@
 {
     public sealed class Deployment
     {
-        public string Name { get; set; }
-        public string Namespace { get; set; }
+        public Deployment(
+            string name,
+            string @namespace)
+        {
+            Name = name;
+            Namespace = @namespace;
+        }
+
+        public string Name { get; }
+        public string Namespace { get; }
     }
 }

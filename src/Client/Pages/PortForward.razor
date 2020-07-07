@@ -109,12 +109,12 @@ else
                 service.Ports
                     .Select(port =>
                         new global::Port.Shared.PortForward
-                        {
-                            Namespace = service.Namespace,
-                            Name = service.Name,
-                            ProtocolType = port.ProtocolType,
-                            PodPort = port.Number
-                        }))
+                        (
+                            @namespace: service.Namespace,
+                            name: service.Name,
+                            protocolType: port.ProtocolType,
+                            podPort: port.Number
+                        )))
             .GroupBy(forward => $"{forward.Namespace}/{forward.Name}")
             .ToList();
     }

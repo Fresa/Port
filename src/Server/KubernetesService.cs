@@ -39,10 +39,10 @@ namespace Port.Server
                 await client.ListDeploymentForAllNamespacesAsync();
             return deployments.Items.Select(
                 pod => new Deployment
-                {
-                    Namespace = pod.Metadata.NamespaceProperty,
-                    Name = pod.Metadata.Name
-                });
+                (
+                    @namespace: pod.Metadata.NamespaceProperty,
+                    name: pod.Metadata.Name
+                ));
         }
 
         public async Task<IEnumerable<Shared.Pod>> ListPodsInAllNamespacesAsync(
@@ -52,10 +52,10 @@ namespace Port.Server
             var pods = await client.ListPodForAllNamespacesAsync();
             return pods.Items.Select(
                 pod => new Shared.Pod
-                {
-                    Namespace = pod.Metadata.NamespaceProperty,
-                    Name = pod.Metadata.Name
-                });
+                (
+                    @namespace: pod.Metadata.NamespaceProperty,
+                    name: pod.Metadata.Name
+                ));
         }
 
         public async Task<IEnumerable<Service>>
@@ -66,17 +66,17 @@ namespace Port.Server
             var services = await client.ListServiceForAllNamespacesAsync();
             return services.Items.Select(
                 service => new Service
-                {
-                    Namespace = service.Metadata.NamespaceProperty,
-                    Name = service.Metadata.Name,
-                    Ports = service.Spec.Ports.Select(
+                (
+                    @namespace: service.Metadata.NamespaceProperty,
+                    name: service.Metadata.Name,
+                    ports: service.Spec.Ports.Select(
                         port => new Shared.Port
-                        {
-                            Number = port.Port,
-                            ProtocolType =
+                        (
+                            number: port.Port,
+                            protocolType:
                                 Enum.Parse<ProtocolType>(port.Protocol, true)
-                        })
-                });
+                        ))
+                ));
         }
 
         public async Task PortForwardAsync(

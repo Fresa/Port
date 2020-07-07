@@ -4,7 +4,15 @@ namespace Port.Shared
 {
     public sealed class Port
     {
-        public int Number { get; set; }
-        public ProtocolType ProtocolType { get; set; }
+        public Port(
+            int number,
+            ProtocolType protocolType)
+        {
+            Number = number;
+            ProtocolType = protocolType;
+        }
+
+        public int Number { get; }
+        public ProtocolType ProtocolType { get; }
     }
 }

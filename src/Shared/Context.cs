@@ -2,6 +2,12 @@
 {
     public sealed class Context
     {
-        public string Name { get; set; }
+        public Context(
+            string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
     }
 }

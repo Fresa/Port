@@ -34,7 +34,9 @@ namespace Port.Server
         public void ConfigureServices(
             IServiceCollection services)
         {
-            services.AddControllersWithViews();
+            services
+                .AddControllersWithViews()
+                .AddNewtonsoftJson();
             services.AddRazorPages();
 
             services.AddSimpleInjector(
@@ -76,7 +78,9 @@ namespace Port.Server
                     {
                         new LogItHttpMessageHandlerDecorator()
                     }));
-            _container.RegisterSingleton<INetworkServerFactory, SocketNetworkServerFactory>();
+            _container
+                .RegisterSingleton<INetworkServerFactory,
+                    SocketNetworkServerFactory>();
         }
 
         public void Configure(

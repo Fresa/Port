@@ -2,7 +2,15 @@
 {
     public sealed class Pod
     {
-        public string Name { get; set; }
-        public string Namespace { get; set; }
+        public Pod(
+            string @namespace,
+            string name)
+        {
+            Namespace = @namespace;
+            Name = name;
+        }
+
+        public string Name { get; }
+        public string Namespace { get; }
     }
 }

@@ -4,8 +4,18 @@ namespace Port.Shared
 {
     public sealed class Service
     {
-        public string Name { get; set; }
-        public string Namespace { get; set; }
-        public IEnumerable<Port> Ports { get; set; }
+        public Service(
+            string @namespace,
+            string name,
+            IEnumerable<Port> ports)
+        {
+            Namespace = @namespace;
+            Name = name;
+            Ports = ports;
+        }
+
+        public string Name { get; }
+        public string Namespace { get; }
+        public IEnumerable<Port> Ports { get; }
     }
 }

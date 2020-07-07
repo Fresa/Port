@@ -15,11 +15,7 @@ namespace Port.Server.Controllers
         public async Task<IEnumerable<Context>> Get()
         {
             return (await KubernetesClientConfiguration.LoadKubeConfigAsync())
-                .Contexts.Select(
-                    context => new Context
-                    {
-                        Name = context.Name
-                    });
+                .Contexts.Select(context => new Context(context.Name));
         }
     }
 }
