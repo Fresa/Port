@@ -15,7 +15,7 @@ namespace Port.Server.IntegrationTests.TestFramework
         : WebApplicationSpecification<TWebApplicationHost>, IAsyncLifetime
         where TWebApplicationHost : IWebApplicationHost, new()
     {
-        private TWebApplicationHost _webApplicationHost;
+        private TWebApplicationHost _webApplicationHost = default!;
 
         private readonly List<IDisposable> _disposables =
             new List<IDisposable>();

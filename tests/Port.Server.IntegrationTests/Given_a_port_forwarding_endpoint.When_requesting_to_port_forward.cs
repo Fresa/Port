@@ -28,8 +28,8 @@ namespace Port.Server.IntegrationTests
             When_requesting_to_port_forward : XUnit2ServiceSpecificationAsync<
                 PortServerHost>
         {
-            private HttpResponseMessage _response;
-            private Fixture _fixture;
+            private HttpResponseMessage _response = default!;
+            private Fixture _fixture = default!;
 
             public When_requesting_to_port_forward(
                 ITestOutputHelper testOutputHelper)
@@ -224,7 +224,7 @@ Connection: Closed
                 internal List<byte> WebSocketMessageReceived =
                     new List<byte>();
 
-                internal string PortForwardResponse { get; private set; }
+                internal string? PortForwardResponse { get; private set; }
 
                 internal void PortForwardResponseReceived(
                     byte[] buffer)

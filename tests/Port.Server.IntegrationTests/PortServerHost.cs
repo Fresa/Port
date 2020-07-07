@@ -14,7 +14,7 @@ namespace Port.Server.IntegrationTests
 {
     public class PortServerHost : IWebApplicationHost, IServer
     {
-        private IHost _host;
+        private IHost? _host;
 
         private TestServer GetTestServer()
         {
