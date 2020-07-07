@@ -85,9 +85,12 @@ namespace Port.Server
 
         public void Configure(
             IApplicationBuilder app,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IHostApplicationLifetime hostApplicationLifetime)
         {
             app.UseSimpleInjector(_container);
+            hostApplicationLifetime.ApplicationStopped.Register(
+                async () => await _container.DisposeAsync());
 
             if (env.IsDevelopment())
             {

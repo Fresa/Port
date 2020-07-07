@@ -73,7 +73,7 @@ namespace Port.Server.IntegrationTests.TestFramework
             return disposable;
         }
 
-        public virtual async Task DisposeAsync()
+        public async Task DisposeAsync()
         {
             await _webApplicationHost.StopAsync();
 
