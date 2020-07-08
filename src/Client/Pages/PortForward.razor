@@ -99,7 +99,7 @@ else
     [Parameter]
     public string Context { get; set; } = default!;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}");
         _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}");
@@ -117,11 +117,6 @@ else
                         )))
             .GroupBy(forward => $"{forward.Namespace}/{forward.Name}")
             .ToList();
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        await OnInitializedAsync();
     }
 
     private async Task ChangePortForwardAsync(
