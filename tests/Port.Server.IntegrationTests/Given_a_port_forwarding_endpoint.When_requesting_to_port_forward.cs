@@ -45,7 +45,7 @@ namespace Port.Server.IntegrationTests
                     bytes => { _fixture.PortForwardResponseReceived(bytes); });
 
                 _fixture.KubernetesApiServer.Pod.PortForward.OnConnected(
-                    new PortForward("test", "service1", 2001), async (
+                    new PortForward("test", "pod1", 2001), async (
                             socket,
                             cancellationToken) =>
                         await socket.HandleClosing(
