@@ -54,7 +54,8 @@ namespace Port.Server
                 pod => new Shared.Pod
                 (
                     @namespace: pod.Metadata.NamespaceProperty,
-                    name: pod.Metadata.Name
+                    name: pod.Metadata.Name,
+                    pod.Metadata.Labels
                 ));
         }
 
@@ -75,7 +76,8 @@ namespace Port.Server
                             number: port.Port,
                             protocolType:
                                 Enum.Parse<ProtocolType>(port.Protocol, true)
-                        ))
+                        )),
+                    service.Spec.Selector
                 ));
         }
 
@@ -92,7 +94,7 @@ namespace Port.Server
 
             var webSocket =
                 await client.WebSocketNamespacedPodPortForwardAsync(
-                        portForward.Name, portForward.Namespace,
+                        portForward.Pod, portForward.Namespace,
                         new[] { portForward.PodPort },
                         "v4.channel.k8s.io")
                     .ConfigureAwait(false);

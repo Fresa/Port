@@ -58,6 +58,7 @@ else
             <tr>
                 <th>@nameof(Service.Namespace)</th>
                 <th>@nameof(Service.Name)</th>
+                <th>Pod</th>
                 <th>Container port</th>
                 <th>Protocol type</th>
                 <th>Host port</th>
@@ -70,18 +71,19 @@ else
             var firstRow = true;
             @foreach (var portForward in service)
             {
-                <tr>
-                    <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Namespace : "")</td>
-                    <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Name : "")</td>
-                    <td>@portForward.PodPort</td>
-                    <td>@portForward.ProtocolType</td>
-                    <td>
-                        <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort"/>
-                    </td>
-                    <td>
-                        <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))"/>
-                    </td>
-                </tr>
+            <tr>
+                <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Namespace : "")</td>
+                <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Service : "")</td>
+                <td>@portForward.Pod</td>
+                <td>@portForward.PodPort</td>
+                <td>@portForward.ProtocolType</td>
+                <td>
+                    <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort" />
+                </td>
+                <td>
+                    <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                </td>
+            </tr>
                 firstRow = false;
             }
         }
@@ -103,19 +105,26 @@ else
     {
         _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}");
         _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}");
-
+        
         _portForwardedServices = (await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}"))
             .SelectMany(service =>
                 service.Ports
-                    .Select(port =>
-                        new global::Port.Shared.PortForward
-                        (
-                            @namespace: service.Namespace,
-                            name: service.Name,
-                            protocolType: port.ProtocolType,
-                            podPort: port.Number
-                        )))
-            .GroupBy(forward => $"{forward.Namespace}/{forward.Name}")
+                    .SelectMany(port =>
+                        _pods.Where(pod => 
+                            service.Selectors.Any(pair => 
+                                pod.Labels.Any(valuePair => 
+                                    valuePair.Key == pair.Key &&
+                                    valuePair.Value == pair.Value)))
+                            .Select(pod => new global::Port.Shared.PortForward
+                                (
+                                @namespace: service.Namespace,
+                                service: service.Name,
+                                pod: pod.Name,
+                                protocolType: port.ProtocolType,
+                                podPort: port.Number
+                            ))
+                        ))
+            .GroupBy(forward => $"{forward.Namespace}/{forward.Service}")
             .ToList();
     }
 

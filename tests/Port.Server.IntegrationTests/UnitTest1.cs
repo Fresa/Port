@@ -26,7 +26,8 @@ namespace Port.Server.IntegrationTests
                     podPort: 2746,
                     protocolType: ProtocolType.Tcp,
                     @namespace: "argo",
-                    name: "argo-server-5f5c647dcb-bkcz6"
+                    service: "argo-server-5f5c647dcb-bkcz6",
+                    pod: ""
                 )
                 { LocalPort = 2746 }).ConfigureAwait(false);
 

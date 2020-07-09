@@ -1,4 +1,5 @@
-﻿using System.Net.Sockets;
+﻿using System.Collections.Generic;
+using System.Net.Sockets;
 
 namespace Port.Shared
 {
@@ -6,17 +7,20 @@ namespace Port.Shared
     {
         public PortForward(
             string @namespace,
-            string name,
+            string pod,
+            string service,
             ProtocolType protocolType,
             int podPort)
         {
-            Name = name;
+            Pod = pod;
+            Service = service;
             Namespace = @namespace;
             ProtocolType = protocolType;
             PodPort = podPort;
         }
 
-        public string Name { get; }
+        public string Pod { get; }
+        public string Service { get; }
         public string Namespace { get; }
         public ProtocolType ProtocolType { get; }
         public int PodPort { get; }

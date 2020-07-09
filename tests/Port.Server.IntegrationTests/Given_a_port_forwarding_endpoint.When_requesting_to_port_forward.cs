@@ -95,7 +95,8 @@ namespace Port.Server.IntegrationTests
                         "service/test/portforward",
                         new Shared.PortForward(
                                 "test",
-                                "service1",
+                                pod: "pod1",
+                                service: "service1",
                                 ProtocolType.Tcp,
                                 2001)
                         { LocalPort = 1000 }, cancellationToken)
