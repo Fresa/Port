@@ -56,8 +56,8 @@ else
     <table class="table">
         <thead>
             <tr>
-                <th>@nameof(Service.Namespace)</th>
-                <th>@nameof(Service.Name)</th>
+                <th>Namespace</th>
+                <th>Service</th>
                 <th>Pod</th>
                 <th>Container port</th>
                 <th>Protocol type</th>
@@ -66,25 +66,30 @@ else
             </tr>
         </thead>
         <tbody>
-        @foreach (var service in _portForwardedServices)
+        @foreach (var service in _portForwards.GroupBy(forward => $"{forward.Namespace}/{forward.Service}"))
         {
-            var firstRow = true;
-            @foreach (var portForward in service)
+            var firstService = true;
+            @foreach (var pod in service.GroupBy(forward => $"{forward.Namespace}/{forward.Pod}"))
             {
-            <tr>
-                <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Namespace : "")</td>
-                <td class="@(firstRow ? "" : "no-borders")">@(firstRow ? portForward.Service : "")</td>
-                <td>@portForward.Pod</td>
-                <td>@portForward.PodPort</td>
-                <td>@portForward.ProtocolType</td>
-                <td>
-                    <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort" />
-                </td>
-                <td>
-                    <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
-                </td>
-            </tr>
-                firstRow = false;
+                var firstPod = true;
+                @foreach (var portForward in pod)
+                {
+                    <tr>
+                        <td class="@(firstService ? "" : "no-borders")">@(firstService ? portForward.Namespace : "")</td>
+                        <td class="@(firstService ? "" : "no-borders")">@(firstService ? portForward.Service : "")</td>
+                        <td class="@(firstPod ? "" : "no-borders")">@(firstPod ? portForward.Pod : "")</td>
+                        <td>@portForward.PodPort</td>
+                        <td>@portForward.ProtocolType</td>
+                        <td>
+                            <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort" />
+                        </td>
+                        <td>
+                            <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                        </td>
+                    </tr>
+                    firstPod = false;
+                    firstService = false;
+                }
             }
         }
         </tbody>
@@ -96,7 +101,7 @@ else
     private Deployment[] _deployments = new Deployment[0];
     private Pod[] _pods = new Pod[0];
 
-    private List<IGrouping<string, global::Port.Shared.PortForward>> _portForwardedServices = new List<IGrouping<string, global::Port.Shared.PortForward>>();
+    private IEnumerable<global::Port.Shared.PortForward> _portForwards = Enumerable.Empty<global::Port.Shared.PortForward>();
 
     [Parameter]
     public string Context { get; set; } = default!;
@@ -105,14 +110,14 @@ else
     {
         _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}");
         _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}");
-        
-        _portForwardedServices = (await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}"))
+
+        _portForwards = (await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}"))
             .SelectMany(service =>
                 service.Ports
                     .SelectMany(port =>
-                        _pods.Where(pod => 
-                            service.Selectors.Any(pair => 
-                                pod.Labels.Any(valuePair => 
+                        _pods.Where(pod =>
+                            service.Selectors.Any(pair =>
+                                pod.Labels.Any(valuePair =>
                                     valuePair.Key == pair.Key &&
                                     valuePair.Value == pair.Value)))
                             .Select(pod => new global::Port.Shared.PortForward
@@ -122,10 +127,7 @@ else
                                 pod: pod.Name,
                                 protocolType: port.ProtocolType,
                                 podPort: port.Number
-                            ))
-                        ))
-            .GroupBy(forward => $"{forward.Namespace}/{forward.Service}")
-            .ToList();
+                                ))));
     }
 
     private async Task ChangePortForwardAsync(
