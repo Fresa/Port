@@ -26,7 +26,7 @@ namespace Port.Client
 
     internal static class PodExtensions
     {
-        internal static IEnumerable<Pod> ThatHostsService(
+        internal static IEnumerable<Pod> WhereServiceIsHosted(
             this IEnumerable<Pod> pods,
             Service service)
         {

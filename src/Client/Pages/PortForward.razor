@@ -1,5 +1,6 @@
 @page "/contexts/{Context}"
 @using Port.Shared
+@using System.ComponentModel
 @inject HttpClient Http
 
 <h1>Port forwards</h1>
@@ -66,20 +67,14 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var service in _services)
+            @foreach (var serviceGroups in _portForwards.GroupBy(forward => $"{forward.Namespace}.{forward.Service}"))
             {
                 var renderService = true;
-                @foreach (var pod in _pods.ThatHostsService(service))
+                @foreach (var podGroups in serviceGroups.GroupBy(forward => forward.Pod))
                 {
                     var renderPod = true;
-                    @foreach (var port in service.Ports)
+                    @foreach (var portForward in podGroups)
                     {
-                        var portForward = new global::Port.Shared.PortForward(
-                            service.Namespace, 
-                            pod.Name, 
-                            service.Name, 
-                            port.ProtocolType, 
-                            port.Number);
                         <tr>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Namespace : "")</td>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Service : "")</td>
@@ -87,7 +82,7 @@ else
                             <td>@portForward.PodPort</td>
                             <td>@portForward.ProtocolType</td>
                             <td>
-                                <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort" />
+                                <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort"/>
                             </td>
                             <td>
                                 <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
@@ -104,18 +99,36 @@ else
 
 @code
 {
+    private readonly List<global::Port.Shared.PortForward> _portForwards = new List<global::Port.Shared.PortForward>();
     private Deployment[] _deployments = new Deployment[0];
     private Pod[] _pods = new Pod[0];
-    private Service[] _services = new Service[0];
 
     [Parameter]
     public string Context { get; set; } = default!;
 
     protected override async Task OnParametersSetAsync()
     {
-        _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}");
-        _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}");
-        _services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}");
+        _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}")
+            .ConfigureAwait(false);
+        _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}")
+            .ConfigureAwait(false);
+        var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}")
+            .ConfigureAwait(false);
+        foreach (var service in services)
+        {
+            foreach (var pod in _pods.WhereServiceIsHosted(service))
+            {
+                foreach (var port in service.Ports)
+                {
+                    _portForwards.Add(new global::Port.Shared.PortForward(
+                        service.Namespace, 
+                        pod.Name, 
+                        service.Name, 
+                        port.ProtocolType, 
+                        port.Number));
+                }
+            }
+        }
     }
 
     private async Task ChangePortForwardAsync(
