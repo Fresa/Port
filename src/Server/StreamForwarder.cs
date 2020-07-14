@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
@@ -42,6 +41,13 @@ namespace Port.Server
             _remoteSocket = remoteSocket;
         }
 
+        private CancellationToken TimeOutCancellationToken =>
+            CancellationTokenSource.CreateLinkedTokenSource(
+                    new CancellationTokenSource(TimeSpan.FromSeconds(5))
+                        .Token,
+                    CancellationToken)
+                .Token;
+
         internal static IAsyncDisposable Start(
             INetworkServer networkServer,
             WebSocket webSocket)
@@ -80,17 +86,41 @@ namespace Port.Server
                 {
                     return;
                 }
+                catch (Exception ex)
+                {
+                    _logger.Fatal(ex, "Unknown error, closing down");
+#pragma warning disable 4014
+                    //Dispose and exit fast
+                    //This will most likely change when we need to report
+                    //back that the forwarding terminated or that we
+                    //should retry
+                    DisposeAsync();
+#pragma warning restore 4014
+                    return;
+                }
             }
         }
 
         private async Task StartCrossWiring(
             INetworkClient localSocket)
         {
-            await Task.WhenAll(
-                StartTransferDataFromRemoteToLocalSocket(localSocket),
-                StartTransferDataFromLocalToRemoteSocket(localSocket));
-            await localSocket.DisposeAsync();
-            _logger.Debug("Local socket disconnected");
+            try
+            {
+                await StartTransferDataFromLocalToRemoteSocket(localSocket)
+                    .ConfigureAwait(false);
+                await StartTransferDataFromRemoteToLocalSocket(localSocket)
+                    .ConfigureAwait(false);
+            }
+            catch (TaskCanceledException ex)
+            {
+                _logger.Info(ex, "Request was cancelled");
+            }
+            finally
+            {
+                await localSocket.DisposeAsync()
+                    .ConfigureAwait(false);
+                _logger.Debug("Local socket disconnected");
+            }
         }
 
         private async Task StartTransferDataFromLocalToRemoteSocket(
@@ -100,14 +130,14 @@ namespace Port.Server
             var memory = memoryOwner.Memory;
             // The port forward stream looks like this when sending:
             // [Stream index][Data 1]..[Data n]
-            memory.Span[0] = (byte)ChannelIndex.StdIn;
+            memory.Span[0] = (byte) ChannelIndex.StdIn;
             try
             {
                 _logger.Info("Receiving from local socket");
                 var bytesReceived = await localSocket
                     .ReceiveAsync(
                         memory[1..],
-                        CancellationToken)
+                        TimeOutCancellationToken)
                     .ConfigureAwait(false);
 
                 using (await _webSocketSendGate
@@ -121,7 +151,7 @@ namespace Port.Server
                         .SendAsync(
                             memory.Slice(0, bytesReceived + 1),
                             WebSocketMessageType.Binary, false,
-                            CancellationToken)
+                            TimeOutCancellationToken)
                         .ConfigureAwait(false);
                 }
             }
@@ -132,7 +162,7 @@ namespace Port.Server
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed receiving from host");
+                _logger.Error(ex, "Failed transfer data from local machine to kubernetes");
                 throw;
             }
         }
@@ -158,11 +188,10 @@ namespace Port.Server
                         do
                         {
                             _logger.Info("Receiving from remote socket");
-
                             received = await _remoteSocket
                                 .ReceiveAsync(
                                     memory[receivedBytes..],
-                                    CancellationToken)
+                                    TimeOutCancellationToken)
                                 .ConfigureAwait(false);
                             receivedBytes += received.Count;
 
@@ -173,9 +202,12 @@ namespace Port.Server
                             if (received.MessageType ==
                                 WebSocketMessageType.Close)
                             {
+                                _logger.Info(
+                                    "Received close message from remote, closing...");
                                 await _remoteSocket.CloseOutputAsync(
                                         WebSocketCloseStatus.NormalClosure,
-                                        "Close received", CancellationToken)
+                                        "Close received",
+                                        CancellationToken)
                                     .ConfigureAwait(false);
                                 _cancellationTokenSource.Cancel(false);
                                 return;
@@ -221,7 +253,7 @@ namespace Port.Server
                     await localSocket
                         .SendAsync(
                             content,
-                            CancellationToken)
+                            TimeOutCancellationToken)
                         .ConfigureAwait(false);
 
                     totalReceivedBytes += content.Length;
@@ -242,19 +274,48 @@ namespace Port.Server
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed receiving from k8s websocket");
+                _logger.Error(ex, "Failed transfer data from kubernetes to local machine");
                 throw;
             }
         }
 
         public async ValueTask DisposeAsync()
         {
-            _cancellationTokenSource.Cancel();
+            if (_cancellationTokenSource.IsCancellationRequested)
+            {
+                return;
+            }
 
-            await Task.WhenAll(_backgroundTasks);
+            _cancellationTokenSource.Cancel(false);
+
+            try
+            {
+                await _networkServer.DisposeAsync();
+            }
+            catch
+            {
+                // Ignore unhandled exceptions during shutdown 
+            }
+
+            try
+            {
+                await _remoteSocket.CloseOutputAsync(
+                    WebSocketCloseStatus.NormalClosure, "Closing",
+                    CancellationToken.None);
+            }
+            catch
+            {
+                // Ignore unhandled exceptions during shutdown 
+            }
+            finally
+            {
+                _remoteSocket.Dispose();
+            }
 
             _webSocketReceiveGate.Dispose();
             _webSocketSendGate.Dispose();
+
+            await Task.WhenAll(_backgroundTasks);
         }
     }
 }

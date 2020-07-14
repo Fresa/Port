@@ -107,7 +107,8 @@ namespace Port.Server
 
         public async ValueTask DisposeAsync()
         {
-            _cancellationSource.Cancel();
+            Logger.Trace("Disposing");
+            _cancellationSource.Cancel(false);
             try
             {
                 _clientAcceptingSocket.Shutdown(SocketShutdown.Both);
@@ -129,6 +130,7 @@ namespace Port.Server
                     .DisposeAsync()
                     .ConfigureAwait(false);
             }
+            Logger.Trace("Disposed");
         }
     }
 }
