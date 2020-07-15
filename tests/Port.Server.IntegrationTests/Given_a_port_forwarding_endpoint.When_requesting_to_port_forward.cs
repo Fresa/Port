@@ -78,9 +78,7 @@ namespace Port.Server.IntegrationTests
                                         {
                                             return;
                                         }
-                                    } while (readResult.EndOfMessage ==
-                                             false ||
-                                             cancellationToken
+                                    } while (cancellationToken
                                                  .IsCancellationRequested ==
                                              false);
                                 })
@@ -242,11 +240,17 @@ Connection: Closed
                 internal async Task WaitForResponseAsync(
                     CancellationToken cancellationToken)
                 {
+                    var timeout = TimeSpan.FromSeconds(5);
                     foreach (var _ in FragmentedResponses)
                     {
-                        await _responseReceived.WaitAsync(
-                                TimeSpan.FromSeconds(5), cancellationToken)
-                            .ConfigureAwait(false);
+                        if (await _responseReceived.WaitAsync(
+                                timeout, cancellationToken)
+                            .ConfigureAwait(false))
+                        {
+                            continue;
+                        }
+
+                        throw new TimeoutException($"Waited {timeout:ss}s");
                     }
                 }
 
