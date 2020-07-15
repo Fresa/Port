@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Port.Server
 {
-    internal static class MemoryExtensions
+    internal static class ReadOnlyMemoryExtensions
     {
         private const string ContentLengthKey = "Content-Length: ";
 
@@ -19,7 +19,7 @@ namespace Port.Server
 
         internal static (int HeaderLength, int ContentLength)
             GetHttpResponseLength(
-                this Memory<byte> httpResponse)
+                this ReadOnlyMemory<byte> httpResponse)
         {
             var httpResponseContentLength = 0;
             var httpResponseHeaderLength = 0;
@@ -63,7 +63,7 @@ namespace Port.Server
         }
 
         internal static int IndexOf(
-            this Memory<byte> memory,
+            this ReadOnlyMemory<byte> memory,
             byte[] bytes)
         {
             var i = 0;

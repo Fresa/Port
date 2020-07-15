@@ -165,27 +165,26 @@ namespace Port.Server
                         {
                             break;
                         }
-
-                        content.Buffer.CopyTo(memory.Span);
-
-                        var result = memory.Slice(
-                            0, (int)content.Buffer.Length);
-
-                        if (httpResponseContentLength == 0)
+                        
+                        foreach (var sequence in content.Buffer)
                         {
-                            (httpResponseHeaderLength,
-                                    httpResponseContentLength) =
-                                result
-                                    .GetHttpResponseLength();
+                            if (httpResponseContentLength == 0)
+                            {
+                                (httpResponseHeaderLength,
+                                        httpResponseContentLength) =
+                                    sequence
+                                        .GetHttpResponseLength();
+                            }
+
+                            await localSocket
+                                .SendAsync(
+                                    sequence,
+                                    CancellationToken)
+                                .ConfigureAwait(false);
+
+                            totalReceivedBytes += sequence.Length;
                         }
-
-                        await localSocket
-                            .SendAsync(
-                                result,
-                                CancellationToken)
-                            .ConfigureAwait(false);
-
-                        totalReceivedBytes += result.Length;
+                        
                         if (totalReceivedBytes == httpResponseHeaderLength +
                             httpResponseContentLength)
                         {
@@ -286,7 +285,8 @@ namespace Port.Server
             using (await _writeLock.WaitAsync(CancellationToken)
                 .ConfigureAwait(false))
             {
-                return await _sendingPipe.Writer.WriteAsync(buffer, CancellationToken)
+                return await _sendingPipe.Writer.WriteAsync(
+                        buffer, CancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -305,7 +305,8 @@ namespace Port.Server
                     .ReadAsync(CancellationToken)
                     .AsTask();
 
-                _ = task.ContinueWith(_ => 
+                _ = task.ContinueWith(
+                    _ =>
                         timeoutLock.Release(), CancellationToken);
 
                 var released = await timeoutLock
@@ -318,9 +319,12 @@ namespace Port.Server
 
                 var result = await task.ConfigureAwait(false);
                 var bytes = result.Buffer.ToArray();
-                _receivingPipe.Reader.AdvanceTo(result.Buffer.GetPosition(bytes.Length));
+                _receivingPipe.Reader.AdvanceTo(
+                    result.Buffer.GetPosition(bytes.Length));
                 _logger.Trace("Received {bytes} from remote", bytes.Length);
-                return new ReadResult(new ReadOnlySequence<byte>(bytes), result.IsCanceled, result.IsCompleted);
+                return new ReadResult(
+                    new ReadOnlySequence<byte>(bytes), result.IsCanceled,
+                    result.IsCompleted);
             }
         }
 
@@ -395,7 +399,7 @@ namespace Port.Server
                             content.Length);
 
                         var result = await _receivingPipe.Writer.WriteAsync(
-                                 content, CancellationToken)
+                                content, CancellationToken)
                             .ConfigureAwait(false);
                         if (result.IsCompleted || result.IsCanceled)
                         {
@@ -431,7 +435,7 @@ namespace Port.Server
             var memory = memoryOwner.Memory;
             // The port forward stream looks like this when sending:
             // [Stream index][Data 1]..[Data n]
-            memory.Span[0] = (byte)ChannelIndex.StdIn;
+            memory.Span[0] = (byte) ChannelIndex.StdIn;
             try
             {
                 while (_cancellationTokenSource.IsCancellationRequested ==
@@ -462,7 +466,7 @@ namespace Port.Server
 
                         await _webSocket
                             .SendAsync(
-                                memory.Slice(0, (int)result.Buffer.Length + 1),
+                                memory.Slice(0, (int) result.Buffer.Length + 1),
                                 WebSocketMessageType.Binary, false,
                                 CancellationToken)
                             .ConfigureAwait(false);
