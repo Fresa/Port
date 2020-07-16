@@ -17,12 +17,12 @@ namespace Port.Server
         private const byte LF = 10;
         private static readonly byte[] EndOfHeaders = { CR, LF, CR, LF };
 
-        internal static (int HeaderLength, int ContentLength)
-            GetHttpResponseLength(
-                this ReadOnlyMemory<byte> httpResponse)
+        internal static bool
+            TryGetHttpResponseLength(
+                this ReadOnlyMemory<byte> httpResponse, out int headerLength, out int contentLength)
         {
-            var httpResponseContentLength = 0;
-            var httpResponseHeaderLength = 0;
+            contentLength = 0;
+            headerLength = 0;
             for (var i = 0;
                 i < httpResponse.Length - ContentLengthKeyLength;
                 i++)
@@ -41,7 +41,7 @@ namespace Port.Server
                     i++;
                 }
 
-                httpResponseContentLength = int.Parse(
+                contentLength = int.Parse(
                     Encoding.ASCII.GetString(
                         httpResponse[start..(i + 1)]
                             .Span));
@@ -49,17 +49,11 @@ namespace Port.Server
                 i += httpResponse.Slice(i)
                     .IndexOf(EndOfHeaders);
 
-                httpResponseHeaderLength = i + EndOfHeaders.Length;
+                headerLength = i + EndOfHeaders.Length;
                 break;
             }
 
-            if (httpResponseContentLength == 0)
-            {
-                throw new InvalidOperationException(
-                    $"Expected to find '{ContentLengthKey}'");
-            }
-
-            return (httpResponseHeaderLength, httpResponseContentLength);
+            return contentLength != 0;
         }
 
         internal static int IndexOf(

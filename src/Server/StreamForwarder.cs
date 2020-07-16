@@ -161,10 +161,10 @@ namespace Port.Server
                         {
                             if (httpResponseContentLength == 0)
                             {
-                                (httpResponseHeaderLength,
-                                        httpResponseContentLength) =
-                                    sequence
-                                        .GetHttpResponseLength();
+                                sequence
+                                    .TryGetHttpResponseLength(
+                                        out httpResponseHeaderLength,
+                                        out httpResponseContentLength);
                             }
 
                             await localSocket
