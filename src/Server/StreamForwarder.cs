@@ -71,11 +71,15 @@ namespace Port.Server
             while (_cancellationTokenSource.IsCancellationRequested ==
                    false)
             {
+                using var _ = _logger.LogicalThread.With(
+                    "local-socket-id", Guid.NewGuid());
                 try
                 {
                     await using var client = await _networkServer
                         .WaitForConnectedClientAsync(CancellationToken)
                         .ConfigureAwait(false);
+                    
+                    _logger.Trace("Local socket connected");
 
                     await StartTransferDataFromLocalToRemoteSocket(client)
                         .ConfigureAwait(false);
@@ -87,8 +91,9 @@ namespace Port.Server
                 }
                 catch (SocketException socketException)
                 {
-                    _logger.Info(
-                        socketException, "Local socket caught an exception");
+                    _logger.Debug(
+                        socketException,
+                        "Local socket caught an exception");
                 }
                 catch (Exception ex)
                 {
@@ -104,10 +109,11 @@ namespace Port.Server
                 }
                 finally
                 {
-                    _logger.Debug("Local socket disconnected");
+                    _logger.Trace("Local socket disconnected");
                 }
             }
         }
+        
 
         private async Task StartTransferDataFromLocalToRemoteSocket(
             INetworkClient localSocket)
@@ -116,14 +122,14 @@ namespace Port.Server
             var memory = memoryOwner.Memory;
             try
             {
-                _logger.Info("Receiving from local socket");
+                _logger.Trace("Receiving from local socket");
                 var bytesReceived = await localSocket
                     .ReceiveAsync(
                         memory,
-                        TimeOutCancellationToken)
+                        CancellationToken)
                     .ConfigureAwait(false);
 
-                _logger.Info(
+                _logger.Trace(
                     "Sending {bytes} bytes to remote socket",
                     bytesReceived + 1);
 
@@ -152,6 +158,7 @@ namespace Port.Server
 
                         if (content.IsCanceled)
                         {
+                            _logger.Trace("No response from kubernetes");
                             break;
                         }
 
@@ -177,7 +184,7 @@ namespace Port.Server
                         if (totalReceivedBytes == httpResponseHeaderLength +
                             httpResponseContentLength)
                         {
-                            _logger.Info(
+                            _logger.Trace(
                                 "Received {total} bytes in total, exiting",
                                 totalReceivedBytes);
                             break;

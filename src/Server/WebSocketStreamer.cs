@@ -105,7 +105,7 @@ namespace Port.Server
                         ValueWebSocketReceiveResult received;
                         do
                         {
-                            _logger.Info("Receiving from remote socket");
+                            _logger.Trace("Receiving from remote socket");
                             received = await _webSocket
                                 .ReceiveAsync(
                                     memory[receivedBytes..],
@@ -113,7 +113,7 @@ namespace Port.Server
                                 .ConfigureAwait(false);
                             receivedBytes += received.Count;
 
-                            _logger.Info(
+                            _logger.Trace(
                                 "Received {@received} from remote socket",
                                 received);
 
@@ -155,7 +155,7 @@ namespace Port.Server
                         }
 
                         var content = memory[1..receivedBytes];
-                        _logger.Info(
+                        _logger.Trace(
                             "Sending {bytes} bytes to local socket",
                             content.Length);
 
@@ -208,29 +208,30 @@ namespace Port.Server
                             .ReadAsync(CancellationToken)
                             .ConfigureAwait(false);
 
-                        _sendingPipe.Reader.AdvanceTo(
-                            result.Buffer.Start, result.Buffer.End);
-
                         if (result.IsCompleted || result.IsCanceled)
                         {
                             _cancellationTokenSource.Cancel();
                             return;
                         }
 
-                        _logger.Info(
+                        _logger.Trace(
                             "Sending {bytes} bytes to remote socket",
                             result.Buffer.Length + 1);
 
-                        result.Buffer.CopyTo(
-                            memory.Slice(1)
-                                .Span);
+                        foreach (var segment in result.Buffer)
+                        {
+                            segment.CopyTo(memory.Slice(1));
 
-                        await _webSocket
-                            .SendAsync(
-                                memory.Slice(0, (int) result.Buffer.Length + 1),
-                                WebSocketMessageType.Binary, false,
-                                CancellationToken)
-                            .ConfigureAwait(false);
+                            _sendingPipe.Reader.AdvanceTo(
+                                result.Buffer.GetPosition(segment.Length));
+
+                            await _webSocket
+                                .SendAsync(
+                                    memory.Slice(0, segment.Length + 1),
+                                    WebSocketMessageType.Binary, false,
+                                    CancellationToken)
+                                .ConfigureAwait(false);
+                        }
                     }
                     catch when (_cancellationTokenSource
                         .IsCancellationRequested)
