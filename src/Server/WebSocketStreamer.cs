@@ -43,13 +43,11 @@ namespace Port.Server
         public async Task<FlushResult> SendAsync(
             ReadOnlyMemory<byte> buffer)
         {
-            using (await _writeLock.WaitAsync(CancellationToken)
-                .ConfigureAwait(false))
-            {
-                return await _sendingPipe.Writer.WriteAsync(
-                        buffer, CancellationToken)
-                    .ConfigureAwait(false);
-            }
+            using var _ = await _writeLock.WaitAsync(CancellationToken)
+                .ConfigureAwait(false);
+            return await _sendingPipe.Writer.WriteAsync(
+                    buffer, CancellationToken)
+                .ConfigureAwait(false);
         }
 
         private readonly SemaphoreSlimGate _readLock =
@@ -58,35 +56,34 @@ namespace Port.Server
         public async Task<ReadResult> ReceiveAsync(
             TimeSpan timeout)
         {
-            using (await _readLock.WaitAsync(CancellationToken)
-                .ConfigureAwait(false))
+            using var __ = await _readLock.WaitAsync(CancellationToken)
+                .ConfigureAwait(false);
+            var timeoutLock = new SemaphoreSlim(0);
+            var task = _receivingPipe.Reader
+                .ReadAsync(CancellationToken)
+                .AsTask();
+
+            _ = task.ContinueWith(
+                _ =>
+                    timeoutLock.Release(), CancellationToken);
+
+            var released = await timeoutLock
+                .WaitAsync(timeout, CancellationToken)
+                .ConfigureAwait(false);
+            if (!released)
             {
-                var timeoutLock = new SemaphoreSlim(0);
-                var task = _receivingPipe.Reader
-                    .ReadAsync(CancellationToken)
-                    .AsTask();
-
-                _ = task.ContinueWith(
-                    _ =>
-                        timeoutLock.Release(), CancellationToken);
-
-                var released = await timeoutLock
-                    .WaitAsync(timeout, CancellationToken)
-                    .ConfigureAwait(false);
-                if (!released)
-                {
-                    _receivingPipe.Reader.CancelPendingRead();
-                }
-
-                var result = await task.ConfigureAwait(false);
-                var bytes = result.Buffer.ToArray();
-                _receivingPipe.Reader.AdvanceTo(
-                    result.Buffer.GetPosition(bytes.Length));
-                _logger.Trace("Received {bytes} from remote", bytes.Length);
-                return new ReadResult(
-                    new ReadOnlySequence<byte>(bytes), result.IsCanceled,
-                    result.IsCompleted);
+                _logger.Info("Receiving from k8s timed out");
+                _receivingPipe.Reader.CancelPendingRead();
             }
+
+            var result = await task.ConfigureAwait(false);
+            var bytes = result.Buffer.ToArray();
+            _receivingPipe.Reader.AdvanceTo(
+                result.Buffer.GetPosition(bytes.Length));
+            _logger.Trace("Received {bytes} from remote", bytes.Length);
+            return new ReadResult(
+                new ReadOnlySequence<byte>(bytes), result.IsCanceled,
+                result.IsCompleted);
         }
 
         private async Task StartReceivingJobAsync()
@@ -99,88 +96,83 @@ namespace Port.Server
                 while (_cancellationTokenSource.IsCancellationRequested ==
                        false)
                 {
-                    try
+                    var receivedBytes = 0;
+                    ValueWebSocketReceiveResult received;
+                    do
                     {
-                        var receivedBytes = 0;
-                        ValueWebSocketReceiveResult received;
-                        do
-                        {
-                            _logger.Trace("Receiving from remote socket");
-                            received = await _webSocket
-                                .ReceiveAsync(
-                                    memory[receivedBytes..],
-                                    CancellationToken)
-                                .ConfigureAwait(false);
-                            receivedBytes += received.Count;
+                        _logger.Trace("Receiving from remote socket");
+                        received = await _webSocket
+                            .ReceiveAsync(
+                                memory[receivedBytes..],
+                                CancellationToken)
+                            .ConfigureAwait(false);
+                        receivedBytes += received.Count;
 
-                            _logger.Trace(
-                                "Received {@received} from remote socket",
-                                received);
+                        _logger.Trace(
+                            "Received {@received} from remote socket",
+                            received);
 
-                            if (received.MessageType ==
-                                WebSocketMessageType.Close)
-                            {
-                                _logger.Info(
-                                    "Received close message from remote, closing...");
-                                await _webSocket.CloseOutputAsync(
-                                        WebSocketCloseStatus.NormalClosure,
-                                        "Close received",
-                                        CancellationToken)
-                                    .ConfigureAwait(false);
-
-                                return;
-                            }
-
-                            if (received.Count == 0 &&
-                                received.EndOfMessage == false)
-                            {
-                                throw new InvalidOperationException(
-                                    "Received 0 bytes from socket, but socket indicates there is more data. Is there enough room in the memory buffer?");
-                            }
-                        } while (received.EndOfMessage == false);
-
-                        if (receivedBytes == 0)
+                        if (received.MessageType ==
+                            WebSocketMessageType.Close)
                         {
                             _logger.Info(
-                                "Received 0 bytes, aborting remote socket");
-                            _cancellationTokenSource.Cancel(false);
+                                "Received close message from remote, closing...");
+                            await _webSocket.CloseOutputAsync(
+                                    WebSocketCloseStatus.NormalClosure,
+                                    "Close received",
+                                    CancellationToken)
+                                .ConfigureAwait(false);
+
                             return;
                         }
 
-                        // The port forward stream first sends port number:
-                        // [Stream index][High port byte][Low port byte]
-                        if (receivedBytes <= 3)
+                        if (received.Count == 0 &&
+                            received.EndOfMessage == false)
                         {
-                            continue;
+                            throw new InvalidOperationException(
+                                "Received 0 bytes from socket, but socket indicates there is more data. Is there enough room in the memory buffer?");
                         }
+                    } while (received.EndOfMessage == false);
 
-                        var content = memory[1..receivedBytes];
-                        _logger.Trace(
-                            "Sending {bytes} bytes to local socket",
-                            content.Length);
-
-                        var result = await _receivingPipe.Writer.WriteAsync(
-                                content, CancellationToken)
-                            .ConfigureAwait(false);
-                        if (result.IsCompleted || result.IsCanceled)
-                        {
-                            _cancellationTokenSource.Cancel();
-                            return;
-                        }
-                    }
-                    catch when (_cancellationTokenSource
-                        .IsCancellationRequested)
+                    if (receivedBytes == 0)
                     {
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        exception = ex;
-                        _logger.Fatal(ex, "Unknown error, closing down");
+                        _logger.Info(
+                            "Received 0 bytes, aborting remote socket");
                         _cancellationTokenSource.Cancel(false);
                         return;
                     }
+
+                    // The port forward stream first sends port number:
+                    // [Stream index][High port byte][Low port byte]
+                    if (receivedBytes <= 3)
+                    {
+                        continue;
+                    }
+
+                    var content = memory[1..receivedBytes];
+                    _logger.Trace(
+                        "Sending {bytes} bytes to local socket",
+                        content.Length);
+
+                    var result = await _receivingPipe.Writer.WriteAsync(
+                            content, CancellationToken)
+                        .ConfigureAwait(false);
+                    if (result.IsCompleted || result.IsCanceled)
+                    {
+                        _cancellationTokenSource.Cancel();
+                        return;
+                    }
                 }
+            }
+            catch when (_cancellationTokenSource
+                .IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+                _logger.Fatal(ex, "Unknown error, closing down");
+                _cancellationTokenSource.Cancel(false);
             }
             finally
             {
@@ -196,7 +188,7 @@ namespace Port.Server
             var memory = memoryOwner.Memory;
             // The port forward stream looks like this when sending:
             // [Stream index][Data 1]..[Data n]
-            memory.Span[0] = (byte) ChannelIndex.StdIn;
+            memory.Span[0] = (byte)ChannelIndex.StdIn;
             try
             {
                 while (_cancellationTokenSource.IsCancellationRequested ==
