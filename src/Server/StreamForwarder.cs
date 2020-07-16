@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -74,16 +75,22 @@ namespace Port.Server
             {
                 try
                 {
-                    var client = await _networkServer
+                    await using var client = await _networkServer
                         .WaitForConnectedClientAsync(CancellationToken)
                         .ConfigureAwait(false);
 
-                    await StartCrossWiring(client);
+                    await StartTransferDataFromLocalToRemoteSocket(client)
+                        .ConfigureAwait(false);
                 }
                 catch when (_cancellationTokenSource
                     .IsCancellationRequested)
                 {
                     return;
+                }
+                catch (SocketException socketException)
+                {
+                    _logger.Info(
+                        socketException, "Local socket caught an exception");
                 }
                 catch (Exception ex)
                 {
@@ -97,26 +104,10 @@ namespace Port.Server
 #pragma warning restore 4014
                     return;
                 }
-            }
-        }
-
-        private async Task StartCrossWiring(
-            INetworkClient localSocket)
-        {
-            try
-            {
-                await StartTransferDataFromLocalToRemoteSocket(localSocket)
-                    .ConfigureAwait(false);
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.Info(ex, "Request was cancelled");
-            }
-            finally
-            {
-                await localSocket.DisposeAsync()
-                    .ConfigureAwait(false);
-                _logger.Debug("Local socket disconnected");
+                finally
+                {
+                    _logger.Debug("Local socket disconnected");
+                }
             }
         }
 
@@ -165,7 +156,7 @@ namespace Port.Server
                         {
                             break;
                         }
-                        
+
                         foreach (var sequence in content.Buffer)
                         {
                             if (httpResponseContentLength == 0)
@@ -184,7 +175,7 @@ namespace Port.Server
 
                             totalReceivedBytes += sequence.Length;
                         }
-                        
+
                         if (totalReceivedBytes == httpResponseHeaderLength +
                             httpResponseContentLength)
                         {
@@ -211,13 +202,6 @@ namespace Port.Server
                 .IsCancellationRequested)
             {
                 return;
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(
-                    ex,
-                    "Failed transfer data from local machine to kubernetes");
-                throw;
             }
         }
 
