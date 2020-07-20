@@ -78,11 +78,23 @@ namespace Port.Server
                     await using var client = await _networkServer
                         .WaitForConnectedClientAsync(CancellationToken)
                         .ConfigureAwait(false);
-                    
+
                     _logger.Trace("Local socket connected");
 
-                    await StartTransferDataFromLocalToRemoteSocket(client)
-                        .ConfigureAwait(false);
+                    while (true)
+                    {
+                        using (await _webSocketGate
+                            .WaitAsync(CancellationToken)
+                            .ConfigureAwait(false))
+                        {
+                            var local = StartTransferDataToLocal(client);
+                            var remote = StartTransferDataToRemote(client);
+                            await Task.WhenAll(local, remote);
+                        }
+
+                        //await StartTransferDataFromLocalToRemoteSocket(client)
+                        //    .ConfigureAwait(false);
+                    }
                 }
                 catch when (_cancellationTokenSource
                     .IsCancellationRequested)
@@ -113,100 +125,186 @@ namespace Port.Server
                 }
             }
         }
-        
+
+        private async Task StartTransferDataToRemote(
+            INetworkClient localSocket)
+        {
+            using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
+            var memory = memoryOwner.Memory;
+            _logger.Trace("Receiving from local socket");
+            var bytesReceived = await localSocket
+                .ReceiveAsync(
+                    memory,
+                    CancellationToken)
+                .ConfigureAwait(false);
+
+            _logger.Trace(
+                "Sending {bytes} bytes to remote socket",
+                bytesReceived + 1);
+
+            var sendResult = await _remoteSocket
+                .SendAsync(memory.Slice(0, bytesReceived))
+                .ConfigureAwait(false);
+            if (sendResult.IsCanceled)
+            {
+                _cancellationTokenSource.Cancel();
+                return;
+            }
+
+            if (sendResult.IsCompleted)
+            {
+                _cancellationTokenSource.Cancel();
+            }
+        }
+
+        private async Task StartTransferDataToLocal(
+            INetworkClient localSocket)
+        {
+            var httpResponseContentLength = 0;
+            var httpResponseHeaderLength = 0;
+            var totalReceivedBytes = 0;
+            while (true)
+            {
+                var content =
+                    await _remoteSocket.ReceiveAsync(
+                            TimeSpan.FromSeconds(5))
+                        .ConfigureAwait(false);
+
+                if (content.IsCanceled)
+                {
+                    _logger.Trace("No response from kubernetes");
+                    break;
+                }
+
+                foreach (var sequence in content.Buffer)
+                {
+                    if (httpResponseContentLength == 0)
+                    {
+                        sequence
+                            .TryGetHttpResponseLength(
+                                out httpResponseHeaderLength,
+                                out httpResponseContentLength);
+                    }
+
+                    await localSocket
+                        .SendAsync(
+                            sequence,
+                            CancellationToken)
+                        .ConfigureAwait(false);
+
+                    totalReceivedBytes += sequence.Length;
+                }
+
+                if (totalReceivedBytes == httpResponseHeaderLength +
+                    httpResponseContentLength)
+                {
+                    _logger.Trace(
+                        "Received {total} bytes in total, exiting",
+                        totalReceivedBytes);
+                    break;
+                }
+
+                if (httpResponseContentLength == 0)
+                {
+                    _logger.Debug("Could not determine response length");
+                    break;
+                }
+
+                if (content.IsCompleted)
+                {
+                    _cancellationTokenSource.Cancel();
+                    return;
+                }
+            }
+        }
 
         private async Task StartTransferDataFromLocalToRemoteSocket(
             INetworkClient localSocket)
         {
             using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
             var memory = memoryOwner.Memory;
-            try
+            _logger.Trace("Receiving from local socket");
+            var bytesReceived = await localSocket
+                .ReceiveAsync(
+                    memory,
+                    CancellationToken)
+                .ConfigureAwait(false);
+
+            _logger.Trace(
+                "Sending {bytes} bytes to remote socket",
+                bytesReceived + 1);
+
+            using (await _webSocketGate
+                .WaitAsync(CancellationToken)
+                .ConfigureAwait(false))
             {
-                _logger.Trace("Receiving from local socket");
-                var bytesReceived = await localSocket
-                    .ReceiveAsync(
-                        memory,
-                        CancellationToken)
+                var sendResult = await _remoteSocket
+                    .SendAsync(memory.Slice(0, bytesReceived))
                     .ConfigureAwait(false);
-
-                _logger.Trace(
-                    "Sending {bytes} bytes to remote socket",
-                    bytesReceived + 1);
-
-                using (await _webSocketGate
-                    .WaitAsync(CancellationToken)
-                    .ConfigureAwait(false))
+                if (sendResult.IsCanceled)
                 {
-                    var sendResult = await _remoteSocket
-                        .SendAsync(memory.Slice(0, bytesReceived))
-                        .ConfigureAwait(false);
-                    if (sendResult.IsCanceled)
+                    _cancellationTokenSource.Cancel();
+                    return;
+                }
+
+                var httpResponseContentLength = 0;
+                var httpResponseHeaderLength = 0;
+                var totalReceivedBytes = 0;
+                while (true)
+                {
+                    var content =
+                        await _remoteSocket.ReceiveAsync(
+                                TimeSpan.FromSeconds(5))
+                            .ConfigureAwait(false);
+
+                    if (content.IsCanceled)
+                    {
+                        _logger.Trace("No response from kubernetes");
+                        break;
+                    }
+
+                    foreach (var sequence in content.Buffer)
+                    {
+                        if (httpResponseContentLength == 0)
+                        {
+                            if (sequence
+                                .TryGetHttpResponseLength(
+                                    out httpResponseHeaderLength,
+                                    out httpResponseContentLength) == false)
+                            {
+                                _logger.Debug("Could not determine response length");
+                            }
+                        }
+
+                        await localSocket
+                            .SendAsync(
+                                sequence,
+                                CancellationToken)
+                            .ConfigureAwait(false);
+
+                        totalReceivedBytes += sequence.Length;
+                    }
+
+                    if (totalReceivedBytes == httpResponseHeaderLength +
+                        httpResponseContentLength)
+                    {
+                        _logger.Trace(
+                            "Received {total} bytes in total, exiting",
+                            totalReceivedBytes);
+                        break;
+                    }
+
+                    if (content.IsCompleted)
                     {
                         _cancellationTokenSource.Cancel();
                         return;
                     }
-
-                    var httpResponseContentLength = 0;
-                    var httpResponseHeaderLength = 0;
-                    var totalReceivedBytes = 0;
-                    while (true)
-                    {
-                        var content =
-                            await _remoteSocket.ReceiveAsync(
-                                    TimeSpan.FromSeconds(5))
-                                .ConfigureAwait(false);
-
-                        if (content.IsCanceled)
-                        {
-                            _logger.Trace("No response from kubernetes");
-                            break;
-                        }
-
-                        foreach (var sequence in content.Buffer)
-                        {
-                            if (httpResponseContentLength == 0)
-                            {
-                                sequence
-                                    .TryGetHttpResponseLength(
-                                        out httpResponseHeaderLength,
-                                        out httpResponseContentLength);
-                            }
-
-                            await localSocket
-                                .SendAsync(
-                                    sequence,
-                                    CancellationToken)
-                                .ConfigureAwait(false);
-
-                            totalReceivedBytes += sequence.Length;
-                        }
-
-                        if (totalReceivedBytes == httpResponseHeaderLength +
-                            httpResponseContentLength)
-                        {
-                            _logger.Trace(
-                                "Received {total} bytes in total, exiting",
-                                totalReceivedBytes);
-                            break;
-                        }
-
-                        if (content.IsCompleted)
-                        {
-                            _cancellationTokenSource.Cancel();
-                            return;
-                        }
-                    }
-
-                    if (sendResult.IsCompleted)
-                    {
-                        _cancellationTokenSource.Cancel();
-                    }
                 }
-            }
-            catch when (_cancellationTokenSource
-                .IsCancellationRequested)
-            {
-                return;
+
+                if (sendResult.IsCompleted)
+                {
+                    _cancellationTokenSource.Cancel();
+                }
             }
         }
 

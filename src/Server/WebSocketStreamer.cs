@@ -159,6 +159,9 @@ namespace Port.Server
                         .ConfigureAwait(false);
                     if (result.IsCompleted || result.IsCanceled)
                     {
+                        _logger.Trace(
+                            "Received IsCompleted: {completed}, IsCancelled: {cancelled} cancelling",
+                            result.IsCompleted, result.IsCanceled);
                         _cancellationTokenSource.Cancel();
                         return;
                     }
