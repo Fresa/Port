@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using Log.It;
 
 namespace Port.Server
@@ -27,6 +29,9 @@ namespace Port.Server
             => _cancellationTokenSource.Token;
 
         private readonly List<Task> _backgroundTasks = new List<Task>();
+
+
+        private BufferBlock<INetworkClient> _activeLocalSockets = new BufferBlock<INetworkClient>();
 
         private readonly ILogger _logger = LogFactory.Create<StreamForwarder>();
 
@@ -63,6 +68,7 @@ namespace Port.Server
             }
 
             _backgroundTasks.Add(StartForwarding());
+            _backgroundTasks.Add(Forward());
             return this;
         }
 
@@ -71,29 +77,82 @@ namespace Port.Server
             while (_cancellationTokenSource.IsCancellationRequested ==
                    false)
             {
-                using var _ = _logger.LogicalThread.With(
-                    "local-socket-id", Guid.NewGuid());
                 try
                 {
-                    await using var client = await _networkServer
+                    var client = await _networkServer
                         .WaitForConnectedClientAsync(CancellationToken)
                         .ConfigureAwait(false);
 
                     _logger.Trace("Local socket connected");
+                    await _activeLocalSockets.SendAsync(client, CancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch when (_cancellationTokenSource
+                    .IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Fatal(ex, "Unknown error, closing down");
+#pragma warning disable 4014
+                    //Cancel and exit fast
+                    //This will most likely change when we need to report
+                    //back that the forwarding terminated or that we
+                    //should retry
+                    _cancellationTokenSource.Cancel(false);
+#pragma warning restore 4014
+                    return;
+                }
+            }
+        }
 
-                    while (true)
+        private async Task Forward()
+        {
+            while (_cancellationTokenSource.IsCancellationRequested ==
+                   false)
+            {
+                var client = await _activeLocalSockets.ReceiveAsync(CancellationToken)
+                    .ConfigureAwait(false);
+                using var _ = _logger.LogicalThread.With(
+                    "local-socket-id", Guid.NewGuid());
+                try
+                {
+                    using (await _webSocketGate
+                        .WaitAsync(CancellationToken)
+                        .ConfigureAwait(false))
                     {
-                        using (await _webSocketGate
-                            .WaitAsync(CancellationToken)
-                            .ConfigureAwait(false))
+                        var forward = CancellationTokenSource
+                            .CreateLinkedTokenSource(CancellationToken);
+                        try
                         {
-                            var local = StartTransferDataToLocal(client);
-                            var remote = StartTransferDataToRemote(client);
+                            var local = StartTransferDataToLocal(
+                                client, forward.Token);
+                            var remote = StartTransferDataToRemote(
+                                client, forward.Token);
                             await Task.WhenAll(local, remote);
-                        }
 
-                        //await StartTransferDataFromLocalToRemoteSocket(client)
-                        //    .ConfigureAwait(false);
+                            // Client still alive, add it back at the end of the queue
+                            await _activeLocalSockets.SendAsync(client, CancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        catch (SocketException socketException)
+                        {
+                            _logger.Debug(
+                                socketException,
+                                "Local socket caught an exception");
+                            try
+                            {
+                                await client.DisposeAsync()
+                                    .ConfigureAwait(false);
+                            }
+                            catch
+                            {
+                                // Try to dispose gracefully
+                            }
+
+                            forward.Cancel(false);
+                        }
                     }
                 }
                 catch when (_cancellationTokenSource
@@ -101,33 +160,24 @@ namespace Port.Server
                 {
                     return;
                 }
-                catch (SocketException socketException)
-                {
-                    _logger.Debug(
-                        socketException,
-                        "Local socket caught an exception");
-                }
                 catch (Exception ex)
                 {
                     _logger.Fatal(ex, "Unknown error, closing down");
 #pragma warning disable 4014
-                    //Dispose and exit fast
+                    //Cancel and exit fast
                     //This will most likely change when we need to report
                     //back that the forwarding terminated or that we
                     //should retry
-                    DisposeAsync();
+                    _cancellationTokenSource.Cancel(false);
 #pragma warning restore 4014
                     return;
-                }
-                finally
-                {
-                    _logger.Trace("Local socket disconnected");
                 }
             }
         }
 
         private async Task StartTransferDataToRemote(
-            INetworkClient localSocket)
+            INetworkClient localSocket,
+            CancellationToken aToken)
         {
             using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
             var memory = memoryOwner.Memory;
@@ -135,8 +185,15 @@ namespace Port.Server
             var bytesReceived = await localSocket
                 .ReceiveAsync(
                     memory,
-                    CancellationToken)
+                    aToken)
                 .ConfigureAwait(false);
+
+            // End of the stream! 
+            // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
+            if (bytesReceived == 0)
+            {
+                throw new SocketException((int)SocketError.Success);
+            }
 
             _logger.Trace(
                 "Sending {bytes} bytes to remote socket",
@@ -145,26 +202,23 @@ namespace Port.Server
             var sendResult = await _remoteSocket
                 .SendAsync(memory.Slice(0, bytesReceived))
                 .ConfigureAwait(false);
-            if (sendResult.IsCanceled)
-            {
-                _cancellationTokenSource.Cancel();
-                return;
-            }
 
-            if (sendResult.IsCompleted)
+            if (sendResult.IsCanceled ||
+                sendResult.IsCompleted)
             {
                 _cancellationTokenSource.Cancel();
             }
         }
 
         private async Task StartTransferDataToLocal(
-            INetworkClient localSocket)
+            INetworkClient localSocket,
+            CancellationToken aToken)
         {
-            var httpResponseContentLength = 0;
-            var httpResponseHeaderLength = 0;
-            var totalReceivedBytes = 0;
             while (true)
             {
+                var httpResponseContentLength = 0;
+                var httpResponseHeaderLength = 0;
+                var totalReceivedBytes = 0;
                 var content =
                     await _remoteSocket.ReceiveAsync(
                             TimeSpan.FromSeconds(5))
@@ -189,10 +243,16 @@ namespace Port.Server
                     await localSocket
                         .SendAsync(
                             sequence,
-                            CancellationToken)
+                            aToken)
                         .ConfigureAwait(false);
 
                     totalReceivedBytes += sequence.Length;
+                }
+
+                if (content.IsCompleted)
+                {
+                    _cancellationTokenSource.Cancel();
+                    return;
                 }
 
                 if (totalReceivedBytes == httpResponseHeaderLength +
@@ -204,17 +264,11 @@ namespace Port.Server
                     break;
                 }
 
-                if (httpResponseContentLength == 0)
-                {
-                    _logger.Debug("Could not determine response length");
-                    break;
-                }
-
-                if (content.IsCompleted)
-                {
-                    _cancellationTokenSource.Cancel();
-                    return;
-                }
+                //if (httpResponseContentLength == 0)
+                //{
+                //    _logger.Debug("Could not determine response length");
+                //    break;
+                //}
             }
         }
 
