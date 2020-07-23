@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Threading;
@@ -61,7 +62,10 @@ namespace Port.Server
             }
 
             _backgroundTasks.Add(StartReceivingLocalClients());
-            _backgroundTasks.Add(StartPortForwarding());
+            for (var i = 0; i < Environment.ProcessorCount; i++)
+            {
+                _backgroundTasks.Add(StartPortForwarding());
+            }
             return this;
         }
 
@@ -215,7 +219,8 @@ namespace Port.Server
             while (true)
             {
                 var content =
-                    await _remoteSocket.ReceiveAsync(TimeSpan.FromSeconds(5))
+                    await _remoteSocket.ReceiveAsync(
+                            TimeSpan.FromSeconds(5))
                         .ConfigureAwait(false);
 
                 if (content.IsCanceled)
