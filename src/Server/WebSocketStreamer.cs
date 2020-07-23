@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
@@ -144,26 +145,42 @@ namespace Port.Server
 
                     // The port forward stream first sends port number:
                     // [Stream index][High port byte][Low port byte]
-                    if (receivedBytes <= 3)
+                    if (receivedBytes == 3)
                     {
+                        _logger.Info("Got channel/port data: {data}", memory.Slice(0, receivedBytes).ToArray());
                         continue;
                     }
 
+                    var channel = (int)memory.Span[0];
                     var content = memory[1..receivedBytes];
-                    _logger.Trace(
-                        "Sending {bytes} bytes to local socket",
-                        content.Length);
 
-                    var result = await _receivingPipe.Writer.WriteAsync(
-                            content, CancellationToken)
-                        .ConfigureAwait(false);
-                    if (result.IsCompleted || result.IsCanceled)
+                    switch (channel)
                     {
-                        _logger.Trace(
-                            "Received IsCompleted: {completed}, IsCancelled: {cancelled} cancelling",
-                            result.IsCompleted, result.IsCanceled);
-                        _cancellationTokenSource.Cancel();
-                        return;
+                        case 0:
+                            _logger.Trace(
+                                "Sending {bytes} bytes to local socket from channel {channel}",
+                                content.Length, channel);
+
+                            var result = await _receivingPipe.Writer.WriteAsync(
+                                    content, CancellationToken)
+                                .ConfigureAwait(false);
+
+                            if (result.IsCompleted || result.IsCanceled)
+                            {
+                                _logger.Trace(
+                                    "Received IsCompleted: {completed}, IsCancelled: {cancelled} cancelling",
+                                    result.IsCompleted, result.IsCanceled);
+                                _cancellationTokenSource.Cancel();
+                                return;
+                            }
+
+                            break;
+                        // Got something on the error channel
+                        case 1:
+                            _logger.Error(Encoding.ASCII.GetString(memory[1..receivedBytes].ToArray()));
+                            return;
+                        default:
+                            throw new InvalidOperationException($"Channel {channel} is not supported");
                     }
                 }
             }
