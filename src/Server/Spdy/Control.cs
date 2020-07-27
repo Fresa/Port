@@ -95,6 +95,7 @@ namespace Port.Server.Spdy
 
         public Dictionary<Id, int> Values { get; set; } =
             new Dictionary<Id, int>();
+
         public enum Id
         {
             UploadBandwidth = 1,
@@ -117,6 +118,7 @@ namespace Port.Server.Spdy
     public class GoAway : Control
     {
         public override short Type => 7;
+
         protected new uint Length
         {
             get => 8;
@@ -129,6 +131,7 @@ namespace Port.Server.Spdy
                 }
             }
         }
+
         public int LastGoodStreamId { get; set; }
         public StatusCode Status { get; set; }
 
@@ -137,6 +140,58 @@ namespace Port.Server.Spdy
             Ok = 0,
             ProtocolError = 1,
             InternalError = 2
+        }
+    }
+
+    public class Headers : Control
+    {
+        public override short Type => 8;
+        public bool IsLastFrame => Flags == 1;
+        public Dictionary<string, string> Values { get; set; } =
+            new Dictionary<string, string>();
+    }
+
+    public class WindowUpdate : Control
+    {
+        public override short Type => 9;
+        protected new byte Flags
+        {
+            get => 0;
+            set
+            {
+                if (value != 0)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Flags), "Flags can only be 0");
+                }
+            }
+        }
+        protected new uint Length
+        {
+            get => 8;
+            set
+            {
+                if (value != 8)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Length), "Length can only be 8");
+                }
+            }
+        }
+
+        private int _deltaWindowSize;
+        public int DeltaWindowSize
+        {
+            get => _deltaWindowSize;
+            set
+            {
+                if (value < 1)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(DeltaWindowSize), "Delta window size must be greater than 0");
+                }
+
+                _deltaWindowSize = value;
+            }
         }
     }
 }
