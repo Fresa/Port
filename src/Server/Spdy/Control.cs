@@ -8,17 +8,17 @@ namespace Port.Server.Spdy
         public abstract bool IsControlFrame { get; }
     }
 
-    public class DataFrame : Frame
+    public class Data : Frame
     {
         public int StreamId { get; set; }
         public bool LastFrame => Flags == 1;
         public byte Flags { get; set; }
         public uint Length { get; set; }
-        public byte[] Data { get; set; } = new byte[0];
+        public byte[] Payload { get; set; } = new byte[0];
         public override bool IsControlFrame => false;
     }
 
-    public abstract class ControlFrame : Frame
+    public abstract class Control : Frame
     {
         public sealed override bool IsControlFrame => true;
         public short Version { get; set; } = 3;
@@ -28,7 +28,7 @@ namespace Port.Server.Spdy
         protected byte[] Data { get; set; } = new byte[0];
     }
 
-    public class SynStreamFrame : ControlFrame
+    public class SynStream : Control
     {
         public override short Type => 1;
         public bool IsFin => Flags == 1;
@@ -42,7 +42,7 @@ namespace Port.Server.Spdy
             new Dictionary<string, string>();
     }
 
-    public class SynReplyFrame : ControlFrame
+    public class SynReply : Control
     {
         public override short Type => 2;
         public bool IsFin => Flags == 1;
@@ -52,7 +52,7 @@ namespace Port.Server.Spdy
             new Dictionary<string, string>();
     }
 
-    public class RstStreamFrame : ControlFrame
+    public class RstStream : Control
     {
         public override short Type => 3;
 
@@ -70,9 +70,9 @@ namespace Port.Server.Spdy
         }
 
         public int StreamId { get; set; }
-        public RstStreamStatusCode StatusCode { get; set; }
+        public StatusCode Status { get; set; }
 
-        public enum RstStreamStatusCode
+        public enum StatusCode
         {
             ProtocolError = 1,
             InvalidStream = 2,
@@ -88,14 +88,14 @@ namespace Port.Server.Spdy
         }
     }
 
-    public class SettingsFrame : ControlFrame
+    public class Settings : Control
     {
         public override short Type => 4;
         public bool ClearSettings => Flags == 1;
 
-        public Dictionary<SettingsId, int> Settings { get; set; } =
-            new Dictionary<SettingsId, int>();
-        public enum SettingsId
+        public Dictionary<Id, int> Values { get; set; } =
+            new Dictionary<Id, int>();
+        public enum Id
         {
             UploadBandwidth = 1,
             DownloadBandwidth = 2,
@@ -105,6 +105,38 @@ namespace Port.Server.Spdy
             DownloadRetransRate = 6,
             InitialWindowSize = 7,
             ClientCertificateVectorSize = 8
+        }
+    }
+
+    public class Ping : Control
+    {
+        public override short Type => 6;
+        public uint Id { get; set; }
+    }
+
+    public class GoAway : Control
+    {
+        public override short Type => 7;
+        protected new uint Length
+        {
+            get => 8;
+            set
+            {
+                if (value != 8)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Length), "Length can only be 8");
+                }
+            }
+        }
+        public int LastGoodStreamId { get; set; }
+        public StatusCode Status { get; set; }
+
+        public enum StatusCode
+        {
+            Ok = 0,
+            ProtocolError = 1,
+            InternalError = 2
         }
     }
 }
