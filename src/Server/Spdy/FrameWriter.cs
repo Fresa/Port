@@ -6,24 +6,6 @@ using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
-    public abstract class Frame
-    {
-        public abstract bool IsControlFrame { get; }
-
-        public async ValueTask WriteAsync(
-            IFrameWriter frameWriter,
-            CancellationToken cancellationToken = default)
-        {
-            await frameWriter.WriteBooleanAsync(IsControlFrame, cancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
-
-    public interface IFrameWriter
-    {
-        ValueTask WriteBooleanAsync(bool value, CancellationToken cancellationToken = default);
-    }
-
     internal class FrameWriter : IFrameWriter
     {
         private readonly Stream _buffer;
