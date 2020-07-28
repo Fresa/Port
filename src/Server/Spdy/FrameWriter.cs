@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
@@ -10,18 +11,63 @@ namespace Port.Server.Spdy
     {
         private readonly Stream _buffer;
 
-        public FrameWriter(Stream buffer)
+        public FrameWriter(
+            Stream buffer)
         {
             _buffer = buffer;
         }
 
-        public async ValueTask WriteBooleanAsync(bool value, CancellationToken cancellationToken = default)
+        public async ValueTask WriteBooleanAsync(
+            bool value,
+            CancellationToken cancellationToken = default)
         {
-            await WriteAsLittleEndianAsync(BitConverter.GetBytes(value), cancellationToken)
+            await WriteAsLittleEndianAsync(
+                    BitConverter.GetBytes(value), cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        private async ValueTask WriteAsLittleEndianAsync(byte[] value, CancellationToken cancellationToken = default)
+        public async ValueTask WriteUInt24Async(
+            UInt24 value,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteAsync(
+                new[]
+                {
+                    value.Three,
+                    value.Two,
+                    value.One
+                }, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async ValueTask WriteInt32Async(
+            int value,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteAsBigEndianAsync(
+                    BitConverter.GetBytes(value), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async ValueTask WriteByteAsync(
+            byte value,
+            CancellationToken cancellationToken)
+        {
+            await WriteAsBigEndianAsync(new[] {value}, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async ValueTask WriteBytesAsync(
+            byte[] value,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteAsLittleEndianAsync(value, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        private async ValueTask WriteAsLittleEndianAsync(
+            byte[] value,
+            CancellationToken cancellationToken = default)
         {
             if (BitConverter.IsLittleEndian == false)
             {
@@ -32,7 +78,9 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
         }
 
-        private async ValueTask WriteAsBigEndianAsync(byte[] value, CancellationToken cancellationToken = default)
+        private async ValueTask WriteAsBigEndianAsync(
+            byte[] value,
+            CancellationToken cancellationToken = default)
         {
             if (BitConverter.IsLittleEndian)
             {
@@ -43,7 +91,9 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
         }
 
-        private async ValueTask WriteAsync(byte[] value, CancellationToken cancellationToken = default)
+        private async ValueTask WriteAsync(
+            byte[] value,
+            CancellationToken cancellationToken = default)
         {
             if (value.Any() == false)
             {

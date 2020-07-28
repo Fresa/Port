@@ -1,81 +1,34 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
     public abstract class Frame
     {
-        public abstract bool IsControlFrame { get; }
+        protected abstract bool IsControlFrame { get; }
 
-        public async ValueTask WriteAsync(
+        protected async ValueTask WriteAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
             await frameWriter.WriteBooleanAsync(IsControlFrame, cancellationToken)
                 .ConfigureAwait(false);
         }
-    }
 
-    public interface IFrameWriter
-    {
-        ValueTask WriteBooleanAsync(bool value, CancellationToken cancellationToken = default);
-    }
-
-    internal class FrameWriter : IFrameWriter
-    {
-        private readonly Stream _buffer;
-
-        public FrameWriter(Stream buffer)
+        protected async ValueTask ReadAsync(
+            IFrameReader frameReader,
+            CancellationToken cancellation = default)
         {
-            _buffer = buffer;
-        }
-
-        public async ValueTask WriteBooleanAsync(bool value, CancellationToken cancellationToken = default)
-        {
-            await WriteAsLittleEndianAsync(BitConverter.GetBytes(value), cancellationToken)
+            var isControlFrame = await frameReader.ReadBooleanAsync(cancellation)
                 .ConfigureAwait(false);
-        }
-
-        private async ValueTask WriteAsLittleEndianAsync(byte[] value, CancellationToken cancellationToken = default)
-        {
-            if (BitConverter.IsLittleEndian == false)
+            if (isControlFrame)
             {
-                Array.Reverse(value);
+
             }
-
-            await WriteAsync(value, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        private async ValueTask WriteAsBigEndianAsync(byte[] value, CancellationToken cancellationToken = default)
-        {
-            if (BitConverter.IsLittleEndian)
+            else
             {
-                Array.Reverse(value);
+
             }
-
-            await WriteAsync(value, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        private async ValueTask WriteAsync(byte[] value, CancellationToken cancellationToken = default)
-        {
-            if (value.Any() == false)
-            {
-                return;
-            }
-
-            await _buffer.WriteAsync(value.AsMemory(), cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await _buffer.FlushAsync()
-                .ConfigureAwait(false);
         }
     }
 }

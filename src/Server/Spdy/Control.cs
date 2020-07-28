@@ -2,7 +2,7 @@
 {
     public abstract class Control : Frame
     {
-        public sealed override bool IsControlFrame => true;
+        protected sealed override bool IsControlFrame => true;
         public short Version { get; set; } = 3;
         public abstract short Type { get; }
         protected byte Flags { get; set; }
