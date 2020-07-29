@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
     public class RstStream : Control
     {
-        public override short Type => 3;
+        public const ushort Key = 3;
+        protected override ushort Type => Key;
 
         protected new uint Length
         {
@@ -21,6 +24,13 @@ namespace Port.Server.Spdy
 
         public int StreamId { get; set; }
         public StatusCode Status { get; set; }
+
+        internal static async ValueTask<RstStream> ReadAsync(
+            IFrameReader frameReader,
+            CancellationToken cancellation = default)
+        {
+
+        }
 
         public enum StatusCode
         {

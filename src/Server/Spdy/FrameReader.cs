@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Primitives;
@@ -17,22 +18,46 @@ namespace Port.Server.Spdy
             _reader = reader;
         }
 
-        public async ValueTask<bool> ReadBooleanAsync(
-            CancellationToken cancellationToken = default)
-        {
-            return
-                BitConverter.ToBoolean(
-                    await ReadAsLittleEndianAsync(1, cancellationToken)
-                        .ConfigureAwait(false),
-                    0);
-        }
-
         public async ValueTask<UInt24> ReadUInt24Async(
             CancellationToken cancellationToken = default)
         {
             var bytes = await ReadAsync(3, cancellationToken)
                 .ConfigureAwait(false);
             return new UInt24(bytes[2], bytes[1], bytes[0]);
+        }
+
+        public async ValueTask<uint> ReadUInt32Async(
+            CancellationToken cancellationToken = default)
+        {
+            return
+                BitConverter.ToUInt32(
+                    await ReadAsBigEndianAsync(4, cancellationToken)
+                        .ConfigureAwait(false));
+        }
+
+        public async ValueTask<byte> ReadByteAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var value = await ReadAsync(1, cancellationToken)
+                .ConfigureAwait(false);
+            return value.First();
+        }
+
+        public async ValueTask<byte> PeekByteAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var value = await PeakAsync(1, cancellationToken)
+                .ConfigureAwait(false);
+            return value.First();
+        }
+
+        public async ValueTask<ushort> ReadUShortAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return
+                BitConverter.ToUInt16(
+                    await ReadAsBigEndianAsync(2, cancellationToken)
+                        .ConfigureAwait(false));
         }
 
         private async ValueTask<byte[]> ReadAsLittleEndianAsync(
@@ -67,9 +92,28 @@ namespace Port.Server.Spdy
             int length,
             CancellationToken cancellationToken = default)
         {
+            var sequence = await GetAsync(length, cancellationToken);
+            var bytes = sequence.ToArray();
+            _reader.AdvanceTo(sequence.GetPosition(length));
+            
+            return bytes;
+        }
+
+        private async ValueTask<byte[]> PeakAsync(
+            int length,
+            CancellationToken cancellationToken = default)
+        {
+            var sequence = await GetAsync(length, cancellationToken);
+            return sequence.ToArray();
+        }
+
+        private async ValueTask<ReadOnlySequence<byte>> GetAsync(
+            int length,
+            CancellationToken cancellationToken = default)
+        {
             if (length <= 0)
             {
-                return Array.Empty<byte>();
+                return ReadOnlySequence<byte>.Empty;
             }
 
             ReadResult result;
@@ -87,10 +131,7 @@ namespace Port.Server.Spdy
                     $"Expected {length} bytes, got {result.Buffer.Length}");
             }
 
-            var bytes = result.Buffer.Slice(0, length).ToArray();
-            _reader.AdvanceTo(result.Buffer.GetPosition(length));
-
-            return bytes;
+            return result.Buffer.Slice(0, length);
         }
     }
 }

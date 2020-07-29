@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
     public class WindowUpdate : Control
     {
-        public override short Type => 9;
+        public const ushort Key = 9;
+        protected override ushort Type => Key;
         protected new byte Flags
         {
             get => 0;
@@ -43,6 +46,13 @@ namespace Port.Server.Spdy
 
                 _deltaWindowSize = value;
             }
+        }
+
+        internal static async ValueTask<WindowUpdate> ReadAsync(
+            IFrameReader frameReader,
+            CancellationToken cancellation = default)
+        {
+
         }
     }
 }

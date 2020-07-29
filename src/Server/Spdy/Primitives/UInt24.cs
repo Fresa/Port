@@ -1,4 +1,6 @@
-﻿namespace Port.Server.Spdy.Primitives
+﻿using System;
+
+namespace Port.Server.Spdy.Primitives
 {
     public readonly struct UInt24
     {
@@ -11,6 +13,20 @@
             One = one;
             Two = two;
             Three = three;
+        }
+
+        public static UInt24 From(
+            uint value)
+        {
+            if (value >= (2 ^ 24))
+            {
+                throw new InvalidOperationException($"value {value} must be less than {2 ^ 24}");
+            }
+
+            return new UInt24(
+                (byte)(value & 0xFF),
+                (byte)((value >> 8) & 0xFF),
+                (byte)((value >> 16) & 0xFF));
         }
 
         public uint Value => (uint)(One | (Two << 8) | (Three << 16));

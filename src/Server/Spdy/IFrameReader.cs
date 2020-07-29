@@ -6,10 +6,19 @@ namespace Port.Server.Spdy
 {
     public interface IFrameReader
     {
-        ValueTask<bool> ReadBooleanAsync(
+        ValueTask<UInt24> ReadUInt24Async(
             CancellationToken cancellationToken = default);
 
-        ValueTask<UInt24> ReadUInt24Async(
+        ValueTask<uint> ReadUInt32Async(
+            CancellationToken cancellationToken = default);
+
+        ValueTask<byte> ReadByteAsync(
+            CancellationToken cancellationToken = default);
+
+        ValueTask<byte> PeekByteAsync(
+            CancellationToken cancellationToken = default);
+
+        ValueTask<ushort> ReadUShortAsync(
             CancellationToken cancellationToken = default);
     }
 }

@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
     public class GoAway : Control
     {
-        public override short Type => 7;
+        public const ushort Key = 7;
+        protected override ushort Type => Key;
 
         protected new uint Length
         {
@@ -27,6 +30,13 @@ namespace Port.Server.Spdy
             Ok = 0,
             ProtocolError = 1,
             InternalError = 2
+        }
+
+        internal static async ValueTask<GoAway> ReadAsync(
+            IFrameReader frameReader,
+            CancellationToken cancellation = default)
+        {
+
         }
     }
 }

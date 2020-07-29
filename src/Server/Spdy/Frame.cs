@@ -7,23 +7,17 @@ namespace Port.Server.Spdy
     {
         protected abstract bool IsControlFrame { get; }
 
-        protected async ValueTask WriteAsync(
-            IFrameWriter frameWriter,
-            CancellationToken cancellationToken = default)
-        {
-            await frameWriter.WriteBooleanAsync(IsControlFrame, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        protected async ValueTask ReadAsync(
+        internal static async ValueTask<Frame> ReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var isControlFrame = await frameReader.ReadBooleanAsync(cancellation)
+            var firstByte = await frameReader.PeekByteAsync(cancellation)
                 .ConfigureAwait(false);
+            var isControlFrame = (firstByte & 0x80) != 0;
             if (isControlFrame)
             {
-
+                return await Control.ReadAsync(frameReader, cancellation)
+                    .ConfigureAwait(false);
             }
             else
             {
