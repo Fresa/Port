@@ -17,24 +17,19 @@ namespace Port.Server.Spdy
     /// </summary>
     public class Data : Frame
     {
-        /// <summary>
-        /// For data frames this value is always 0.
-        /// </summary>
-        protected override bool IsControlFrame => false;
-
-        private int _streamId;
+        private uint _streamId;
         /// <summary>
         /// A 31-bit value identifying the stream.
         /// </summary>
-        public int StreamId
+        public uint StreamId
         {
             get => _streamId;
             set
             {
-                if (value < 0)
+                if (value >= (2^31))
                 {
                     throw new ArgumentOutOfRangeException(
-                        nameof(StreamId), "Stream id must be 0 or greater");
+                        nameof(StreamId), $"Stream id must be less than {2^31}");
                 }
 
                 _streamId = value;
@@ -62,9 +57,9 @@ namespace Port.Server.Spdy
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            var data = StreamId;
-            data.SetBit(0, IsControlFrame);
-            await frameWriter.WriteInt32Async(data, cancellationToken)
+            var data = StreamId
+                .SetBit(31, false);
+            await frameWriter.WriteUInt32Async(data, cancellationToken)
                 .ConfigureAwait(false);
 
             await frameWriter.WriteByteAsync(Flags, cancellationToken)

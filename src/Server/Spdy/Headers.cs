@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class Headers : Control
     {
-        public const ushort Key = 8;
-        protected override ushort Type => Key;
+        public const ushort Type = 8;
         public bool IsLastFrame => Flags == 1;
         public Dictionary<string, string> Values { get; set; } =
             new Dictionary<string, string>();

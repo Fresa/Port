@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class GoAway : Control
     {
-        public const ushort Key = 7;
-        protected override ushort Type => Key;
+        public const ushort Type = 7;
 
         protected new uint Length
         {

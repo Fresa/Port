@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class WindowUpdate : Control
     {
-        public const ushort Key = 9;
-        protected override ushort Type => Key;
+        public const ushort Type = 9;
         protected new byte Flags
         {
             get => 0;

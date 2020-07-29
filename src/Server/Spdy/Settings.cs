@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class Settings : Control
     {
-        public const ushort Key = 4;
-        protected override ushort Type => Key;
+        public const ushort Type = 4;
         public bool ClearSettings => Flags == 1;
 
         public Dictionary<Id, int> Values { get; set; } =

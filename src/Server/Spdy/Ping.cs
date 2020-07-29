@@ -5,8 +5,7 @@ namespace Port.Server.Spdy
 {
     public class Ping : Control
     {
-        public const ushort Key = 6;
-        protected override ushort Type => Key;
+        public const ushort Type = 6;
         public uint Id { get; set; }
 
         internal static async ValueTask<Ping> ReadAsync(

@@ -4,8 +4,8 @@ namespace Port.Server.Spdy.Extensions
 {
     internal static class IntExtensions
     {
-        internal static int SetBit(
-            this int value,
+        internal static uint SetBit(
+            this uint value,
             int bitIndex,
             bool bitValue)
         {
@@ -18,10 +18,10 @@ namespace Port.Server.Spdy.Extensions
 
             if (bitValue)
             {
-                return value | (1 << bitIndex);
+                return (uint)((int)value | (1 << bitIndex));
             }
 
-            return value & ~(1 << bitIndex);
+            return (uint)(value & ~(1 << bitIndex));
         }
     }
 }

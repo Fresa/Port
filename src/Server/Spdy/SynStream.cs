@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class SynStream : Control
     {
-        public const ushort Key = 1;
-        protected override ushort Type => Key;
+        public const ushort Type = 1;
         public bool IsFin => Flags == 1;
         public bool IsUnidirectional => Flags == 2;
         public int StreamId { get; set; }

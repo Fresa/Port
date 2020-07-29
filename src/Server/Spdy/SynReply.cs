@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class SynReply : Control
     {
-        public const ushort Key = 2;
-        protected override ushort Type => Key;
+        public const ushort Type = 2;
         public bool IsFin => Flags == 1;
         public int StreamId { get; set; }
 

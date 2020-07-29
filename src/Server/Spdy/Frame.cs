@@ -5,8 +5,6 @@ namespace Port.Server.Spdy
 {
     public abstract class Frame
     {
-        protected abstract bool IsControlFrame { get; }
-
         internal static async ValueTask<Frame> ReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)
@@ -19,10 +17,9 @@ namespace Port.Server.Spdy
                 return await Control.ReadAsync(frameReader, cancellation)
                     .ConfigureAwait(false);
             }
-            else
-            {
 
-            }
+            return await Data.ReadAsync(frameReader, cancellation)
+                .ConfigureAwait(false);
         }
     }
 }

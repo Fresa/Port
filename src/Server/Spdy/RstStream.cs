@@ -6,8 +6,7 @@ namespace Port.Server.Spdy
 {
     public class RstStream : Control
     {
-        public const ushort Key = 3;
-        protected override ushort Type => Key;
+        public const ushort Type = 3;
 
         protected new uint Length
         {

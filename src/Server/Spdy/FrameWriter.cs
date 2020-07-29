@@ -17,15 +17,6 @@ namespace Port.Server.Spdy
             _buffer = buffer;
         }
 
-        public async ValueTask WriteBooleanAsync(
-            bool value,
-            CancellationToken cancellationToken = default)
-        {
-            await WriteAsLittleEndianAsync(
-                    BitConverter.GetBytes(value), cancellationToken)
-                .ConfigureAwait(false);
-        }
-
         public async ValueTask WriteUInt24Async(
             UInt24 value,
             CancellationToken cancellationToken = default)
@@ -40,8 +31,8 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
         }
 
-        public async ValueTask WriteInt32Async(
-            int value,
+        public async ValueTask WriteUInt32Async(
+            uint value,
             CancellationToken cancellationToken = default)
         {
             await WriteAsBigEndianAsync(

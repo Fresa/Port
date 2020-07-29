@@ -6,16 +6,12 @@ namespace Port.Server.Spdy
 {
     public interface IFrameWriter
     {
-        ValueTask WriteBooleanAsync(
-            bool value,
-            CancellationToken cancellationToken = default);
-
         ValueTask WriteUInt24Async(
-            UInt24 streamId,
+            UInt24 value,
             CancellationToken cancellationToken = default);
         
-        ValueTask WriteInt32Async(
-            int streamId,
+        ValueTask WriteUInt32Async(
+            uint value,
             CancellationToken cancellationToken = default);
 
         ValueTask WriteByteAsync(

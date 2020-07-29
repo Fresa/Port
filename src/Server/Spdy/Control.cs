@@ -4,11 +4,18 @@ using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// +----------------------------------+
+    /// |C| Version(15bits) | Type(16bits) |
+    /// +----------------------------------+
+    /// | Flags (8)  |  Length (24 bits)   |
+    /// +----------------------------------+
+    /// |               Data               |
+    /// +----------------------------------+
+    /// </summary>
     public abstract class Control : Frame
     {
-        protected sealed override bool IsControlFrame => true;
-        public short Version { get; } = 3;
-        protected abstract ushort Type { get; }
+        public const short Version = 3;
         protected byte Flags { get; set; }
         protected uint Length { get; set; }
         protected byte[] Data { get; set; } = new byte[0];
@@ -20,37 +27,37 @@ namespace Port.Server.Spdy
             var version =
                 (ushort) (await frameReader.ReadUShortAsync(cancellation)
                     .ConfigureAwait(false) & 0x7FFF);
-            if (version != 3)
+            if (version != Version)
             {
                 throw new InvalidOperationException(
-                    $"Version {version} is not supported. Supported version is 3.");
+                    $"Version {version} is not supported. Supported version is {Version}.");
             }
 
             var type = await frameReader.ReadUShortAsync(cancellation)
                 .ConfigureAwait(false);
             return type switch
             {
-                SynStream.Key => await SynStream.ReadAsync(
+                SynStream.Type => await SynStream.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
-                SynReply.Key => await SynReply.ReadAsync(
+                SynReply.Type => await SynReply.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
-                RstStream.Key => await RstStream.ReadAsync(
+                RstStream.Type => await RstStream.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
-                Settings.Key => await Settings.ReadAsync(
+                Settings.Type => await Settings.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
-                Ping.Key => await Ping.ReadAsync(frameReader, cancellation)
+                Ping.Type => await Ping.ReadAsync(frameReader, cancellation)
                     .ConfigureAwait(false),
-                GoAway.Key => await SynStream.ReadAsync(
+                GoAway.Type => await SynStream.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
-                Headers.Key => await Headers.ReadAsync(
+                Headers.Type => await Headers.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
-                WindowUpdate.Key => await WindowUpdate.ReadAsync(
+                WindowUpdate.Type => await WindowUpdate.ReadAsync(
                         frameReader, cancellation)
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(
