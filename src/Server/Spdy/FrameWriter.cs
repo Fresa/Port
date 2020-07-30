@@ -56,6 +56,15 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
         }
 
+        public async ValueTask WriteUShortAsync(
+            ushort value,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteAsBigEndianAsync(
+                    BitConverter.GetBytes(value), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         private async ValueTask WriteAsLittleEndianAsync(
             byte[] value,
             CancellationToken cancellationToken = default)

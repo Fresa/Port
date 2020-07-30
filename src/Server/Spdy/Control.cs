@@ -15,10 +15,18 @@ namespace Port.Server.Spdy
     /// </summary>
     public abstract class Control : Frame
     {
-        public const short Version = 3;
+        public const ushort Version = 3;
         protected byte Flags { get; set; }
         protected uint Length { get; set; }
-        protected byte[] Data { get; set; } = new byte[0];
+
+        protected async ValueTask WriteAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            await frameWriter.WriteUShortAsync(
+                    Version ^ 0x8000, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         internal new static async ValueTask<Control> ReadAsync(
             IFrameReader frameReader,

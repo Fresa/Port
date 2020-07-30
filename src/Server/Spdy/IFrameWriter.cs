@@ -21,5 +21,9 @@ namespace Port.Server.Spdy
         ValueTask WriteBytesAsync(
             byte[] value,
             CancellationToken cancellationToken = default);
+
+        ValueTask WriteUShortAsync(
+            ushort value,
+            CancellationToken cancellationToken = default);
     }
 }
