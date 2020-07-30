@@ -10,7 +10,7 @@ namespace Port.Server.Spdy.Primitives
         internal byte Four { get; }
 
         public uint Value => (uint)(One | (Two << 8) | (Three << 16) | (Four << 24));
-        
+
         internal static readonly UInt31 MaxValue = new UInt31(
             0x7F, byte.MaxValue, byte.MaxValue, byte.MaxValue);
 
@@ -63,7 +63,7 @@ namespace Port.Server.Spdy.Primitives
             return Value.ToString();
         }
 
-        public static UInt24 From(
+        public static UInt31 From(
             uint value)
         {
             if (value >= (2 ^ 31))
@@ -72,11 +72,11 @@ namespace Port.Server.Spdy.Primitives
                     $"value {value} must be less than {MaxValue}");
             }
 
-            return new UInt24(
-                (byte) (value & 0xFF),
-                (byte) ((value >> 8) & 0xFF),
-                (byte) ((value >> 16) & 0xFF));
+            return new UInt31(
+                (byte)(value & 0xFF),
+                (byte)((value >> 8) & 0xFF),
+                (byte)((value >> 16) & 0xFF),
+                (byte)((value >> 24) & 0xFF));
         }
-
     }
 }

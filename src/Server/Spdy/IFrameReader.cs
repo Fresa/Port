@@ -14,6 +14,9 @@ namespace Port.Server.Spdy
 
         ValueTask<byte> ReadByteAsync(
             CancellationToken cancellationToken = default);
+        ValueTask<byte[]> ReadBytesAsync(
+            int length,
+            CancellationToken cancellationToken = default);
 
         ValueTask<byte> PeekByteAsync(
             CancellationToken cancellationToken = default);

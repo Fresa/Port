@@ -21,7 +21,7 @@ namespace Port.Server.Spdy
         public async ValueTask<UInt24> ReadUInt24Async(
             CancellationToken cancellationToken = default)
         {
-            var bytes = await ReadAsync(3, cancellationToken)
+            var bytes = await ReadAsBigEndianAsync(3, cancellationToken)
                 .ConfigureAwait(false);
             return new UInt24(bytes[2], bytes[1], bytes[0]);
         }
@@ -41,6 +41,13 @@ namespace Port.Server.Spdy
             var value = await ReadAsync(1, cancellationToken)
                 .ConfigureAwait(false);
             return value.First();
+        }
+
+        public async ValueTask<byte[]> ReadBytesAsync(int length,
+            CancellationToken cancellationToken = default)
+        {
+            return await ReadAsLittleEndianAsync(length, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         public async ValueTask<byte> PeekByteAsync(
