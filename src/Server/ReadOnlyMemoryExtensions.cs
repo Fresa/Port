@@ -16,7 +16,6 @@ namespace Port.Server
         private const byte CR = 13;
         private const byte LF = 10;
         private static readonly byte[] EndOfHeaders = { CR, LF, CR, LF };
-        private static readonly byte[] EndOfHeadersLF = { LF, LF };
 
         internal static bool
             TryGetHttpResponseLength(
@@ -47,23 +46,11 @@ namespace Port.Server
                         httpResponse[start..(i + 1)]
                             .Span));
 
-                var indexOfEndIfHeaders = httpResponse.Slice(i)
+                i += httpResponse.Slice(i)
                     .IndexOf(EndOfHeaders);
-                if (indexOfEndIfHeaders != -1)
-                {
-                    headerLength = indexOfEndIfHeaders + EndOfHeaders.Length;
-                    break;
-                }
 
-                indexOfEndIfHeaders = httpResponse.Slice(i)
-                    .IndexOf(EndOfHeadersLF);
-                if (indexOfEndIfHeaders != -1)
-                {
-                    headerLength = indexOfEndIfHeaders + EndOfHeadersLF.Length;
-                    break;
-                }
-
-                throw new InvalidOperationException("Could not find end of headers");
+                headerLength = i + EndOfHeaders.Length;
+                break;
             }
 
             return contentLength != 0;
@@ -74,18 +61,13 @@ namespace Port.Server
             byte[] bytes)
         {
             var i = 0;
-            while (memory.Length > i + bytes.Length)
+            while (memory.Slice(i, bytes.Length)
+                .Span.SequenceCompareTo(bytes) != 0)
             {
-                if (memory.Slice(i, bytes.Length)
-                    .Span.SequenceCompareTo(bytes) == 0)
-                {
-                    return i;
-                }
-
                 i++;
             }
 
-            return -1;
+            return i;
         }
     }
 }
