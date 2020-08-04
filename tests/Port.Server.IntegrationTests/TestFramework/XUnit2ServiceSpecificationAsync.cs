@@ -48,12 +48,12 @@ namespace Port.Server.IntegrationTests.TestFramework
             try
             {
                 await SetConfigurationAsync(
-                    _webApplicationHost, cancellationTokenSource.Token);
+                        _webApplicationHost, cancellationTokenSource.Token)
+                    .ConfigureAwait(false);
             }
             finally
             {
                 cancellationTokenSource.Cancel(false);
-                await DisposeAsync();
             }
         }
 
