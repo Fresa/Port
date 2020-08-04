@@ -31,7 +31,8 @@ namespace Port.Server.IntegrationTests
                 )
                 { LocalPort = 2746 }).ConfigureAwait(false);
 
-            await Task.Delay(int.MaxValue);
+            await Task.Delay(int.MaxValue)
+                .ConfigureAwait(false);
         }
 
     }

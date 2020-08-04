@@ -19,7 +19,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
             var memory = memoryOwner.Memory;
 
-            var length = await _networkClient.ReceiveAsync(memory, cancellationToken);
+            var length = await _networkClient.ReceiveAsync(memory, cancellationToken)
+                .ConfigureAwait(false);
             return memory.Slice(0, length).ToArray();
         }
 
@@ -32,7 +33,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             byte[] payload,
             CancellationToken cancellationToken = default)
         {
-            await _networkClient.SendAsync(payload, cancellationToken);
+            await _networkClient.SendAsync(payload, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }

@@ -34,8 +34,10 @@ namespace Port.Server.IntegrationTests.TestFramework
         protected sealed override async Task DisposeAsync(bool disposing)
         {
             NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
-            await TearDownAsync();
-            await base.DisposeAsync(disposing);
+            await TearDownAsync()
+                .ConfigureAwait(false);
+            await base.DisposeAsync(disposing)
+                .ConfigureAwait(false);
         }
     }
 }

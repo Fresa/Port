@@ -44,7 +44,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
                             await subscription(
                                 receivedMessage,
-                                _cancellationTokenSource.Token);
+                                _cancellationTokenSource.Token)
+                                .ConfigureAwait(false);
                         }
                         catch when (_cancellationTokenSource
                             .IsCancellationRequested)
@@ -99,7 +100,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         message,
                         cancellationToken) =>
                     await subscription.Invoke(
-                        (TRequestMessage) message, cancellationToken));
+                        (TRequestMessage) message, cancellationToken)
+                        .ConfigureAwait(false));
             return this;
         }
 
@@ -107,7 +109,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         {
             _cancellationTokenSource.Cancel();
 
-            await Task.WhenAll(_backgroundTasks);
+            await Task.WhenAll(_backgroundTasks)
+                .ConfigureAwait(false);
         }
     }
 }

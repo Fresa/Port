@@ -97,7 +97,8 @@ namespace Kubernetes.Test.API.Server
         {
             if (_host != null)
             {
-                await _host.StopAsync();
+                await _host.StopAsync()
+                    .ConfigureAwait(false);
             }
             _host?.Dispose();
         }

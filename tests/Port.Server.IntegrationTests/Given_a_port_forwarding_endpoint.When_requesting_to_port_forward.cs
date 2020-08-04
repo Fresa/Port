@@ -104,11 +104,13 @@ namespace Port.Server.IntegrationTests
                     await _fixture.PortForwardingSocket
                         .ConnectAsync(
                             new ByteArrayMessageClientFactory(), IPAddress.Any,
-                            1000, ProtocolType.Tcp, cancellationToken);
+                            1000, ProtocolType.Tcp, cancellationToken)
+                        .ConfigureAwait(false);
 
                 await client.SendAsync(
                     Encoding.ASCII.GetBytes(_fixture.Request),
-                    cancellationToken);
+                    cancellationToken)
+                    .ConfigureAwait(false);
 
                 await _fixture.WaitForResponseAsync(cancellationToken)
                     .ConfigureAwait(false);
@@ -302,8 +304,10 @@ namespace Port.Server.IntegrationTests
 
                 public async ValueTask DisposeAsync()
                 {
-                    await PortForwardingSocket.DisposeAsync();
-                    await KubernetesApiServer.DisposeAsync();
+                    await PortForwardingSocket.DisposeAsync()
+                        .ConfigureAwait(false);
+                    await KubernetesApiServer.DisposeAsync()
+                        .ConfigureAwait(false);
                     _memoryOwner.Dispose();
                 }
             }
