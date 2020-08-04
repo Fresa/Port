@@ -43,7 +43,7 @@ namespace Port.Server.IntegrationTests.TestFramework
 
         public async Task InitializeAsync()
         {
-            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationTokenSource = new CancellationTokenSource(Timeout);
             _webApplicationHost = new TWebApplicationHost();
             try
             {
