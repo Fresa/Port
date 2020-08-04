@@ -26,6 +26,14 @@ namespace Port.Server.Spdy
             return new UInt24(bytes[2], bytes[1], bytes[0]);
         }
 
+        public async ValueTask<int> ReadInt32Async(
+            CancellationToken cancellationToken = default)
+        {
+            return BitConverter.ToInt32(
+                await ReadAsBigEndianAsync(4, cancellationToken)
+                    .ConfigureAwait(false));
+        }
+
         public async ValueTask<uint> ReadUInt32Async(
             CancellationToken cancellationToken = default)
         {
@@ -65,6 +73,15 @@ namespace Port.Server.Spdy
                 BitConverter.ToUInt16(
                     await ReadAsBigEndianAsync(2, cancellationToken)
                         .ConfigureAwait(false));
+        }
+
+        public async ValueTask<byte[]> ReadStringAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var length = await ReadInt32Async(cancellationToken)
+                .ConfigureAwait(false);
+            return await ReadAsLittleEndianAsync(length, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         private async ValueTask<byte[]> ReadAsLittleEndianAsync(

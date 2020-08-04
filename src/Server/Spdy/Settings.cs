@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -6,6 +7,12 @@ namespace Port.Server.Spdy
 {
     public class Settings : Control
     {
+        public Settings(
+            byte flags)
+            : base(flags)
+        {
+        }
+
         public const ushort Type = 4;
         public bool ClearSettings => Flags == 1;
 
@@ -16,7 +23,7 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-
+            throw new NotImplementedException();
         }
 
         public enum Id

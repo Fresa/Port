@@ -6,6 +6,12 @@ namespace Port.Server.Spdy
 {
     public class GoAway : Control
     {
+        public GoAway(
+            byte flags)
+            : base(flags)
+        {
+        }
+
         public const ushort Type = 7;
 
         protected new uint Length
@@ -35,7 +41,7 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-
+            throw new NotImplementedException();
         }
     }
 }

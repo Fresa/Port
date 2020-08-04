@@ -6,6 +6,12 @@ namespace Port.Server.Spdy
 {
     public class WindowUpdate : Control
     {
+        public WindowUpdate(
+            byte flags)
+            : base(flags)
+        {
+        }
+
         public const ushort Type = 9;
         protected new byte Flags
         {
@@ -51,7 +57,7 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-
+            throw new NotImplementedException();
         }
     }
 }

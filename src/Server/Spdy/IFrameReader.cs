@@ -9,6 +9,9 @@ namespace Port.Server.Spdy
         ValueTask<UInt24> ReadUInt24Async(
             CancellationToken cancellationToken = default);
 
+        ValueTask<int> ReadInt32Async(
+            CancellationToken cancellationToken = default);
+
         ValueTask<uint> ReadUInt32Async(
             CancellationToken cancellationToken = default);
 
@@ -22,6 +25,9 @@ namespace Port.Server.Spdy
             CancellationToken cancellationToken = default);
 
         ValueTask<ushort> ReadUShortAsync(
+            CancellationToken cancellationToken = default);
+
+        ValueTask<byte[]> ReadStringAsync(
             CancellationToken cancellationToken = default);
     }
 }

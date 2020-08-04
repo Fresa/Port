@@ -1,27 +1,126 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// +------------------------------------+
+    /// |1|    version    |         1        |
+    /// +------------------------------------+
+    /// |  Flags (8)  |  Length (24 bits)    |
+    /// +------------------------------------+
+    /// |X|           Stream-ID (31bits)     |
+    /// +------------------------------------+
+    /// |X| Associated-To-Stream-ID (31bits) |
+    /// +------------------------------------+
+    /// | Pri|Unused | Slot |                |
+    /// +-------------------+                |
+    /// | Number of Name/Value pairs (int32) |   &lt;+
+    /// +------------------------------------+    |
+    /// |     Length of name (int32)         |    | This section is the "Name/Value
+    /// +------------------------------------+    | Header Block", and is compressed.
+    /// |           Name (string)            |    |
+    /// +------------------------------------+    |
+    /// |     Length of value  (int32)       |    |
+    /// +------------------------------------+    |
+    /// |          Value   (string)          |    |
+    /// +------------------------------------+    |
+    /// |           (repeats)                |   &lt;+
+    /// </summary>
     public class SynStream : Control
     {
+        public SynStream(
+            UInt31 streamId,
+            UInt31 associatedToStreamId,
+            PriorityLevel priority,
+            byte flags,
+            IReadOnlyDictionary<string, string> headers) : base(flags)
+        {
+            if (flags > 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(flags), $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
+            }
+            StreamId = streamId;
+            AssociatedToStreamId = associatedToStreamId;
+            Priority = priority;
+            Headers = headers;
+        }
         public const ushort Type = 1;
+
+        /// <summary>
+        /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
+        /// </summary>
         public bool IsFin => Flags == 1;
+
+        /// <summary>
+        /// 0x02 = FLAG_UNIDIRECTIONAL - a stream created with this flag puts the recipient in the half-closed (Section 2.3.6) state.
+        /// </summary>
         public bool IsUnidirectional => Flags == 2;
-        public int StreamId { get; set; }
-        public int AssociatedToStreamId { get; set; }
-        public bool IsIndependentStream => AssociatedToStreamId == 0;
-        public ushort Priority { get; set; }
+
+        /// <summary>
+        /// The 31-bit identifier for this stream. This stream-id will be used in frames which are part of this stream.
+        /// </summary>
+        public UInt31 StreamId { get; }
+
+        /// <summary>
+        /// The 31-bit identifier for a stream which this stream is associated to. If this stream is independent of all other streams, it should be 0.
+        /// </summary>
+        public UInt31 AssociatedToStreamId { get; }
+
+        public bool IsIndependentStream => AssociatedToStreamId.Value == 0;
+
+        /// <summary>
+        /// A 3-bit priority (Section 2.3.3) field.
+        /// </summary>
+        public PriorityLevel Priority { get; }
+
+        /// <summary>
+        /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
+        /// </summary>
+        public IReadOnlyDictionary<string, string> Headers { get; }
 
         internal static async ValueTask<SynStream> ReadAsync(
+            byte flags,
+            UInt24 length,
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
+            var streamId = UInt31.From(
+                await frameReader.ReadUInt32Async(cancellation)
+                    .ConfigureAwait(false) & 0x7FFF);
+            var associatedToStreamId = UInt31.From(
+                await frameReader.ReadUInt32Async(cancellation)
+                    .ConfigureAwait(false) & 0x7FFF);
+            var priority = Enum.Parse<PriorityLevel>((await frameReader.ReadByteAsync(cancellation)
+                .ConfigureAwait(false) & 0xE0).ToString(), true);
+            // Slot: 8 bits of unused space, reserved for future use. 
+            await frameReader.ReadByteAsync(cancellation)
+                .ConfigureAwait(false);
+            // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
+            var headerLength = length.Value - 10;
+            var compressedHeaders = await frameReader.ReadBytesAsync(
+                    (int)headerLength, cancellation)
+                .ConfigureAwait(false);
 
+            var headers = await frameReader.ReadNameValuePairs(cancellation)
+                .ConfigureAwait(false);
+
+            return new SynStream(streamId, associatedToStreamId, priority, flags, headers);
         }
 
-        public Dictionary<string, string> Headers { get; set; } =
-            new Dictionary<string, string>();
+        public enum PriorityLevel
+        {
+            Top,
+            Urgent,
+            High,
+            AboveNormal,
+            Normal,
+            BelowNormal,
+            Low,
+            Lowest
+        }
     }
 }

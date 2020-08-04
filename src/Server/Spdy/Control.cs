@@ -15,9 +15,13 @@ namespace Port.Server.Spdy
     /// </summary>
     public abstract class Control : Frame
     {
+        protected Control(byte flags)
+        {
+            Flags = flags;
+        }
+
         public const ushort Version = 3;
-        protected byte Flags { get; set; }
-        protected uint Length { get; set; }
+        protected byte Flags { get; }
 
         protected async ValueTask WriteAsync(
             IFrameWriter frameWriter,
@@ -43,10 +47,14 @@ namespace Port.Server.Spdy
 
             var type = await frameReader.ReadUShortAsync(cancellation)
                 .ConfigureAwait(false);
+            var flags = await frameReader.ReadByteAsync(cancellation)
+                .ConfigureAwait(false);
+            var length = await frameReader.ReadUInt24Async(cancellation)
+                .ConfigureAwait(false);
             return type switch
             {
                 SynStream.Type => await SynStream.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 SynReply.Type => await SynReply.ReadAsync(
                         frameReader, cancellation)
@@ -59,8 +67,7 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false),
                 Ping.Type => await Ping.ReadAsync(frameReader, cancellation)
                     .ConfigureAwait(false),
-                GoAway.Type => await SynStream.ReadAsync(
-                        frameReader, cancellation)
+                GoAway.Type => await ReadAsync(frameReader, cancellation)
                     .ConfigureAwait(false),
                 Headers.Type => await Headers.ReadAsync(
                         frameReader, cancellation)

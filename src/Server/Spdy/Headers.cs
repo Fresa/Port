@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -6,6 +7,12 @@ namespace Port.Server.Spdy
 {
     public class Headers : Control
     {
+        public Headers(
+            byte flags)
+            : base(flags)
+        {
+        }
+
         public const ushort Type = 8;
         public bool IsLastFrame => Flags == 1;
         public Dictionary<string, string> Values { get; set; } =
@@ -15,7 +22,8 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-
+            throw new NotImplementedException();
         }
+
     }
 }
