@@ -178,41 +178,40 @@ namespace Port.Server.IntegrationTests
                     KubernetesApiServer
                 { get; }
 
-                internal string Request => @"
-POST /cgi-bin/process.cgi HTTP/1.1
-User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)
-Host: www.tutorialspoint.com
-Content-Type: text/xml; charset=utf-8
-Content-Length: length
-Accept-Language: en-us
-Accept-Encoding: gzip, deflate
-Connection: Keep-Alive
+                internal string Request { get; } =
+"POST /cgi-bin/process.cgi HTTP/1.1\r\n" +
+"User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n" +
+"Host: www.tutorialspoint.com\r\n" +
+"Content-Type: text/xml; charset=utf-8\r\n" +
+"Content-Length: length\r\n" +
+"Accept-Language: en-us\r\n" +
+"Accept-Encoding: gzip, deflate\r\n" +
+"Connection: Keep-Alive\r\n" +
+"\r\n" + 
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n" +
+"<string xmlns = \"http://clearforest.com/\">string</string>";
 
-<?xml version=""1.0"" encoding=""utf-8""?>
-<string xmlns = ""http://clearforest.com/"">string</string>";
-
-                internal string[] FragmentedResponses => new[]
+                internal string[] FragmentedResponses { get; } =
                 {
-                    @"
-HTTP/1.1 400 Bad Request
-Date: Sun, 18 Oct 2012 10:36:20 GMT
-Server: Apache/2.2.14 (Win32)
-Content-Length: 327
-Content-Type: text/html; charset=iso-8859-1
-Connection: Closed
+"HTTP/1.1 400 Bad Request\r\n" +
+"Date: Sun, 18 Oct 2012 10:36:20 GMT\r\n" +
+"Server: Apache/2.2.14 (Win32)\r\n" +
+"Content-Length: 327\r\n" +
+"Content-Type: text/html; charset=iso-8859-1\r\n" +
+"Connection: Closed\r\n" +
+"\r\n" +
+"<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">",
 
-<!DOCTYPE HTML PUBLIC ""-//IETF//DTD HTML 2.0//EN"">",
-                    @"
-<html>
-<head>
-   <title>400 Bad Request</title>
-</head>
-<body>
-   <h1>Bad Request</h1>
-   <p>Your browser sent a request that this server could not understand.</p>
-   <p>The request line contained invalid characters following the protocol string.</p>
-</body>
-</html>"
+"<html>\r\n" +
+"<head>\r\n" +
+"   <title>400 Bad Request</title>\r\n" +
+"</head>\r\n" +
+"<body>\r\n" +
+"   <h1>Bad Request</h1>\r\n" +
+"   <p>Your browser sent a request that this server could not understand.</p>\r\n" +
+"   <p>The request line contained invalid characters following the protocol string.</p>\r\n" +
+"</body>\r\n" +
+"</html>"
                 };
 
                 private readonly IMemoryOwner<byte> _memoryOwner =
