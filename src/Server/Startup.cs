@@ -90,7 +90,8 @@ namespace Port.Server
         {
             app.UseSimpleInjector(_container);
             hostApplicationLifetime.ApplicationStopped.Register(
-                async () => await _container.DisposeAsync());
+                async () => await _container.DisposeAsync()
+                    .ConfigureAwait(false));
 
             if (env.IsDevelopment())
             {

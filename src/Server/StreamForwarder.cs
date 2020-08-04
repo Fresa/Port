@@ -205,7 +205,8 @@ namespace Port.Server
                     _cancellationTokenSource.Cancel();
                 }
 
-                await StartTransferDataToLocal(localSocket, aToken);
+                await StartTransferDataToLocal(localSocket, aToken)
+                    .ConfigureAwait(false);
             }
         }
 
@@ -272,7 +273,8 @@ namespace Port.Server
 
             try
             {
-                await _networkServer.DisposeAsync();
+                await _networkServer.DisposeAsync()
+                    .ConfigureAwait(false);
             }
             catch
             {
@@ -281,7 +283,8 @@ namespace Port.Server
 
             try
             {
-                await _remoteSocket.DisposeAsync();
+                await _remoteSocket.DisposeAsync()
+                    .ConfigureAwait(false);
             }
             catch
             {
@@ -289,7 +292,8 @@ namespace Port.Server
             }
 
             _webSocketGate.Dispose();
-            await Task.WhenAll(_backgroundTasks);
+            await Task.WhenAll(_backgroundTasks)
+                .ConfigureAwait(false);
         }
     }
 }

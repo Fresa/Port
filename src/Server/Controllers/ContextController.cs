@@ -14,7 +14,8 @@ namespace Port.Server.Controllers
         [HttpGet]
         public async Task<IEnumerable<Context>> Get()
         {
-            return (await KubernetesClientConfiguration.LoadKubeConfigAsync())
+            return (await KubernetesClientConfiguration.LoadKubeConfigAsync()
+                    .ConfigureAwait(false))
                 .Contexts.Select(context => new Context(context.Name));
         }
     }

@@ -22,7 +22,8 @@ namespace Port.Server.Controllers
             string context)
         {
             return await _kubernetesService.ListServicesInAllNamespacesAsync(
-                context);
+                context)
+                .ConfigureAwait(false);
         }
 
         [HttpPost("{context}/portforward")]
@@ -30,7 +31,8 @@ namespace Port.Server.Controllers
             string context,
             Shared.PortForward portForward)
         {
-            await _kubernetesService.PortForwardAsync(context, portForward);
+            await _kubernetesService.PortForwardAsync(context, portForward)
+                .ConfigureAwait(false);
         }
 
     }

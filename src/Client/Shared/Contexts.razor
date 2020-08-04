@@ -54,7 +54,8 @@ else
             StateHasChanged();
         };
 
-        _contexts = await Http.GetFromNewtonsoftJsonAsync<Context[]>("Context");
+        _contexts = await Http.GetFromNewtonsoftJsonAsync<Context[]>("Context")
+            .ConfigureAwait(false);
     }
 
     private void ToggleNavMenu()

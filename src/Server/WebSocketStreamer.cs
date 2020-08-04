@@ -66,7 +66,8 @@ namespace Port.Server
 
             _ = task.ContinueWith(
                 _ =>
-                    timeoutLock.Release(), CancellationToken);
+                    timeoutLock.Release(), CancellationToken)
+                .ConfigureAwait(false);
 
             var released = await timeoutLock
                 .WaitAsync(timeout, CancellationToken)
@@ -285,7 +286,8 @@ namespace Port.Server
                 // Try closing the socket
             }
 
-            await Task.WhenAll(_backgroundJobs.ToArray());
+            await Task.WhenAll(_backgroundJobs.ToArray())
+                .ConfigureAwait(false);
         }
     }
 }

@@ -137,7 +137,8 @@ else
     {
         if (enable)
         {
-            await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward);
+            await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward)
+                .ConfigureAwait(false);
         }
     }
 }

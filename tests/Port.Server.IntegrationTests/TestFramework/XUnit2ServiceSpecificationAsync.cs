@@ -30,7 +30,7 @@ namespace Port.Server.IntegrationTests.TestFramework
             NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
-        protected TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
+        protected TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
         /// <tldr>Captures target and redirects it to the current test session.</tldr>
@@ -43,17 +43,17 @@ namespace Port.Server.IntegrationTests.TestFramework
 
         public async Task InitializeAsync()
         {
-            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationTokenSource = new CancellationTokenSource(Timeout);
             _webApplicationHost = new TWebApplicationHost();
             try
             {
                 await SetConfigurationAsync(
-                    _webApplicationHost, cancellationTokenSource.Token);
+                        _webApplicationHost, cancellationTokenSource.Token)
+                    .ConfigureAwait(false);
             }
             finally
             {
                 cancellationTokenSource.Cancel(false);
-                await DisposeAsync();
             }
         }
 
@@ -75,7 +75,8 @@ namespace Port.Server.IntegrationTests.TestFramework
 
         public async Task DisposeAsync()
         {
-            await _webApplicationHost.StopAsync();
+            await _webApplicationHost.StopAsync()
+                .ConfigureAwait(false);
 
             _webApplicationHost.Dispose();
 
@@ -86,7 +87,8 @@ namespace Port.Server.IntegrationTests.TestFramework
 
             foreach (var asyncDisposable in _asyncDisposables)
             {
-                await asyncDisposable.DisposeAsync();
+                await asyncDisposable.DisposeAsync()
+                    .ConfigureAwait(false);
             }
 
             NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;

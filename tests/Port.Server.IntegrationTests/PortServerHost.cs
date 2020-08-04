@@ -43,7 +43,8 @@ namespace Port.Server.IntegrationTests
                         })
                     .ConfigureWebHost(builder => builder.UseTestServer())
                     .Build();
-                await _host.StartAsync(cancellationToken);
+                await _host.StartAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             return this;
@@ -54,7 +55,8 @@ namespace Port.Server.IntegrationTests
         {
             if (_host != null)
             {
-                await _host.StopAsync(cancellationToken);
+                await _host.StopAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
 

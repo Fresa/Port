@@ -21,7 +21,8 @@ namespace Port.Server.Controllers
             string context)
         {
             return await _kubernetesService.ListPodsInAllNamespacesAsync(
-                context);
+                context)
+                .ConfigureAwait(false);
         }
     }
 }

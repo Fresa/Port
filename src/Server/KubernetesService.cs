@@ -36,7 +36,8 @@ namespace Port.Server
         {
             using var client = _clientFactory.Create(context);
             var deployments =
-                await client.ListDeploymentForAllNamespacesAsync();
+                await client.ListDeploymentForAllNamespacesAsync()
+                    .ConfigureAwait(false);
             return deployments.Items.Select(
                 pod => new Deployment
                 (
@@ -49,7 +50,8 @@ namespace Port.Server
             string context)
         {
             using var client = _clientFactory.Create(context);
-            var pods = await client.ListPodForAllNamespacesAsync();
+            var pods = await client.ListPodForAllNamespacesAsync()
+                .ConfigureAwait(false);
             return pods.Items.Select(
                 pod => new Shared.Pod
                 (
@@ -64,7 +66,8 @@ namespace Port.Server
                 string context)
         {
             using var client = _clientFactory.Create(context);
-            var services = await client.ListServiceForAllNamespacesAsync();
+            var services = await client.ListServiceForAllNamespacesAsync()
+                .ConfigureAwait(false);
             return services.Items.Select(
                 service => new Service
                 (
