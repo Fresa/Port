@@ -110,13 +110,13 @@ namespace Port.Server
             while (_cancellationTokenSource.IsCancellationRequested ==
                    false)
             {
-                var client = await _activeLocalSockets
-                    .ReceiveAsync(CancellationToken)
-                    .ConfigureAwait(false);
-                using var _ = _logger.LogicalThread.With(
-                    "local-socket-id", Guid.NewGuid());
                 try
                 {
+                    var client = await _activeLocalSockets
+                        .ReceiveAsync(CancellationToken)
+                        .ConfigureAwait(false);
+                    using var _ = _logger.LogicalThread.With(
+                    "local-socket-id", Guid.NewGuid());
                     var forward = CancellationTokenSource
                         .CreateLinkedTokenSource(CancellationToken);
                     try

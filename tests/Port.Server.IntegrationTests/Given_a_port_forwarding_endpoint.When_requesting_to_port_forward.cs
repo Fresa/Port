@@ -224,7 +224,7 @@ namespace Port.Server.IntegrationTests
                 internal List<byte> WebSocketMessageReceived =
                     new List<byte>();
 
-                internal string? PortForwardResponse { get; private set; }
+                internal string PortForwardResponse { get; private set; } = ""; 
 
                 internal void PortForwardResponseReceived(
                     byte[] buffer)
@@ -242,7 +242,7 @@ namespace Port.Server.IntegrationTests
                     CancellationToken cancellationToken)
                 {
                     var timeout = TimeSpan.FromSeconds(5);
-                    foreach (var _ in FragmentedResponses)
+                    while (PortForwardResponse.Length < FragmentedResponses.Sum(response => response.Length))
                     {
                         if (await _responseReceived.WaitAsync(
                                 timeout, cancellationToken)
