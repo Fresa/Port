@@ -114,7 +114,7 @@ namespace Port.Server.Spdy
                     (await frameReader
                         .ReadBytesAsync(headerLength, cancellation)
                         .ConfigureAwait(false))
-                    .ZlibInflate(SpdyConstants.HeadersDictionary)
+                    .ZlibDecompress(SpdyConstants.HeadersDictionary)
                     .ReadNameValuePairs(cancellation)
                     .ConfigureAwait(false);
 
