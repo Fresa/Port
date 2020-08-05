@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using Elskom.Generic.Libs;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
@@ -105,6 +108,8 @@ namespace Port.Server.Spdy
                     (int)headerLength, cancellation)
                 .ConfigureAwait(false);
 
+
+
             var headers = await frameReader.ReadNameValuePairs(cancellation)
                 .ConfigureAwait(false);
 
@@ -121,6 +126,30 @@ namespace Port.Server.Spdy
             BelowNormal,
             Low,
             Lowest
+        }
+
+        private MemoryStream Deflate(byte[] input)
+        {
+            var @out = new MemoryStream();
+            var s = new ZStream();
+            s.NextIn = input;
+            s.NextInIndex = 0;
+            s.AvailIn = input.Length;
+            s.NextOut = @out.GetBuffer();
+
+            while (true)
+            {
+                var code = s.Inflate(0);
+                switch (code)
+                {
+                    case ZlibConst.ZSTREAMEND:
+                        return @out;
+                    case ZlibConst.ZNEEDDICT:
+                        s.DeflateSetDictionary(
+                            SpdyConstants.InitialCompression,
+                            SpdyConstants.InitialCompression.Length);
+                }
+            }
         }
     }
 }
