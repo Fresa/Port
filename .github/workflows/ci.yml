@@ -1,10 +1,7 @@
-name: .NET Core
+name: Continuous Delivery
 
 on:
   push:
-    branches: 
-      - '*'
-  pull_request:
     branches: 
       - '*'
 
@@ -19,6 +16,20 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 3.1.301
+    # - name: Get next version
+    #   id: get-next-version
+    #   run: ./ci/10_get_next_version.sh ${{ github.run_number }} ${{ github.ref }}
+    #   shell: bash
+    # - name: Set next version
+    #   run: ${{ steps.get-next-version.outputs.version }}
+    - uses: actions/checkout@master
+      with:
+        # Fetches entire history, so we can analyze commits since last tag
+        fetch-depth: 0
+    - name: Bump version and push tag
+      uses: mathieudutour/github-tag-action@v4.5
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
     - name: Install dependencies
       run: dotnet restore
     - name: Build
