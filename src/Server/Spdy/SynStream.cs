@@ -1,10 +1,9 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
-using Elskom.Generic.Libs;
+using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
@@ -40,17 +39,22 @@ namespace Port.Server.Spdy
             UInt31 associatedToStreamId,
             PriorityLevel priority,
             byte flags,
-            IReadOnlyDictionary<string, string> headers) : base(flags)
+            IReadOnlyDictionary<string, string> headers)
+            : base(flags)
         {
             if (flags > 2)
             {
-                throw new ArgumentOutOfRangeException(nameof(flags), $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
+                throw new ArgumentOutOfRangeException(
+                    nameof(flags),
+                    $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
             }
+
             StreamId = streamId;
             AssociatedToStreamId = associatedToStreamId;
             Priority = priority;
             Headers = headers;
         }
+
         public const ushort Type = 1;
 
         /// <summary>
@@ -97,23 +101,25 @@ namespace Port.Server.Spdy
             var associatedToStreamId = UInt31.From(
                 await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false) & 0x7FFF);
-            var priority = Enum.Parse<PriorityLevel>((await frameReader.ReadByteAsync(cancellation)
-                .ConfigureAwait(false) & 0xE0).ToString(), true);
+            var priority = Enum.Parse<PriorityLevel>(
+                (await frameReader.ReadByteAsync(cancellation)
+                    .ConfigureAwait(false) & 0xE0).ToString(), true);
             // Slot: 8 bits of unused space, reserved for future use. 
             await frameReader.ReadByteAsync(cancellation)
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
-            var headerLength = length.Value - 10;
-            var compressedHeaders = await frameReader.ReadBytesAsync(
-                    (int)headerLength, cancellation)
-                .ConfigureAwait(false);
+            var headerLength = (int)length.Value - 10;
+            var headers =
+                await
+                    (await frameReader
+                        .ReadBytesAsync(headerLength, cancellation)
+                        .ConfigureAwait(false))
+                    .ZlibInflate(SpdyConstants.HeadersDictionary)
+                    .ReadNameValuePairs(cancellation)
+                    .ConfigureAwait(false);
 
-
-
-            var headers = await frameReader.ReadNameValuePairs(cancellation)
-                .ConfigureAwait(false);
-
-            return new SynStream(streamId, associatedToStreamId, priority, flags, headers);
+            return new SynStream(
+                streamId, associatedToStreamId, priority, flags, headers);
         }
 
         public enum PriorityLevel
@@ -126,30 +132,6 @@ namespace Port.Server.Spdy
             BelowNormal,
             Low,
             Lowest
-        }
-
-        private MemoryStream Deflate(byte[] input)
-        {
-            var @out = new MemoryStream();
-            var s = new ZStream();
-            s.NextIn = input;
-            s.NextInIndex = 0;
-            s.AvailIn = input.Length;
-            s.NextOut = @out.GetBuffer();
-
-            while (true)
-            {
-                var code = s.Inflate(0);
-                switch (code)
-                {
-                    case ZlibConst.ZSTREAMEND:
-                        return @out;
-                    case ZlibConst.ZNEEDDICT:
-                        s.DeflateSetDictionary(
-                            SpdyConstants.InitialCompression,
-                            SpdyConstants.InitialCompression.Length);
-                }
-            }
         }
     }
 }
