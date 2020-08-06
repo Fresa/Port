@@ -12,8 +12,7 @@ namespace Port.Server.Spdy.Extensions
             byte[] dictionary)
         {
             var stream = new MemoryStream();
-            var buffer = new byte[1024];
-
+            
             var zStream = new ZStream
             {
                 NextIn = input,
@@ -21,22 +20,28 @@ namespace Port.Server.Spdy.Extensions
                 AvailIn = input.Length
             };
 
-            var result = zStream.DeflateInit(ZlibConst.ZDEFAULTCOMPRESSION);
+            var result = zStream.DeflateInit(ZlibConst.ZDEFAULTCOMPRESSION, 11);
             if (result < 0)
             {
                 throw new InvalidOperationException(
-                    $"Got error code {result} when initializing deflate routine");
+                    $"Got error code {result} when initializing deflate routine: {zStream.Msg}");
             }
 
+            var buffer = new byte[1024];
             zStream.NextOut = buffer;
 
             try
             {
+                var flush = ZlibConst.ZNOFLUSH;
                 while (true)
                 {
+                    if (zStream.TotalIn == input.Length)
+                    {
+                        flush = ZlibConst.ZFINISH;
+                    }
                     zStream.NextOutIndex = 0;
                     zStream.AvailOut = buffer.Length;
-                    result = zStream.Deflate(ZlibConst.ZNOFLUSH);
+                    result = zStream.Deflate(flush);
                     stream.Write(buffer, 0, buffer.Length - zStream.AvailOut);
 
                     switch (result)
@@ -50,15 +55,16 @@ namespace Port.Server.Spdy.Extensions
                             if (result < 0)
                             {
                                 throw new InvalidOperationException(
-                                    $"Got error code {result} when setting dictionary");
+                                    $"Got error code {result} when setting dictionary: {zStream.Msg}");
                             }
 
                             break;
                         case var _ when result < 0:
                             throw new InvalidOperationException(
-                                $"Got error code {result} when deflating the stream");
+                                $"Got error code {result} when deflating the stream: {zStream.Msg}");
                     }
                 }
+
             }
             finally
             {
@@ -84,7 +90,7 @@ namespace Port.Server.Spdy.Extensions
             if (result < 0)
             {
                 throw new InvalidOperationException(
-                    $"Got error code {result} when initializing inflate routine");
+                    $"Got error code {result} when initializing inflate routine: {zStream.Msg}");
             }
 
             zStream.NextOut = buffer;
@@ -109,13 +115,13 @@ namespace Port.Server.Spdy.Extensions
                             if (result < 0)
                             {
                                 throw new InvalidOperationException(
-                                    $"Got error code {result} when setting dictionary");
+                                    $"Got error code {result} when setting dictionary: {zStream.Msg}");
                             }
 
                             break;
                         case var _ when result < 0:
                             throw new InvalidOperationException(
-                                $"Got error code {result} when deflating the stream");
+                                $"Got error code {result} when deflating the stream: {zStream.Msg}");
                     }
                 }
             }
