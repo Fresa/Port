@@ -33,20 +33,32 @@ namespace Port.Server.Spdy
             byte flags,
             UInt31 streamId,
             IReadOnlyDictionary<string, string> headers)
-            : base(flags)
         {
-            if (flags > 1)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(flags),
-                    $"Flags can only be 0 = none or 1 = {nameof(IsFin)}");
-            }
-
+            Flags = flags;
             StreamId = streamId;
             Headers = headers;
         }
         
         public const ushort Type = 2;
+
+        /// <summary>
+        /// Flags related to this frame.
+        /// </summary>
+        protected new byte Flags
+        {
+            get => base.Flags;
+            set
+            {
+                if (value > 1)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Flags),
+                        $"Flags can only be 0 = none or 1 = {nameof(IsFin)}");
+                }
+
+                base.Flags = value;
+            }
+        }
 
         /// <summary>
         /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.

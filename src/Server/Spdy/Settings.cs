@@ -9,7 +9,6 @@ namespace Port.Server.Spdy
     {
         public Settings(
             byte flags)
-            : base(flags)
         {
         }
 

@@ -8,7 +8,6 @@ namespace Port.Server.Spdy
     {
         public GoAway(
             byte flags)
-            : base(flags)
         {
         }
 

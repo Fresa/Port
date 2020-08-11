@@ -39,15 +39,8 @@ namespace Port.Server.Spdy
             UInt31 associatedToStreamId,
             PriorityLevel priority,
             IReadOnlyDictionary<string, string> headers)
-            : base(flags)
         {
-            if (flags > 2)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(flags),
-                    $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
-            }
-
+            Flags = flags;
             StreamId = streamId;
             AssociatedToStreamId = associatedToStreamId;
             Priority = priority;
@@ -55,6 +48,25 @@ namespace Port.Server.Spdy
         }
 
         public const ushort Type = 1;
+
+        /// <summary>
+        /// Flags related to this frame. 
+        /// </summary>
+        protected new byte Flags
+        {
+            get => base.Flags;
+            set
+            {
+                if (value > 2)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Flags),
+                        $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
+                }
+
+                base.Flags = value;
+            }
+        }
 
         /// <summary>
         /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.

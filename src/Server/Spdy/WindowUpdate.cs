@@ -8,7 +8,6 @@ namespace Port.Server.Spdy
     {
         public WindowUpdate(
             byte flags)
-            : base(flags)
         {
         }
 

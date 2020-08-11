@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
@@ -15,13 +16,8 @@ namespace Port.Server.Spdy
     /// </summary>
     public abstract class Control : Frame
     {
-        protected Control(byte flags)
-        {
-            Flags = flags;
-        }
-
         public const ushort Version = 3;
-        protected byte Flags { get; }
+        protected byte Flags { get; set; }
 
         protected async ValueTask WriteAsync(
             IFrameWriter frameWriter,
@@ -57,10 +53,10 @@ namespace Port.Server.Spdy
                         flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 SynReply.Type => await SynReply.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 RstStream.Type => await RstStream.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 Settings.Type => await Settings.ReadAsync(
                         frameReader, cancellation)

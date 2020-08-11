@@ -8,7 +8,6 @@ namespace Port.Server.Spdy
     {
         public Ping(
             byte flags)
-            : base(flags)
         {
         }
 
