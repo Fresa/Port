@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Ionic.Zlib.Core" Version="1.0.0" />
     <PackageReference Include="KubernetesClient" Version="2.0.26" />
     <PackageReference Include="Log.It" Version="3.0.3" />
     <PackageReference Include="Log.It.With.NLog" Version="2.0.0" />
@@ -16,7 +17,6 @@
     <PackageReference Include="SimpleInjector" Version="5.0.2" />
     <PackageReference Include="SimpleInjector.Integration.AspNetCore" Version="5.0.0" />
     <PackageReference Include="SimpleInjector.Integration.AspNetCore.Mvc" Version="5.0.0" />
-    <PackageReference Include="zlib.managed" Version="1.1.4" />
   </ItemGroup>
 
   <ItemGroup>

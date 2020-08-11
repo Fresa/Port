@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Pipelines;
-using Elskom.Generic.Libs;
+using Ionic.Zlib;
 
 namespace Port.Server.Spdy.Extensions
 {
@@ -11,124 +11,124 @@ namespace Port.Server.Spdy.Extensions
             this byte[] input,
             byte[] dictionary)
         {
-            var stream = new MemoryStream();
-            
-            var zStream = new ZStream
+            using var stream = new MemoryStream();
+
+            var buffer = new byte[1024];
+            var zStream = new ZlibCodec
             {
-                NextIn = input,
-                NextInIndex = 0,
-                AvailIn = input.Length
+                InputBuffer = input,
+                AvailableBytesIn = input.Length,
+                OutputBuffer = buffer
             };
 
-            var result = zStream.DeflateInit(ZlibConst.ZDEFAULTCOMPRESSION, 11);
+            var result = zStream.InitializeDeflate(
+                CompressionLevel.Default,
+                11);
             if (result < 0)
             {
                 throw new InvalidOperationException(
-                    $"Got error code {result} when initializing deflate routine: {zStream.Msg}");
+                    $"Got error code {result} when initializing deflate routine: {zStream.Message}");
             }
 
-            var buffer = new byte[1024];
-            zStream.NextOut = buffer;
+            result = zStream.SetDictionary(
+                dictionary);
+            if (result < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Got error code {result} when setting dictionary: {zStream.Message}");
+            }
 
             try
             {
-                var flush = ZlibConst.ZNOFLUSH;
+                var flush = FlushType.None;
                 while (true)
                 {
-                    if (zStream.TotalIn == input.Length)
+                    if (zStream.TotalBytesIn == input.Length)
                     {
-                        flush = ZlibConst.ZFINISH;
+                        flush = FlushType.Finish;
                     }
-                    zStream.NextOutIndex = 0;
-                    zStream.AvailOut = buffer.Length;
+
+                    zStream.NextOut = 0;
+                    zStream.AvailableBytesOut = buffer.Length;
                     result = zStream.Deflate(flush);
-                    stream.Write(buffer, 0, buffer.Length - zStream.AvailOut);
+                    stream.Write(buffer, 0, buffer.Length - zStream.AvailableBytesOut);
 
                     switch (result)
                     {
-                        case ZlibConst.ZSTREAMEND:
+                        case ZlibConstants.Z_STREAM_END:
                             return stream.ToArray();
-                        case ZlibConst.ZNEEDDICT:
-                            result = zStream.DeflateSetDictionary(
-                                dictionary,
-                                dictionary.Length);
-                            if (result < 0)
-                            {
-                                throw new InvalidOperationException(
-                                    $"Got error code {result} when setting dictionary: {zStream.Msg}");
-                            }
-
-                            break;
                         case var _ when result < 0:
                             throw new InvalidOperationException(
-                                $"Got error code {result} when deflating the stream: {zStream.Msg}");
+                                $"Got error code {result} when deflating the stream: {zStream.Message}");
                     }
                 }
-
             }
             finally
             {
-                zStream.DeflateEnd();
+                zStream.EndDeflate();
             }
         }
 
-        internal static IFrameReader ZlibDecompress(
+        internal static byte[] ZlibDecompress(
             this byte[] input,
             byte[] dictionary)
         {
-            var stream = new MemoryStream();
+            using var stream = new MemoryStream();
             var buffer = new byte[1024];
 
-            var zStream = new ZStream
+            var zStream = new ZlibCodec
             {
-                NextIn = input,
-                NextInIndex = 0,
-                AvailIn = input.Length
+                InputBuffer = input,
+                AvailableBytesIn = input.Length,
+                OutputBuffer = buffer
             };
 
-            var result = zStream.InflateInit();
+            var result = zStream.InitializeInflate(11);
             if (result < 0)
             {
                 throw new InvalidOperationException(
-                    $"Got error code {result} when initializing inflate routine: {zStream.Msg}");
+                    $"Got error code {result} when initializing inflate routine: {zStream.Message}");
             }
-
-            zStream.NextOut = buffer;
 
             try
             {
                 while (true)
                 {
-                    zStream.NextOutIndex = 0;
-                    zStream.AvailOut = buffer.Length;
-                    result = zStream.Inflate(ZlibConst.ZNOFLUSH);
-                    stream.Write(buffer, 0, buffer.Length - zStream.AvailOut);
+                    zStream.NextOut = 0;
+                    zStream.AvailableBytesOut = buffer.Length;
+                    result = zStream.Inflate(FlushType.None);
+                    stream.Write(buffer, 0, buffer.Length - zStream.AvailableBytesOut);
 
                     switch (result)
                     {
-                        case ZlibConst.ZSTREAMEND:
-                            return new FrameReader(PipeReader.Create(stream));
-                        case ZlibConst.ZNEEDDICT:
-                            result = zStream.InflateSetDictionary(
-                                dictionary,
-                                dictionary.Length);
+                        case ZlibConstants.Z_STREAM_END:
+                            return stream.ToArray();
+                        case ZlibConstants.Z_NEED_DICT:
+                            result = zStream.SetDictionary(
+                                dictionary);
                             if (result < 0)
                             {
                                 throw new InvalidOperationException(
-                                    $"Got error code {result} when setting dictionary: {zStream.Msg}");
+                                    $"Got error code {result} when setting dictionary: {zStream.Message}");
                             }
 
                             break;
                         case var _ when result < 0:
                             throw new InvalidOperationException(
-                                $"Got error code {result} when deflating the stream: {zStream.Msg}");
+                                $"Got error code {result} when deflating the stream: {zStream.Message}");
                     }
                 }
             }
             finally
             {
-                zStream.InflateEnd();
+                zStream.EndInflate();
             }
+        }
+
+        internal static IFrameReader AsFrameReader(
+            this byte[] buffer)
+        {
+            return new FrameReader(PipeReader.Create(new MemoryStream(buffer)));
         }
     }
 }
