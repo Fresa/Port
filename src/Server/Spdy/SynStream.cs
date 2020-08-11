@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,10 +34,10 @@ namespace Port.Server.Spdy
     public class SynStream : Control
     {
         public SynStream(
+            byte flags,
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            byte flags,
             IReadOnlyDictionary<string, string> headers)
             : base(flags)
         {
@@ -120,7 +119,7 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false);
 
             return new SynStream(
-                streamId, associatedToStreamId, priority, flags, headers);
+                flags, streamId, associatedToStreamId, priority, headers);
         }
 
         public enum PriorityLevel
