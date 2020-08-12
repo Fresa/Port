@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
@@ -25,8 +26,26 @@ namespace Port.Server.Spdy
         /// FLAG_FIN - signifies that this frame represents the last frame to be transmitted on this stream. See Stream Close (Section 2.3.7) below.
         /// </summary>
         public bool IsLastFrame => _flags == 1;
-        private readonly byte _flags;
+        
+        private byte _flags;
+        /// <summary>
+        /// Flags related to this frame. 
+        /// </summary>
+        private byte Flags
+        {
+            get => _flags;
+            set
+            {
+                if (value > 1)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Flags),
+                        $"Flags can only be 0 = none or 1 = {nameof(IsLastFrame)}");
+                }
 
+                _flags = value;
+            }
+        }
         /// <summary>
         /// The variable-length data payload;
         /// Length is an unsigned 24-bit value representing the number of bytes after the length field. The total size of a data frame is 8 bytes + length. It is valid to have a zero-length data frame.
@@ -39,7 +58,7 @@ namespace Port.Server.Spdy
             byte[] payload)
         {
             StreamId = streamId;
-            _flags = flags;
+            Flags = flags;
             Payload = payload;
         }
 

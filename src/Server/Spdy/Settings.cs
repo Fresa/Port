@@ -24,7 +24,7 @@ namespace Port.Server.Spdy
         protected new byte Flags
         {
             get => base.Flags;
-            set
+            private set
             {
                 if (value > 1)
                 {
