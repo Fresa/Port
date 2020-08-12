@@ -48,19 +48,19 @@ namespace Port.Server.Spdy
             CancellationToken cancellation = default)
         {
             // A 32-bit value representing the number of ID/value pairs in this message.
-            var numberOfIdValuePairs = await frameReader.ReadUInt32Async(cancellation)
+            var numberOfSettings = await frameReader.ReadUInt32Async(cancellation)
                 .ConfigureAwait(false);
             var settings = new Dictionary<Id, Setting>();
-            for (var i = 0; i < numberOfIdValuePairs; i++)
+            for (var i = 0; i < numberOfSettings; i++)
             {
-                var pairFlags = await frameReader.ReadByteAsync(cancellation)
+                var settingFlags = await frameReader.ReadByteAsync(cancellation)
                     .ConfigureAwait(false);
                 var id = Enum.Parse<Id>(
                     (await frameReader.ReadUInt24Async(cancellation)
                     .ConfigureAwait(false)).ToString());
                 var value = await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false);
-                settings.TryAdd(id, new Setting(pairFlags, value));
+                settings.TryAdd(id, new Setting(settingFlags, value));
             }
 
             return new Settings(flags, settings);
