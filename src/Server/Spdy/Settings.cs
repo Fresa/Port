@@ -127,5 +127,12 @@ namespace Port.Server.Spdy
             InitialWindowSize = 7,
             ClientCertificateVectorSize = 8
         }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

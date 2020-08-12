@@ -98,5 +98,12 @@ namespace Port.Server.Spdy
             Unused = 10,
             FrameToLarge = 11
         }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

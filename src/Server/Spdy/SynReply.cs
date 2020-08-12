@@ -98,5 +98,12 @@ namespace Port.Server.Spdy
 
             return new SynReply(flags, streamId, headers);
         }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

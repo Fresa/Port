@@ -21,5 +21,17 @@ namespace Port.Server.Spdy
             return await Data.ReadAsync(frameReader, cancellation)
                 .ConfigureAwait(false);
         }
+
+        internal async ValueTask WriteAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            await WriteFrameAsync(frameWriter, cancellationToken)
+                .ConfigureAwait(false);
+        } 
+
+        protected abstract ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default);
     }
 }

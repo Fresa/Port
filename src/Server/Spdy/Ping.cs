@@ -70,5 +70,12 @@ namespace Port.Server.Spdy
 
             return new Ping(flags, length, id);
         }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

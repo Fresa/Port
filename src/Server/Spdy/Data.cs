@@ -97,6 +97,13 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
         }
 
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
         internal new static async ValueTask<Data> ReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)

@@ -146,5 +146,12 @@ namespace Port.Server.Spdy
             Low,
             Lowest
         }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -100,5 +100,12 @@ namespace Port.Server.Spdy
 
             return new GoAway(flags, length, lastGoodStreamId, status);
         }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

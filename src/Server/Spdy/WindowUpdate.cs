@@ -34,9 +34,11 @@ namespace Port.Server.Spdy
                     throw new ArgumentOutOfRangeException(
                         nameof(Flags), "Flags can only be 0");
                 }
+
+                base.Flags = value;
             }
         }
-        private UInt24 Length
+        private new UInt24 Length
         {
             get => UInt24.From(8);
             set
@@ -88,6 +90,13 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false) & 0x7FFF);
 
             return new WindowUpdate(flags, length, streamId, deltaWindowSize);
+        }
+
+        protected override async ValueTask WriteFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
         }
     }
 }
