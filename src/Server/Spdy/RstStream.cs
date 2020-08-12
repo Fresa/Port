@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
@@ -75,9 +76,10 @@ namespace Port.Server.Spdy
             var streamId = UInt31.From(
                 await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false) & 0x7FFF);
-            var status = Enum.Parse<StatusCode>(
-                (await frameReader.ReadUInt32Async(cancellation)
-                    .ConfigureAwait(false)).ToString(), true);
+            var status =
+                await frameReader.ReadUInt32Async(cancellation)
+                    .ToEnumAsync<StatusCode>()
+                    .ConfigureAwait(false);
 
             return new RstStream(flags, length, streamId, status);
         }

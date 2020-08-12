@@ -52,10 +52,10 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        protected new byte Flags
+        private new byte Flags
         {
             get => base.Flags;
-            private set
+            set
             {
                 if (value > 2)
                 {
@@ -112,14 +112,15 @@ namespace Port.Server.Spdy
             var associatedToStreamId = UInt31.From(
                 await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false) & 0x7FFF);
-            var priority = Enum.Parse<PriorityLevel>(
+            var priority =
                 (await frameReader.ReadByteAsync(cancellation)
-                    .ConfigureAwait(false) & 0xE0).ToString(), true);
+                    .ConfigureAwait(false) & 0xE0)
+                .ToEnum<PriorityLevel>();
             // Slot: 8 bits of unused space, reserved for future use. 
             await frameReader.ReadByteAsync(cancellation)
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
-            var headerLength = (int)length.Value - 10;
+            var headerLength = (int) length.Value - 10;
             var headers =
                 await
                     (await frameReader
