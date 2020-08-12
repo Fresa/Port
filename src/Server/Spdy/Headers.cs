@@ -12,7 +12,7 @@ namespace Port.Server.Spdy
         public Headers(
             byte flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> values)
+            IReadOnlyDictionary<string, string> values) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
@@ -79,7 +79,7 @@ namespace Port.Server.Spdy
             return new Headers(flags, streamId, values);
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

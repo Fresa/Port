@@ -11,7 +11,7 @@ namespace Port.Server.Spdy
     {
         internal Settings(
             byte flags,
-            IReadOnlyDictionary<Id, Setting> values)
+            IReadOnlyDictionary<Id, Setting> values) : base(Type)
         {
             Flags = flags;
             Values = values;
@@ -128,7 +128,7 @@ namespace Port.Server.Spdy
             ClientCertificateVectorSize = 8
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

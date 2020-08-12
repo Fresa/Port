@@ -12,7 +12,7 @@ namespace Port.Server.Spdy
             in byte flags,
             in UInt24 length,
             in UInt31 streamId,
-            StatusCode status)
+            StatusCode status) : base(Type)
         {
             Flags = flags;
             Length = length;
@@ -99,7 +99,7 @@ namespace Port.Server.Spdy
             FrameToLarge = 11
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

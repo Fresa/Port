@@ -32,7 +32,7 @@ namespace Port.Server.Spdy
         public SynReply(
             byte flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> headers)
+            IReadOnlyDictionary<string, string> headers) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
@@ -99,7 +99,7 @@ namespace Port.Server.Spdy
             return new SynReply(flags, streamId, headers);
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

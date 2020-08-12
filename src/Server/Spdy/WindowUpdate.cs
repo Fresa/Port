@@ -11,7 +11,7 @@ namespace Port.Server.Spdy
             byte flags,
             UInt24 length,
             UInt31 streamId,
-            UInt31 deltaWindowSize)
+            UInt31 deltaWindowSize) : base(Type)
         {
             Flags = flags;
             Length = length;
@@ -38,7 +38,7 @@ namespace Port.Server.Spdy
                 base.Flags = value;
             }
         }
-        private new UInt24 Length
+        private UInt24 Length
         {
             get => UInt24.From(8);
             set
@@ -92,7 +92,7 @@ namespace Port.Server.Spdy
             return new WindowUpdate(flags, length, streamId, deltaWindowSize);
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

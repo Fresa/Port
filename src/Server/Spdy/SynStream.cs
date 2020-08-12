@@ -38,7 +38,7 @@ namespace Port.Server.Spdy
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            IReadOnlyDictionary<string, string> headers)
+            IReadOnlyDictionary<string, string> headers) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
@@ -147,7 +147,7 @@ namespace Port.Server.Spdy
             Lowest
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

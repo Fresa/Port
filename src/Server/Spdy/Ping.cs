@@ -10,7 +10,7 @@ namespace Port.Server.Spdy
         public Ping(
             byte flags,
             UInt24 length,
-            uint id)
+            uint id) : base(Type)
         {
             Flags = flags;
             Length = length;
@@ -71,7 +71,7 @@ namespace Port.Server.Spdy
             return new Ping(flags, length, id);
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {

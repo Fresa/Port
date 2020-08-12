@@ -12,7 +12,7 @@ namespace Port.Server.Spdy
             byte flags,
             UInt24 length,
             UInt31 lastGoodStreamId,
-            StatusCode status)
+            StatusCode status) : base(Type)
         {
             Flags = flags;
             Length = length;
@@ -101,7 +101,7 @@ namespace Port.Server.Spdy
             return new GoAway(flags, length, lastGoodStreamId, status);
         }
 
-        protected override async ValueTask WriteFrameAsync(
+        protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
