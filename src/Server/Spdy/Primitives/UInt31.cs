@@ -66,7 +66,7 @@ namespace Port.Server.Spdy.Primitives
         public static UInt31 From(
             uint value)
         {
-            if (value >= (2 ^ 31))
+            if (value >= MaxValue.Value)
             {
                 throw new InvalidOperationException(
                     $"value {value} must be less than {MaxValue}");

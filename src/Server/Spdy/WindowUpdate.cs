@@ -1,18 +1,30 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
     public class WindowUpdate : Control
     {
         public WindowUpdate(
-            byte flags)
+            byte flags,
+            UInt24 length,
+            UInt31 streamId,
+            UInt31 deltaWindowSize)
         {
+            Flags = flags;
+            Length = length;
+            StreamId = streamId;
+            DeltaWindowSize = deltaWindowSize;
         }
 
         public const ushort Type = 9;
-        protected new byte Flags
+
+        /// <summary>
+        /// The flags field is always zero.
+        /// </summary>
+        private new byte Flags
         {
             get => 0;
             set
@@ -24,12 +36,12 @@ namespace Port.Server.Spdy
                 }
             }
         }
-        protected new uint Length
+        private UInt24 Length
         {
-            get => 8;
+            get => UInt24.From(8);
             set
             {
-                if (value != 8)
+                if (value.Value != 8)
                 {
                     throw new ArgumentOutOfRangeException(
                         nameof(Length), "Length can only be 8");
@@ -37,13 +49,23 @@ namespace Port.Server.Spdy
             }
         }
 
-        private int _deltaWindowSize;
-        public int DeltaWindowSize
+        /// <summary>
+        /// The stream ID for which this WINDOW_UPDATE control frame applies to, or 0 if applied to connection-level flow control.
+        /// </summary>
+        public UInt31 StreamId { get; }
+
+        public bool IsConnectionLevelFlowControl => StreamId == UInt31.From(0);
+        
+        private UInt31 _deltaWindowSize;
+        /// <summary>
+        /// The additional number of bytes that the sender can transmit in addition to existing remaining window size. The legal range for this field is 1 to 2^31 - 1 (0x7fffffff) bytes.
+        /// </summary>
+        public UInt31 DeltaWindowSize
         {
             get => _deltaWindowSize;
-            set
+            private set
             {
-                if (value < 1)
+                if (value.Value < 1)
                 {
                     throw new ArgumentOutOfRangeException(nameof(DeltaWindowSize), "Delta window size must be greater than 0");
                 }
@@ -53,10 +75,19 @@ namespace Port.Server.Spdy
         }
 
         internal static async ValueTask<WindowUpdate> ReadAsync(
+            byte flags,
+            UInt24 length,
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            throw new NotImplementedException();
+            var streamId = UInt31.From(
+                await frameReader.ReadUInt32Async(cancellation)
+                    .ConfigureAwait(false) & 0x7FFF);
+            var deltaWindowSize = UInt31.From(
+                await frameReader.ReadUInt32Async(cancellation)
+                    .ConfigureAwait(false) & 0x7FFF);
+
+            return new WindowUpdate(flags, length, streamId, deltaWindowSize);
         }
     }
 }
