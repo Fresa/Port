@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -38,7 +39,8 @@ namespace Port.Server.Spdy
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            IReadOnlyDictionary<string, string> headers) : base(Type)
+            IReadOnlyDictionary<string, string> headers)
+            : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
@@ -151,7 +153,34 @@ namespace Port.Server.Spdy
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            await using var headerStream = new MemoryStream(1024);
+            await using var headerWriter = new FrameWriter(headerStream);
+            {
+                await headerWriter.WriteNameValuePairs(
+                        Headers, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var compressedHeaders = headerStream.ToArray()
+                .ZlibCompress(SpdyConstants.HeadersDictionary);
+
+            var length = compressedHeaders.Length + 10;
+            await frameWriter.WriteUInt24Async(
+                    UInt24.From((uint) length), cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    StreamId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    AssociatedToStreamId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteByteAsync((byte) Priority, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteByteAsync(0, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteBytesAsync(
+                    compressedHeaders, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }

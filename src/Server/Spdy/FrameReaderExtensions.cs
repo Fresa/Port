@@ -7,9 +7,10 @@ namespace Port.Server.Spdy
 {
     internal static class FrameReaderExtensions
     {
-        internal static async ValueTask<IReadOnlyDictionary<string, string>> ReadNameValuePairs(
-            this IFrameReader frameReader,
-            CancellationToken cancellationToken)
+        internal static async ValueTask<IReadOnlyDictionary<string, string>>
+            ReadNameValuePairs(
+                this IFrameReader frameReader,
+                CancellationToken cancellationToken)
         {
             var nameValuePairs = new Dictionary<string, string>();
             var length = await frameReader.ReadInt32Async(cancellationToken)
