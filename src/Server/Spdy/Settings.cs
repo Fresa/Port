@@ -56,14 +56,15 @@ namespace Port.Server.Spdy
             var settings = new Dictionary<Id, Setting>();
             for (var i = 0; i < numberOfSettings; i++)
             {
-                var settingFlags = await frameReader.ReadByteAsync(cancellation)
+                var flag = await frameReader.ReadByteAsync(cancellation)
+                    .ToEnumAsync<SettingFlags>()
                     .ConfigureAwait(false);
                 var id = await frameReader.ReadUInt24Async(cancellation)
                     .ToEnumAsync<Id>()
                     .ConfigureAwait(false);
                 var value = await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false);
-                settings.TryAdd(id, new Setting(settingFlags, value));
+                settings.TryAdd(id, new Setting(flag, value));
             }
 
             return new Settings(flags, settings);
@@ -82,7 +83,7 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
             foreach (var (id, setting) in Values.OrderBy(pair => pair.Key))
             {
-                await frameWriter.WriteByteAsync(setting.Flags, cancellationToken)
+                await frameWriter.WriteByteAsync((byte)setting.Flags, cancellationToken)
                     .ConfigureAwait(false);
                 await frameWriter.WriteUInt24Async(
                         UInt24.From((uint)id), cancellationToken)
@@ -103,7 +104,7 @@ namespace Port.Server.Spdy
         public class Setting
         {
             internal Setting(
-                byte flags,
+                SettingFlags flags,
                 uint value)
             {
                 Flags = flags;
@@ -112,36 +113,23 @@ namespace Port.Server.Spdy
 
             public uint Value { get; }
 
-            private byte _flags;
+            public SettingFlags Flags { get; }
+        }
 
-            public byte Flags
-            {
-                get => _flags;
-                set
-                {
-                    if (value > 2)
-                    {
-                        throw new ArgumentOutOfRangeException(
-                            nameof(Flags),
-                            $"Flags can only be 0 = none, 1 = {nameof(PersistValue)} or 2 = {nameof(Persisted)}");
-                    }
-
-                    _flags = value;
-                }
-            }
-
+        public enum SettingFlags : ushort
+        {
+            None = 0,
             /// <summary>
             /// When set, the sender of this SETTINGS frame is requesting that the recipient persist the ID/Value and return it in future SETTINGS frames sent from the sender to this recipient. Because persistence is only implemented on the client, this flag is only sent by the server.
             /// </summary>
-            public bool PersistValue => Flags == 1;
-
+            PersistValue = 1,
             /// <summary>
             /// When set, the sender is notifying the recipient that this ID/Value pair was previously sent to the sender by the recipient with the FLAG_SETTINGS_PERSIST_VALUE, and the sender is returning it. Because persistence is only implemented on the client, this flag is only sent by the client.
             /// </summary>
-            public bool Persisted => Flags == 2;
+            Persisted = 2
         }
 
-        public enum Id
+        public enum Id : uint
         {
             UploadBandwidth = 1,
             DownloadBandwidth = 2,
