@@ -96,7 +96,15 @@ namespace Port.Server.Spdy
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            await frameWriter.WriteUInt24Async(
+                    Length, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    StreamId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    DeltaWindowSize.Value, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }
