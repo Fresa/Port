@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
@@ -82,12 +83,14 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var streamId = UInt31.From(
+            var streamId = 
                 await frameReader.ReadUInt32Async(cancellation)
-                    .ConfigureAwait(false) & 0x7FFF);
-            var deltaWindowSize = UInt31.From(
+                    .AsUInt31Async()
+                    .ConfigureAwait(false);
+            var deltaWindowSize = 
                 await frameReader.ReadUInt32Async(cancellation)
-                    .ConfigureAwait(false) & 0x7FFF);
+                    .AsUInt31Async()
+                    .ConfigureAwait(false);
 
             return new WindowUpdate(flags, length, streamId, deltaWindowSize);
         }

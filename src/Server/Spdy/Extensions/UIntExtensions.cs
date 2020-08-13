@@ -1,9 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy.Extensions
 {
-    static internal class UIntExtensions
+    internal static class UIntExtensions
     {
         internal static uint SetBit(
             this uint value,
@@ -32,6 +33,13 @@ namespace Port.Server.Spdy.Extensions
             return Enum.Parse<T>(
                 (await value.ConfigureAwait(false))
                 .ToString());
+        }
+
+        internal static async ValueTask<UInt31> AsUInt31Async(
+            this ValueTask<uint> value)
+        {
+            return UInt31.From(await value
+                .ConfigureAwait(false) & 0x7FFF);
         }
     }
 }

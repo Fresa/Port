@@ -91,9 +91,10 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var lastGoodStreamId = UInt31.From(
+            var lastGoodStreamId = 
                 await frameReader.ReadUInt32Async(cancellation)
-                    .ConfigureAwait(false) & 0x7FFF);
+                    .AsUInt31Async()
+                    .ConfigureAwait(false);
             var status = await frameReader.ReadUInt32Async(cancellation)
                 .ToEnumAsync<StatusCode>()
                 .ConfigureAwait(false);

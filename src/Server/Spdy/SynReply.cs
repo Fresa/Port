@@ -82,9 +82,10 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var streamId = UInt31.From(
+            var streamId = 
                 await frameReader.ReadUInt32Async(cancellation)
-                    .ConfigureAwait(false) & 0x7FFF);
+                    .AsUInt31Async()
+                    .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_REPLY frames, this is 4 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 4;
             var headers =

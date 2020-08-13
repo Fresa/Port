@@ -4,7 +4,7 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy.Extensions
 {
-    static internal class UInt24Extensions
+    internal static class UInt24Extensions
     {
         internal static async ValueTask<T> ToEnumAsync<T>(
             this ValueTask<UInt24> value)
