@@ -11,13 +11,21 @@ namespace Port.Server.Spdy
     public class Headers : Control
     {
         public Headers(
-            byte flags,
+            HeadersFlags flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> values) : base(Type)
+            IReadOnlyDictionary<string, string> values)
+            : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
             Values = values;
+        }
+
+        public static Headers LastHeaders(
+            UInt31 streamId,
+            IReadOnlyDictionary<string, string> values)
+        {
+            return new Headers(HeadersFlags.Fin, streamId, values);
         }
 
         public const ushort Type = 8;
@@ -25,26 +33,22 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private new byte Flags
+        private new HeadersFlags Flags
         {
-            get => base.Flags;
-            set
-            {
-                if (value > 1)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        $"Flags can only be 0 = none or 1 = {nameof(IsLastFrame)}");
-                }
-
-                base.Flags = value;
-            }
+            get => (HeadersFlags) base.Flags;
+            set => base.Flags = (byte) value;
         }
 
-        /// <summary>
-        /// Marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
-        /// </summary>
-        public bool IsLastFrame => Flags == 1;
+        public enum HeadersFlags : byte
+        {
+            None = 0,
+            /// <summary>
+            /// Marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
+            /// </summary>
+            Fin = 1
+        }
+
+        public bool IsLastFrame => Flags == HeadersFlags.Fin;
 
         /// <summary>
         /// The stream this HEADERS block is associated with.
@@ -62,12 +66,12 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var streamId = 
+            var streamId =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);
             // An unsigned 24 bit value representing the number of bytes after the length field. The minimum length of the length field is 4 (when the number of name value pairs is 0).
-            var headerLength = (int)length.Value - 4;
+            var headerLength = (int) length.Value - 4;
             var values =
                 await
                     (await frameReader
@@ -78,7 +82,7 @@ namespace Port.Server.Spdy
                     .ReadNameValuePairs(cancellation)
                     .ConfigureAwait(false);
 
-            return new Headers(flags, streamId, values);
+            return new Headers(flags.ToEnum<HeadersFlags>(), streamId, values);
         }
 
         protected override async ValueTask WriteControlFrameAsync(
@@ -98,7 +102,7 @@ namespace Port.Server.Spdy
 
             var length = compressedHeaders.Length + 4;
             await frameWriter.WriteUInt24Async(
-                    UInt24.From((uint)length), cancellationToken)
+                    UInt24.From((uint) length), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     StreamId.Value, cancellationToken)
