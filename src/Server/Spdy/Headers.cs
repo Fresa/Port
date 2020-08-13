@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -83,7 +84,27 @@ namespace Port.Server.Spdy
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            await using var headerStream = new MemoryStream(1024);
+            await using var headerWriter = new FrameWriter(headerStream);
+            {
+                await headerWriter.WriteNameValuePairs(
+                        Values, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var compressedHeaders = headerStream.ToArray()
+                .ZlibCompress(SpdyConstants.HeadersDictionary);
+
+            var length = compressedHeaders.Length + 4;
+            await frameWriter.WriteUInt24Async(
+                    UInt24.From((uint)length), cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    StreamId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteBytesAsync(
+                    compressedHeaders, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }
