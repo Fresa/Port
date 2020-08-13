@@ -8,11 +8,12 @@ namespace Port.Server.Spdy
 {
     public class GoAway : Control
     {
-        public GoAway(
-            byte flags,
+        private GoAway(
+            GoAwayFlags flags,
             UInt24 length,
             UInt31 lastGoodStreamId,
-            StatusCode status) : base(Type)
+            StatusCode status)
+            : base(Type)
         {
             Flags = flags;
             Length = length;
@@ -20,25 +21,31 @@ namespace Port.Server.Spdy
             Status = status;
         }
 
+        public GoAway(
+            UInt24 length,
+            UInt31 lastGoodStreamId,
+            StatusCode status)
+            : this(
+                GoAwayFlags.None,
+                length,
+                lastGoodStreamId,
+                status)
+        {
+        }
+
         public const ushort Type = 7;
 
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private new byte Flags
+        private new GoAwayFlags Flags
         {
-            get => base.Flags;
-            set
-            {
-                if (value != 0)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        "Flags can only be 0 = none");
-                }
+            set => base.Flags = (byte) value;
+        }
 
-                base.Flags = value;
-            }
+        public enum GoAwayFlags : byte
+        {
+            None = 0
         }
 
         /// <summary>
@@ -91,7 +98,7 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var lastGoodStreamId = 
+            var lastGoodStreamId =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);
@@ -99,21 +106,19 @@ namespace Port.Server.Spdy
                 .ToEnumAsync<StatusCode>()
                 .ConfigureAwait(false);
 
-            return new GoAway(flags, length, lastGoodStreamId, status);
+            return new GoAway(flags.ToEnum<GoAwayFlags>(), length, lastGoodStreamId, status);
         }
 
         protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            await frameWriter.WriteUInt24Async(
-                    Length, cancellationToken)
+            await frameWriter.WriteUInt24Async(Length, cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     LastGoodStreamId.Value, cancellationToken)
                 .ConfigureAwait(false);
-            await frameWriter.WriteUInt32Async(
-                    (uint)Status, cancellationToken)
+            await frameWriter.WriteUInt32Async((uint) Status, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
