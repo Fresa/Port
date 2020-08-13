@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Frames
 {
     /// <summary>
     /// The SYN_STREAM control frame allows the sender to asynchronously create a stream between the endpoints. See Stream Creation (section 2.3.2)

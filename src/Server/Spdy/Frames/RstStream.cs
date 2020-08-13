@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Frames
 {
     /// <summary>
     /// The RST_STREAM frame allows for abnormal termination of a stream. When sent by the creator of a stream, it indicates the creator wishes to cancel the stream. When sent by the recipient of a stream, it indicates an error or that the recipient did not want to accept the stream, so the stream should be closed.

@@ -3,7 +3,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Extensions
 {
     internal static class FrameReaderExtensions
     {

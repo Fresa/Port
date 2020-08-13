@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Frames
 {
     /// <summary>
     /// The HEADERS frame augments a stream with additional headers. It may be optionally sent on an existing stream at any time. Specific application of the headers in this frame is application-dependent. The name/value header block within this frame is compressed.

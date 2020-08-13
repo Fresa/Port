@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Port.Server.Spdy.Primitives;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Frames
 {
     /// <summary>
     /// +----------------------------------+

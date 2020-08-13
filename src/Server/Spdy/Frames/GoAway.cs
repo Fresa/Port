@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Frames
 {
     /// <summary>
     /// The GOAWAY control frame is a mechanism to tell the remote side of the connection to stop creating streams on this session. It can be sent from the client or the server. Once sent, the sender will not respond to any new SYN_STREAMs on this session. Recipients of a GOAWAY frame must not send additional streams on this session, although a new session can be established for new streams. The purpose of this message is to allow an endpoint to gracefully stop accepting new streams (perhaps for a reboot or maintenance), while still finishing processing of previously established streams.

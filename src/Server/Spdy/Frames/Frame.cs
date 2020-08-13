@@ -1,7 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Frames
 {
     public abstract class Frame
     {
