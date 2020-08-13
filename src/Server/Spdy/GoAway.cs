@@ -43,6 +43,7 @@ namespace Port.Server.Spdy
             set => base.Flags = (byte) value;
         }
 
+        [Flags]
         public enum GoAwayFlags : byte
         {
             None = 0

@@ -19,7 +19,7 @@ namespace Port.Server.Spdy
     {
         private Data(
             UInt31 streamId,
-            DataFlags flags,
+            Options flags,
             byte[] payload)
         {
             StreamId = streamId;
@@ -34,9 +34,10 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private DataFlags Flags { get; }
+        private Options Flags { get; }
 
-        public enum DataFlags : byte
+        [Flags]
+        public enum Options : byte
         {
             None = 0,
             /// <summary>
@@ -55,14 +56,14 @@ namespace Port.Server.Spdy
             UInt31 streamId,
             byte[] payload)
         {
-            return new Data(streamId, DataFlags.Fin, payload);
+            return new Data(streamId, Options.Fin, payload);
         }
 
         public static Data Frame(
             UInt31 streamId,
             byte[] payload)
         {
-            return new Data(streamId, DataFlags.None, payload);
+            return new Data(streamId, Options.None, payload);
         }
 
         internal async ValueTask WriteAsync(
@@ -108,7 +109,7 @@ namespace Port.Server.Spdy
             var payload = await frameReader.ReadBytesAsync(
                     (int)length.Value, cancellation)
                 .ConfigureAwait(false);
-            return new Data(streamId, flags.ToEnum<DataFlags>(), payload);
+            return new Data(streamId, flags.ToEnum<Options>(), payload);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace Port.Server.Spdy
     public class Settings : Control
     {
         internal Settings(
-            SettingsFlags flags,
+            Options flags,
             IReadOnlyDictionary<Id, Setting> values) : base(Type)
         {
             Flags = flags;
@@ -22,15 +23,19 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        protected new SettingsFlags Flags
+        protected new Options Flags
         {
-            get => (SettingsFlags)base.Flags;
+            get => (Options)base.Flags;
             private set => base.Flags = (byte)value;
         }
 
-        public enum SettingsFlags : byte
+        [Flags]
+        public enum Options : byte
         {
             None = 0,
+            /// <summary>
+            /// When set, the client should clear any previously persisted SETTINGS ID/Value pairs. If this frame contains ID/Value pairs with the FLAG_SETTINGS_PERSIST_VALUE set, then the client will first clear its existing, persisted settings, and then persist the values with the flag set which are contained within this frame. Because persistence is only implemented on the client, this flag can only be used when the sender is the server.
+            /// </summary>
             ClearSettings = 1
         }
 
@@ -60,7 +65,7 @@ namespace Port.Server.Spdy
                 settings.TryAdd(id, new Setting(id, flag, value));
             }
 
-            return new Settings(flags.ToEnum<SettingsFlags>(), settings);
+            return new Settings(flags.ToEnum<Options>(), settings);
         }
 
         protected override async ValueTask WriteControlFrameAsync(

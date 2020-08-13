@@ -10,7 +10,7 @@ namespace Port.Server.Spdy
 {
     public class Headers : Control
     {
-        public Headers(
+        private Headers(
             HeadersFlags flags,
             UInt31 streamId,
             IReadOnlyDictionary<string, string> values)
@@ -21,7 +21,17 @@ namespace Port.Server.Spdy
             Values = values;
         }
 
-        public static Headers LastHeaders(
+        public Headers(
+            UInt31 streamId,
+            IReadOnlyDictionary<string, string> values)
+            : this(
+                HeadersFlags.None,
+                streamId,
+                values)
+        {
+        }
+
+        public static Headers Last(
             UInt31 streamId,
             IReadOnlyDictionary<string, string> values)
         {
@@ -39,6 +49,7 @@ namespace Port.Server.Spdy
             set => base.Flags = (byte) value;
         }
 
+        [Flags]
         public enum HeadersFlags : byte
         {
             None = 0,

@@ -8,7 +8,7 @@ namespace Port.Server.Spdy
     public class Ping : Control
     {
         public Ping(
-            byte flags,
+            Options flags,
             UInt24 length,
             uint id) : base(Type)
         {
@@ -22,20 +22,16 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        protected new byte Flags
+        protected new Options Flags
         {
-            get => base.Flags;
-            private set
-            {
-                if (value != 0)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        "Flags can only be 0 = none");
-                }
+            get => (Options)base.Flags;
+            private set => base.Flags = (byte)value;
+        }
 
-                base.Flags = value;
-            }
+        [Flags]
+        public enum Options : byte
+        {
+            None = 0
         }
 
         /// <summary>
@@ -68,7 +64,7 @@ namespace Port.Server.Spdy
             var id = await frameReader.ReadUInt32Async(cancellation)
                 .ConfigureAwait(false);
 
-            return new Ping(flags, length, id);
+            return new Ping(flags.ToEnum<Options>(), length, id);
         }
 
         protected override async ValueTask WriteControlFrameAsync(
