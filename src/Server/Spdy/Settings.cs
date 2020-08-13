@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -79,7 +80,7 @@ namespace Port.Server.Spdy
             await frameWriter.WriteUInt32Async(
                     (uint)Values.Count, cancellationToken)
                 .ConfigureAwait(false);
-            foreach (var (id, setting) in Values)
+            foreach (var (id, setting) in Values.OrderBy(pair => pair.Key))
             {
                 await frameWriter.WriteByteAsync(setting.Flags, cancellationToken)
                     .ConfigureAwait(false);
