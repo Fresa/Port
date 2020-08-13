@@ -8,6 +8,21 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// A SETTINGS frame contains a set of id/value pairs for communicating configuration data about how the two endpoints may communicate. SETTINGS frames can be sent at any time by either endpoint, are optionally sent, and are fully asynchronous. When the server is the sender, the sender can request that configuration data be persisted by the client across SPDY sessions and returned to the server in future communications.
+    /// 
+    /// Persistence of SETTINGS ID/Value pairs is done on a per origin/IP pair (the "origin" is the set of scheme, host, and port from the URI. See RFC6454). That is, when a client connects to a server, and the server persists settings within the client, the client SHOULD return the persisted settings on future connections to the same origin AND IP address and TCP port. Clients MUST NOT request servers to use the persistence features of the SETTINGS frames, and servers MUST ignore persistence related flags sent by a client.
+    /// 
+    /// +----------------------------------+
+    /// |1|   version    |         4       |
+    /// +----------------------------------+
+    /// | Flags (8)  |  Length (24 bits)   |
+    /// +----------------------------------+
+    /// |         Number of entries        |
+    /// +----------------------------------+
+    /// |          ID/Value Pairs          |
+    /// |             ...                  |
+    /// </summary>
     public class Settings : Control
     {
         internal Settings(

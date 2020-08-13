@@ -5,6 +5,17 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// The PING control frame is a mechanism for measuring a minimal round-trip time from the sender. It can be sent from the client or the server. Recipients of a PING frame should send an identical frame to the sender as soon as possible (if there is other pending data waiting to be sent, PING should take highest priority). Each ping sent by a sender should use a unique ID.
+    /// 
+    /// +----------------------------------+
+    /// |1|   version    |         6       |
+    /// +----------------------------------+
+    /// | 0 (flags) |     4 (length)       |
+    /// +----------------------------------|
+    /// |            32-bit ID             |
+    /// +----------------------------------+
+    /// </summary>
     public class Ping : Control
     {
         public Ping(

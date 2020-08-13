@@ -6,10 +6,29 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// The WINDOW_UPDATE frame is used to implement flow control.
+    /// 
+    /// Flow control operates at two levels: on each individual stream and on the entire connection.
+    /// 
+    /// Both types of flow control are hop by hop; that is, only between the two endpoints. Intermediaries do not forward WINDOW_UPDATE frames between dependent connections. However, throttling of data transfer by any receiver can indirectly cause the propagation of flow control information toward the original sender.
+    /// 
+    /// Flow control only applies to frames that are identified as being subject to flow control. Of the frame types defined in this document, this includes only DATA frame. Frames that are exempt from flow control MUST be accepted and processed, unless the receiver is unable to assign resources to handling the frame. A receiver MAY respond with a stream error (Section 2.4.2) or session error (Section 2.4.1) of type FLOW_CONTROL_ERROR if it is unable accept a frame.
+    /// 
+    /// +----------------------------------+
+    /// |1|   version    |         9       |
+    /// +----------------------------------+
+    /// | 0 (flags) |     8 (length)       |
+    /// +----------------------------------+
+    /// |X|     Stream-ID (31-bits)        |
+    /// +----------------------------------+
+    /// |X|  Delta-Window-Size (31-bits)   |
+    /// +----------------------------------+
+    /// </summary>
     public class WindowUpdate : Control
     {
         public WindowUpdate(
-            byte flags,
+            Options flags,
             UInt24 length,
             UInt31 streamId,
             UInt31 deltaWindowSize) : base(Type)
@@ -25,20 +44,17 @@ namespace Port.Server.Spdy
         /// <summary>
         /// The flags field is always zero.
         /// </summary>
-        private new byte Flags
+        private new Options Flags
         {
-            get => 0;
-            set
-            {
-                if (value != 0)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags), "Flags can only be 0");
-                }
-
-                base.Flags = value;
-            }
+            set => base.Flags = (byte)value;
         }
+
+        [Flags]
+        public enum Options : byte
+        {
+            None = 0,
+        }
+
         private UInt24 Length
         {
             get => UInt24.From(8);
@@ -58,7 +74,7 @@ namespace Port.Server.Spdy
         public UInt31 StreamId { get; }
 
         public bool IsConnectionLevelFlowControl => StreamId == UInt31.From(0);
-        
+
         private UInt31 _deltaWindowSize;
         /// <summary>
         /// The additional number of bytes that the sender can transmit in addition to existing remaining window size. The legal range for this field is 1 to 2^31 - 1 (0x7fffffff) bytes.
@@ -83,16 +99,16 @@ namespace Port.Server.Spdy
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var streamId = 
+            var streamId =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);
-            var deltaWindowSize = 
+            var deltaWindowSize =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);
 
-            return new WindowUpdate(flags, length, streamId, deltaWindowSize);
+            return new WindowUpdate(flags.ToEnum<Options>(), length, streamId, deltaWindowSize);
         }
 
         protected override async ValueTask WriteControlFrameAsync(

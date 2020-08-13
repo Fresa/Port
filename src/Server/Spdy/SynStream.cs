@@ -9,6 +9,8 @@ using Port.Server.Spdy.Primitives;
 namespace Port.Server.Spdy
 {
     /// <summary>
+    /// The SYN_STREAM control frame allows the sender to asynchronously create a stream between the endpoints. See Stream Creation (section 2.3.2)
+    /// 
     /// +------------------------------------+
     /// |1|    version    |         1        |
     /// +------------------------------------+
@@ -32,10 +34,10 @@ namespace Port.Server.Spdy
     /// +------------------------------------+    |
     /// |           (repeats)                |   &lt;+
     /// </summary>
-    public class SynStream : Control
+    public sealed class SynStream : Control
     {
         public SynStream(
-            byte flags,
+            Options flags,
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
@@ -54,31 +56,29 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private new byte Flags
+        private new Options Flags
         {
-            get => base.Flags;
-            set
-            {
-                if (value > 2)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
-                }
-
-                base.Flags = value;
-            }
+            get => (Options)base.Flags;
+            set => base.Flags = (byte)value;
         }
 
-        /// <summary>
-        /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
-        /// </summary>
-        public bool IsFin => Flags == 1;
+        [Flags]
+        public enum Options : byte
+        {
+            None = 0,
+            /// <summary>
+            /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
+            /// </summary>
+            Fin = 1,
+            /// <summary>
+            /// 0x02 = FLAG_UNIDIRECTIONAL - a stream created with this flag puts the recipient in the half-closed (Section 2.3.6) state.
+            /// </summary>
+            Unidirectional = 2
+        }
 
-        /// <summary>
-        /// 0x02 = FLAG_UNIDIRECTIONAL - a stream created with this flag puts the recipient in the half-closed (Section 2.3.6) state.
-        /// </summary>
-        public bool IsUnidirectional => Flags == 2;
+        public bool IsFin => Flags == Options.Fin;
+
+        public bool IsUnidirectional => Flags == Options.Unidirectional;
 
         /// <summary>
         /// The 31-bit identifier for this stream. This stream-id will be used in frames which are part of this stream.
@@ -136,7 +136,7 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false);
 
             return new SynStream(
-                flags, streamId, associatedToStreamId, priority, headers);
+                flags.ToEnum<Options>(), streamId, associatedToStreamId, priority, headers);
         }
 
         public enum PriorityLevel

@@ -6,10 +6,29 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// The GOAWAY control frame is a mechanism to tell the remote side of the connection to stop creating streams on this session. It can be sent from the client or the server. Once sent, the sender will not respond to any new SYN_STREAMs on this session. Recipients of a GOAWAY frame must not send additional streams on this session, although a new session can be established for new streams. The purpose of this message is to allow an endpoint to gracefully stop accepting new streams (perhaps for a reboot or maintenance), while still finishing processing of previously established streams.
+    /// 
+    /// There is an inherent race condition between an endpoint sending SYN_STREAMs and the remote sending a GOAWAY message. To deal with this case, the GOAWAY contains a last-stream-id indicating the stream-id of the last stream which was created on the sending endpoint in this session. If the receiver of the GOAWAY sent new SYN_STREAMs for sessions after this last-stream-id, they were not processed by the server and the receiver may treat the stream as though it had never been created at all (hence the receiver may want to re-create the stream later on a new session).
+    /// 
+    /// Endpoints should always send a GOAWAY message before closing a connection so that the remote can know whether a stream has been partially processed or not. (For example, if an HTTP client sends a POST at the same time that a server closes a connection, the client cannot know if the server started to process that POST request if the server does not send a GOAWAY frame to indicate where it stopped working).
+    /// 
+    /// After sending a GOAWAY message, the sender must ignore all SYN_STREAM frames for new streams, and MUST NOT create any new streams.
+    /// 
+    /// +----------------------------------+
+    /// |1|   version    |         7       |
+    /// +----------------------------------+
+    /// | 0 (flags) |     8 (length)       |
+    /// +----------------------------------|
+    /// |X|  Last-good-stream-ID (31 bits) |
+    /// +----------------------------------+
+    /// |          Status code             |
+    /// +----------------------------------+
+    /// </summary>
     public class GoAway : Control
     {
         private GoAway(
-            GoAwayFlags flags,
+            Options flags,
             UInt24 length,
             UInt31 lastGoodStreamId,
             StatusCode status)
@@ -26,7 +45,7 @@ namespace Port.Server.Spdy
             UInt31 lastGoodStreamId,
             StatusCode status)
             : this(
-                GoAwayFlags.None,
+                Options.None,
                 length,
                 lastGoodStreamId,
                 status)
@@ -38,13 +57,13 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private new GoAwayFlags Flags
+        private new Options Flags
         {
             set => base.Flags = (byte) value;
         }
 
         [Flags]
-        public enum GoAwayFlags : byte
+        public enum Options : byte
         {
             None = 0
         }
@@ -107,7 +126,7 @@ namespace Port.Server.Spdy
                 .ToEnumAsync<StatusCode>()
                 .ConfigureAwait(false);
 
-            return new GoAway(flags.ToEnum<GoAwayFlags>(), length, lastGoodStreamId, status);
+            return new GoAway(flags.ToEnum<Options>(), length, lastGoodStreamId, status);
         }
 
         protected override async ValueTask WriteControlFrameAsync(

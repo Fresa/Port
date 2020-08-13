@@ -8,10 +8,32 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
+    /// <summary>
+    /// The HEADERS frame augments a stream with additional headers. It may be optionally sent on an existing stream at any time. Specific application of the headers in this frame is application-dependent. The name/value header block within this frame is compressed.
+    /// 
+    /// +------------------------------------+
+    /// |1|   version     |          8       |
+    /// +------------------------------------+
+    /// | Flags (8)  |   Length (24 bits)    |
+    /// +------------------------------------+
+    /// |X|          Stream-ID (31bits)      |
+    /// +------------------------------------+
+    /// | Number of Name/Value pairs (int32) |   &lt;+
+    /// +------------------------------------+    |
+    /// |     Length of name (int32)         |    | This section is the "Name/Value
+    /// +------------------------------------+    | Header Block", and is compressed.
+    /// |           Name (string)            |    |
+    /// +------------------------------------+    |
+    /// |     Length of value  (int32)       |    |
+    /// +------------------------------------+    |
+    /// |          Value   (string)          |    |
+    /// +------------------------------------+    |
+    /// |           (repeats)                |   &lt;+
+    /// </summary>
     public class Headers : Control
     {
         private Headers(
-            HeadersFlags flags,
+            Options flags,
             UInt31 streamId,
             IReadOnlyDictionary<string, string> values)
             : base(Type)
@@ -25,7 +47,7 @@ namespace Port.Server.Spdy
             UInt31 streamId,
             IReadOnlyDictionary<string, string> values)
             : this(
-                HeadersFlags.None,
+                Options.None,
                 streamId,
                 values)
         {
@@ -35,7 +57,7 @@ namespace Port.Server.Spdy
             UInt31 streamId,
             IReadOnlyDictionary<string, string> values)
         {
-            return new Headers(HeadersFlags.Fin, streamId, values);
+            return new Headers(Options.Fin, streamId, values);
         }
 
         public const ushort Type = 8;
@@ -43,14 +65,14 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private new HeadersFlags Flags
+        private new Options Flags
         {
-            get => (HeadersFlags) base.Flags;
+            get => (Options) base.Flags;
             set => base.Flags = (byte) value;
         }
 
         [Flags]
-        public enum HeadersFlags : byte
+        public enum Options : byte
         {
             None = 0,
             /// <summary>
@@ -59,7 +81,7 @@ namespace Port.Server.Spdy
             Fin = 1
         }
 
-        public bool IsLastFrame => Flags == HeadersFlags.Fin;
+        public bool IsLastFrame => Flags == Options.Fin;
 
         /// <summary>
         /// The stream this HEADERS block is associated with.
@@ -93,7 +115,7 @@ namespace Port.Server.Spdy
                     .ReadNameValuePairs(cancellation)
                     .ConfigureAwait(false);
 
-            return new Headers(flags.ToEnum<HeadersFlags>(), streamId, values);
+            return new Headers(flags.ToEnum<Options>(), streamId, values);
         }
 
         protected override async ValueTask WriteControlFrameAsync(

@@ -9,6 +9,8 @@ using Port.Server.Spdy.Primitives;
 namespace Port.Server.Spdy
 {
     /// <summary>
+    /// SYN_REPLY indicates the acceptance of a stream creation by the recipient of a SYN_STREAM frame.
+    /// 
     /// +------------------------------------+
     /// |1|    version    |         2        |
     /// +------------------------------------+
@@ -31,7 +33,7 @@ namespace Port.Server.Spdy
     public class SynReply : Control
     {
         public SynReply(
-            byte flags,
+            Options flags,
             UInt31 streamId,
             IReadOnlyDictionary<string, string> headers) : base(Type)
         {
@@ -45,26 +47,23 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame.
         /// </summary>
-        protected new byte Flags
+        protected new Options Flags
         {
-            get => base.Flags;
-            private set
-            {
-                if (value > 1)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        $"Flags can only be 0 = none or 1 = {nameof(IsFin)}");
-                }
-
-                base.Flags = value;
-            }
+            get => (Options) base.Flags;
+            private set => base.Flags = (byte)value;
         }
 
-        /// <summary>
-        /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
-        /// </summary>
-        public bool IsFin => Flags == 1;
+        [Flags]
+        public enum Options : byte
+        {
+            None = 0,
+            /// <summary>
+            /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
+            /// </summary>
+            Fin = 1
+        }
+
+        public bool IsFin => Flags == Options.Fin;
 
         /// <summary>
         /// The 31-bit identifier for this stream.
@@ -98,7 +97,7 @@ namespace Port.Server.Spdy
                     .ReadNameValuePairs(cancellation)
                     .ConfigureAwait(false);
 
-            return new SynReply(flags, streamId, headers);
+            return new SynReply(flags.ToEnum<Options>(), streamId, headers);
         }
 
         protected override async ValueTask WriteControlFrameAsync(

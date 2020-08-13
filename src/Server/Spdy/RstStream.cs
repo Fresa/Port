@@ -6,10 +6,23 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
-    public class RstStream : Control
+    /// <summary>
+    /// The RST_STREAM frame allows for abnormal termination of a stream. When sent by the creator of a stream, it indicates the creator wishes to cancel the stream. When sent by the recipient of a stream, it indicates an error or that the recipient did not want to accept the stream, so the stream should be closed.
+    /// 
+    /// +----------------------------------+
+    /// |1|   version    |         3       |
+    /// +----------------------------------+
+    /// | Flags (8)  |         8           |
+    /// +----------------------------------+
+    /// |X|          Stream-ID (31bits)    |
+    /// +----------------------------------+
+    /// |          Status code             |
+    /// +----------------------------------+
+    /// </summary>
+    public sealed class RstStream : Control
     {
         public RstStream(
-            in byte flags,
+            in Options flags,
             in UInt24 length,
             in UInt31 streamId,
             StatusCode status) : base(Type)
@@ -25,20 +38,15 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. RST_STREAM does not define any flags. This value must be 0.
         /// </summary>
-        protected new byte Flags
+        private new Options Flags
         {
-            get => base.Flags;
-            set
-            {
-                if (value != 0)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        "Flags can only be 0 = none");
-                }
+            set => base.Flags = (byte)value;
+        }
 
-                base.Flags = value;
-            }
+        [Flags]
+        public enum Options : byte
+        {
+            None = 0
         }
 
         /// <summary>
@@ -82,7 +90,7 @@ namespace Port.Server.Spdy
                     .ToEnumAsync<StatusCode>()
                     .ConfigureAwait(false);
 
-            return new RstStream(flags, length, streamId, status);
+            return new RstStream(flags.ToEnum<Options>(), length, streamId, status);
         }
 
         public enum StatusCode
