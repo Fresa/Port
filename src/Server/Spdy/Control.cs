@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
@@ -15,22 +16,39 @@ namespace Port.Server.Spdy
     /// </summary>
     public abstract class Control : Frame
     {
-        protected Control(byte flags)
+        private readonly ushort _type;
+
+        protected Control(ushort type)
         {
-            Flags = flags;
+            _type = type;
         }
 
         public const ushort Version = 3;
-        protected byte Flags { get; }
 
-        protected async ValueTask WriteAsync(
+        /// <summary>
+        /// Flags related to this frame. Flags for control frames and data frames are different.
+        /// </summary>
+        protected byte Flags { get; set; }
+
+        protected sealed override async ValueTask WriteFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
             await frameWriter.WriteUShortAsync(
                     Version ^ 0x8000, cancellationToken)
                 .ConfigureAwait(false);
+            await frameWriter.WriteUShortAsync(_type, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteByteAsync(Flags, cancellationToken)
+                .ConfigureAwait(false);
+
+            await WriteControlFrameAsync(frameWriter, cancellationToken)
+                .ConfigureAwait(false);
         }
+
+        protected abstract ValueTask WriteControlFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default);
 
         internal new static async ValueTask<Control> ReadAsync(
             IFrameReader frameReader,
@@ -57,10 +75,10 @@ namespace Port.Server.Spdy
                         flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 SynReply.Type => await SynReply.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 RstStream.Type => await RstStream.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 Settings.Type => await Settings.ReadAsync(
                         frameReader, cancellation)

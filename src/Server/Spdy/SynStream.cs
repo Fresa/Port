@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
@@ -33,22 +35,40 @@ namespace Port.Server.Spdy
     public class SynStream : Control
     {
         public SynStream(
+            byte flags,
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            byte flags,
-            IReadOnlyDictionary<string, string> headers) : base(flags)
+            IReadOnlyDictionary<string, string> headers)
+            : base(Type)
         {
-            if (flags > 2)
-            {
-                throw new ArgumentOutOfRangeException(nameof(flags), $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
-            }
+            Flags = flags;
             StreamId = streamId;
             AssociatedToStreamId = associatedToStreamId;
             Priority = priority;
             Headers = headers;
         }
+
         public const ushort Type = 1;
+
+        /// <summary>
+        /// Flags related to this frame. 
+        /// </summary>
+        private new byte Flags
+        {
+            get => base.Flags;
+            set
+            {
+                if (value > 2)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(Flags),
+                        $"Flags can only be 0 = none, 1 = {nameof(IsFin)} or 2 = {nameof(IsUnidirectional)}");
+                }
+
+                base.Flags = value;
+            }
+        }
 
         /// <summary>
         /// 0x01 = FLAG_FIN - marks this frame as the last frame to be transmitted on this stream and puts the sender in the half-closed (Section 2.3.6) state.
@@ -94,21 +114,27 @@ namespace Port.Server.Spdy
             var associatedToStreamId = UInt31.From(
                 await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false) & 0x7FFF);
-            var priority = Enum.Parse<PriorityLevel>((await frameReader.ReadByteAsync(cancellation)
-                .ConfigureAwait(false) & 0xE0).ToString(), true);
+            var priority =
+                (await frameReader.ReadByteAsync(cancellation)
+                    .ConfigureAwait(false) & 0xE0)
+                .ToEnum<PriorityLevel>();
             // Slot: 8 bits of unused space, reserved for future use. 
             await frameReader.ReadByteAsync(cancellation)
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
-            var headerLength = length.Value - 10;
-            var compressedHeaders = await frameReader.ReadBytesAsync(
-                    (int)headerLength, cancellation)
-                .ConfigureAwait(false);
+            var headerLength = (int) length.Value - 10;
+            var headers =
+                await
+                    (await frameReader
+                        .ReadBytesAsync(headerLength, cancellation)
+                        .ConfigureAwait(false))
+                    .ZlibDecompress(SpdyConstants.HeadersDictionary)
+                    .AsFrameReader()
+                    .ReadNameValuePairs(cancellation)
+                    .ConfigureAwait(false);
 
-            var headers = await frameReader.ReadNameValuePairs(cancellation)
-                .ConfigureAwait(false);
-
-            return new SynStream(streamId, associatedToStreamId, priority, flags, headers);
+            return new SynStream(
+                flags, streamId, associatedToStreamId, priority, headers);
         }
 
         public enum PriorityLevel
@@ -121,6 +147,40 @@ namespace Port.Server.Spdy
             BelowNormal,
             Low,
             Lowest
+        }
+
+        protected override async ValueTask WriteControlFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            await using var headerStream = new MemoryStream(1024);
+            await using var headerWriter = new FrameWriter(headerStream);
+            {
+                await headerWriter.WriteNameValuePairs(
+                        Headers, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var compressedHeaders = headerStream.ToArray()
+                .ZlibCompress(SpdyConstants.HeadersDictionary);
+
+            var length = compressedHeaders.Length + 10;
+            await frameWriter.WriteUInt24Async(
+                    UInt24.From((uint) length), cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    StreamId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    AssociatedToStreamId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteByteAsync((byte) Priority, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteByteAsync(0, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteBytesAsync(
+                    compressedHeaders, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }
