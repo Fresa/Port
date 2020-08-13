@@ -125,7 +125,7 @@ namespace Port.Server.Spdy.Extensions
             }
         }
 
-        internal static IFrameReader AsFrameReader(
+        internal static IFrameReader ToFrameReader(
             this byte[] buffer)
         {
             return new FrameReader(PipeReader.Create(new MemoryStream(buffer)));
