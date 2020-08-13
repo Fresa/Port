@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +10,7 @@ namespace Port.Server.Spdy
     public class Settings : Control
     {
         internal Settings(
-            byte flags,
+            SettingsFlags flags,
             IReadOnlyDictionary<Id, Setting> values) : base(Type)
         {
             Flags = flags;
@@ -23,23 +22,17 @@ namespace Port.Server.Spdy
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        protected new byte Flags
+        protected new SettingsFlags Flags
         {
-            get => base.Flags;
-            private set
-            {
-                if (value > 1)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(Flags),
-                        $"Flags can only be 0 = none or 1 = {nameof(ClearSettings)}");
-                }
-
-                base.Flags = value;
-            }
+            get => (SettingsFlags)base.Flags;
+            private set => base.Flags = (byte)value;
         }
 
-        public bool ClearSettings => Flags == 1;
+        public enum SettingsFlags : byte
+        {
+            None = 0,
+            ClearSettings = 1
+        }
 
         public IReadOnlyDictionary<Id, Setting> Values { get; }
 
@@ -64,10 +57,10 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false);
                 var value = await frameReader.ReadUInt32Async(cancellation)
                     .ConfigureAwait(false);
-                settings.TryAdd(id, new Setting(flag, value));
+                settings.TryAdd(id, new Setting(id, flag, value));
             }
 
-            return new Settings(flags, settings);
+            return new Settings(flags.ToEnum<SettingsFlags>(), settings);
         }
 
         protected override async ValueTask WriteControlFrameAsync(
@@ -104,12 +97,16 @@ namespace Port.Server.Spdy
         public class Setting
         {
             internal Setting(
+                Id id,
                 SettingFlags flags,
                 uint value)
             {
+                Id = id;
                 Flags = flags;
                 Value = value;
             }
+
+            public Id Id { get; }
 
             public uint Value { get; }
 

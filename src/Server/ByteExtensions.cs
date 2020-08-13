@@ -16,9 +16,16 @@ namespace Port.Server
             this ValueTask<byte> value)
             where T : struct, Enum
         {
-            return Enum.Parse<T>(
+            return 
                 (await value.ConfigureAwait(false))
-                .ToString());
+                .ToEnum<T>();
+        }
+
+        internal static T ToEnum<T>(
+            this byte value)
+            where T : struct, Enum
+        {
+            return Enum.Parse<T>(value.ToString());
         }
     }
 }
