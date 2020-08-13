@@ -68,6 +68,30 @@ namespace Port.Server.Spdy
             return new Settings(flags, settings);
         }
 
+        protected override async ValueTask WriteControlFrameAsync(
+            IFrameWriter frameWriter,
+            CancellationToken cancellationToken = default)
+        {
+            var length = UInt24.From((uint)Values.Count * 8 + 4);
+            await frameWriter.WriteUInt24Async(
+                    length, cancellationToken)
+                .ConfigureAwait(false);
+            await frameWriter.WriteUInt32Async(
+                    (uint)Values.Count, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var (id, setting) in Values)
+            {
+                await frameWriter.WriteByteAsync(setting.Flags, cancellationToken)
+                    .ConfigureAwait(false);
+                await frameWriter.WriteUInt24Async(
+                        UInt24.From((uint)id), cancellationToken)
+                    .ConfigureAwait(false);
+                await frameWriter.WriteUInt32Async(
+                        setting.Value, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
         /// <summary>
         /// +----------------------------------+
         /// | Flags(8) |      ID (24 bits)     |
@@ -126,13 +150,6 @@ namespace Port.Server.Spdy
             DownloadRetransRate = 6,
             InitialWindowSize = 7,
             ClientCertificateVectorSize = 8
-        }
-
-        protected override async ValueTask WriteControlFrameAsync(
-            IFrameWriter frameWriter,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotImplementedException();
         }
     }
 }
