@@ -66,7 +66,7 @@ namespace Port.Server.Spdy.Frames
             return new Data(streamId, Options.None, payload);
         }
 
-        internal async ValueTask WriteAsync(
+        protected override async ValueTask WriteFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
@@ -84,13 +84,6 @@ namespace Port.Server.Spdy.Frames
 
             await frameWriter.WriteBytesAsync(Payload, cancellationToken)
                 .ConfigureAwait(false);
-        }
-
-        protected override async ValueTask WriteFrameAsync(
-            IFrameWriter frameWriter,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotImplementedException();
         }
 
         internal new static async ValueTask<Data> ReadAsync(
