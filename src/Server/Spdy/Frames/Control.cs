@@ -80,17 +80,19 @@ namespace Port.Server.Spdy.Frames
                         flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 Settings.Type => await Settings.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
-                Ping.Type => await Ping.ReadAsync(frameReader, cancellation)
+                Ping.Type => await Ping.ReadAsync(
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
-                GoAway.Type => await ReadAsync(frameReader, cancellation)
+                GoAway.Type => await GoAway.ReadAsync(
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 Headers.Type => await Headers.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 WindowUpdate.Type => await WindowUpdate.ReadAsync(
-                        frameReader, cancellation)
+                        flags, length, frameReader, cancellation)
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(type), $"Unknown control frame type {type} received")
