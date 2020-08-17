@@ -26,9 +26,10 @@ namespace Port.Server.Spdy.Frames
             Flags = flags;
             Payload = payload;
         }
+
         /// <summary>
-          /// A 31-bit value identifying the stream.
-          /// </summary>
+        /// A 31-bit value identifying the stream.
+        /// </summary>
         public UInt31 StreamId { get; }
 
         /// <summary>

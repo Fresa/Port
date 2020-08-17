@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
 using Ionic.Zlib;
 
 namespace Port.Server.Spdy.Extensions
@@ -30,8 +31,7 @@ namespace Port.Server.Spdy.Extensions
                     $"Got error code {result} when initializing deflate routine: {zStream.Message}");
             }
 
-            result = zStream.SetDictionary(
-                dictionary);
+            result = zStream.SetDictionary(dictionary);
             if (result < 0)
             {
                 throw new InvalidOperationException(
@@ -51,7 +51,8 @@ namespace Port.Server.Spdy.Extensions
                     zStream.NextOut = 0;
                     zStream.AvailableBytesOut = buffer.Length;
                     result = zStream.Deflate(flush);
-                    stream.Write(buffer, 0, buffer.Length - zStream.AvailableBytesOut);
+                    stream.Write(
+                        buffer, 0, buffer.Length - zStream.AvailableBytesOut);
 
                     switch (result)
                     {
@@ -97,15 +98,15 @@ namespace Port.Server.Spdy.Extensions
                     zStream.NextOut = 0;
                     zStream.AvailableBytesOut = buffer.Length;
                     result = zStream.Inflate(FlushType.None);
-                    stream.Write(buffer, 0, buffer.Length - zStream.AvailableBytesOut);
+                    stream.Write(
+                        buffer, 0, buffer.Length - zStream.AvailableBytesOut);
 
                     switch (result)
                     {
                         case ZlibConstants.Z_STREAM_END:
                             return stream.ToArray();
                         case ZlibConstants.Z_NEED_DICT:
-                            result = zStream.SetDictionary(
-                                dictionary);
+                            result = zStream.SetDictionary(dictionary);
                             if (result < 0)
                             {
                                 throw new InvalidOperationException(
@@ -129,6 +130,19 @@ namespace Port.Server.Spdy.Extensions
             this byte[] buffer)
         {
             return new FrameReader(PipeReader.Create(new MemoryStream(buffer)));
+        }
+
+        internal static string ToHexArrayRepresentation(
+            this byte[] buffer)
+        {
+            return buffer
+                .Aggregate(
+                    "{ ", (
+                            @byte,
+                            representation)
+                        => @byte + $"0x{representation:X2}, ")
+                .TrimEnd()
+                .TrimEnd(',') + " }";
         }
     }
 }

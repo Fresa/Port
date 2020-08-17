@@ -108,23 +108,23 @@ namespace Port.Server.Spdy.Frames
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var streamId = 
+            var streamId =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);
-            var associatedToStreamId = 
+            var associatedToStreamId =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);
             var priority =
-                (await frameReader.ReadByteAsync(cancellation)
-                    .ConfigureAwait(false) & 0xE0)
+                ((await frameReader.ReadByteAsync(cancellation)
+                    .ConfigureAwait(false) & 0xE0) >> 5)
                 .ToEnum<PriorityLevel>();
             // Slot: 8 bits of unused space, reserved for future use. 
             await frameReader.ReadByteAsync(cancellation)
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
-            var headerLength = (int) length.Value - 10;
+            var headerLength = (int)length.Value - 10;
             var headers =
                 await
                     (await frameReader
@@ -139,7 +139,7 @@ namespace Port.Server.Spdy.Frames
                 flags.ToEnum<Options>(), streamId, associatedToStreamId, priority, headers);
         }
 
-        public enum PriorityLevel
+        public enum PriorityLevel : byte
         {
             Top,
             Urgent,
@@ -168,7 +168,7 @@ namespace Port.Server.Spdy.Frames
 
             var length = compressedHeaders.Length + 10;
             await frameWriter.WriteUInt24Async(
-                    UInt24.From((uint) length), cancellationToken)
+                    UInt24.From((uint)length), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     StreamId.Value, cancellationToken)
@@ -176,7 +176,7 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteUInt32Async(
                     AssociatedToStreamId.Value, cancellationToken)
                 .ConfigureAwait(false);
-            await frameWriter.WriteByteAsync((byte) Priority, cancellationToken)
+            await frameWriter.WriteByteAsync((byte)((byte)Priority << 5), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteByteAsync(0, cancellationToken)
                 .ConfigureAwait(false);

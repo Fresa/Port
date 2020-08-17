@@ -23,7 +23,7 @@ namespace Port.Server.Spdy
         {
             var bytes = await ReadAsBigEndianAsync(3, cancellationToken)
                 .ConfigureAwait(false);
-            return new UInt24(bytes[2], bytes[1], bytes[0]);
+            return new UInt24(bytes[0], bytes[1], bytes[2]);
         }
 
         public async ValueTask<int> ReadInt32Async(
