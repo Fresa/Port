@@ -80,7 +80,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override async Task WhenAsync()
             {
-                _message = (SynStream) await Control.ReadAsync(
+                _message = (SynStream)await Control.ReadAsync(
                         new FrameReader(PipeReader.Create(_serialized)))
                     .ConfigureAwait(false);
             }
@@ -125,6 +125,19 @@ namespace Port.Server.UnitTests.Spdy.Frames
             {
                 _message.Priority.Should()
                     .Be(SynStream.PriorityLevel.High);
+            }
+
+            [Fact]
+            public void It_should_have_headers()
+            {
+                _message.Headers.Should()
+                    .HaveCount(2)
+                    .And
+                    .Contain(new KeyValuePair<string, string>("Host", "test"))
+                    .And.Contain(
+                        new KeyValuePair<string, string>(
+                            "User-Agent",
+                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"));
             }
         }
     }
