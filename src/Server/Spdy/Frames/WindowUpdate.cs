@@ -27,14 +27,22 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public class WindowUpdate : Control
     {
-        public WindowUpdate(
+        private WindowUpdate(
             Options flags,
             UInt24 length,
             UInt31 streamId,
-            UInt31 deltaWindowSize) : base(Type)
+            UInt31 deltaWindowSize)
+            : this(streamId, deltaWindowSize)
         {
             Flags = flags;
             Length = length;
+        }
+
+        public WindowUpdate(
+            UInt31 streamId,
+            UInt31 deltaWindowSize)
+            : base(Type)
+        {
             StreamId = streamId;
             DeltaWindowSize = deltaWindowSize;
         }
@@ -46,13 +54,13 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         private new Options Flags
         {
-            set => base.Flags = (byte)value;
+            set => base.Flags = (byte) value;
         }
 
         [Flags]
         public enum Options : byte
         {
-            None = 0,
+            None = 0
         }
 
         private UInt24 Length
@@ -76,6 +84,7 @@ namespace Port.Server.Spdy.Frames
         public bool IsConnectionLevelFlowControl => StreamId == UInt31.From(0);
 
         private UInt31 _deltaWindowSize;
+
         /// <summary>
         /// The additional number of bytes that the sender can transmit in addition to existing remaining window size. The legal range for this field is 1 to 2^31 - 1 (0x7fffffff) bytes.
         /// </summary>
@@ -86,7 +95,9 @@ namespace Port.Server.Spdy.Frames
             {
                 if (value.Value < 1)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(DeltaWindowSize), "Delta window size must be greater than 0");
+                    throw new ArgumentOutOfRangeException(
+                        nameof(DeltaWindowSize),
+                        "Delta window size must be greater than 0");
                 }
 
                 _deltaWindowSize = value;
@@ -101,29 +112,29 @@ namespace Port.Server.Spdy.Frames
         {
             var streamId =
                 await frameReader.ReadUInt32Async(cancellation)
-                    .AsUInt31Async()
-                    .ConfigureAwait(false);
+                                 .AsUInt31Async()
+                                 .ConfigureAwait(false);
             var deltaWindowSize =
                 await frameReader.ReadUInt32Async(cancellation)
-                    .AsUInt31Async()
-                    .ConfigureAwait(false);
+                                 .AsUInt31Async()
+                                 .ConfigureAwait(false);
 
-            return new WindowUpdate(flags.ToEnum<Options>(), length, streamId, deltaWindowSize);
+            return new WindowUpdate(
+                flags.ToEnum<Options>(), length, streamId, deltaWindowSize);
         }
 
         protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            await frameWriter.WriteUInt24Async(
-                    Length, cancellationToken)
-                .ConfigureAwait(false);
+            await frameWriter.WriteUInt24Async(Length, cancellationToken)
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                    StreamId.Value, cancellationToken)
-                .ConfigureAwait(false);
+                                 StreamId.Value, cancellationToken)
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                    DeltaWindowSize.Value, cancellationToken)
-                .ConfigureAwait(false);
+                                 DeltaWindowSize.Value, cancellationToken)
+                             .ConfigureAwait(false);
         }
     }
 }
