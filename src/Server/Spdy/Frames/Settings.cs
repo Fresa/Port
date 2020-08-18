@@ -27,7 +27,8 @@ namespace Port.Server.Spdy.Frames
     {
         internal Settings(
             Options flags,
-            IReadOnlyDictionary<Id, Setting> values) : base(Type)
+            ValuesList values)
+            : base(Type)
         {
             Flags = flags;
             Values = values;
@@ -40,21 +41,24 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         protected new Options Flags
         {
-            get => (Options)base.Flags;
-            private set => base.Flags = (byte)value;
+            get => (Options) base.Flags;
+            private set => base.Flags = (byte) value;
         }
 
         [Flags]
         public enum Options : byte
         {
             None = 0,
+
             /// <summary>
             /// When set, the client should clear any previously persisted SETTINGS ID/Value pairs. If this frame contains ID/Value pairs with the FLAG_SETTINGS_PERSIST_VALUE set, then the client will first clear its existing, persisted settings, and then persist the values with the flag set which are contained within this frame. Because persistence is only implemented on the client, this flag can only be used when the sender is the server.
             /// </summary>
             ClearSettings = 1
         }
 
-        public IReadOnlyDictionary<Id, Setting> Values { get; }
+        public bool ClearSettings => Flags == Options.ClearSettings;
+
+        public IReadOnlyCollection<Setting> Values { get; }
 
         internal static async ValueTask<Settings> ReadAsync(
             byte flags,
@@ -64,19 +68,19 @@ namespace Port.Server.Spdy.Frames
         {
             // A 32-bit value representing the number of ID/value pairs in this message.
             var numberOfSettings = await frameReader
-                .ReadUInt32Async(cancellation)
-                .ConfigureAwait(false);
-            var settings = new Dictionary<Id, Setting>();
+                                         .ReadUInt32Async(cancellation)
+                                         .ConfigureAwait(false);
+            var settings = new ValuesList();
             for (var i = 0; i < numberOfSettings; i++)
             {
                 var flag = await frameReader.ReadByteAsync(cancellation)
-                    .ToEnumAsync<SettingFlags>()
-                    .ConfigureAwait(false);
+                                            .ToEnumAsync<ValueOptions>()
+                                            .ConfigureAwait(false);
                 var id = await frameReader.ReadUInt24Async(cancellation)
-                    .ToEnumAsync<Id>()
-                    .ConfigureAwait(false);
+                                          .ToEnumAsync<Id>()
+                                          .ConfigureAwait(false);
                 var value = await frameReader.ReadUInt32Async(cancellation)
-                    .ConfigureAwait(false);
+                                             .ConfigureAwait(false);
                 settings.TryAdd(id, new Setting(id, flag, value));
             }
 
@@ -87,25 +91,90 @@ namespace Port.Server.Spdy.Frames
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            var length = UInt24.From((uint)Values.Count * 8 + 4);
-            await frameWriter.WriteUInt24Async(
-                    length, cancellationToken)
-                .ConfigureAwait(false);
+            var length = UInt24.From((uint) Values.Count * 8 + 4);
+            await frameWriter.WriteUInt24Async(length, cancellationToken)
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                    (uint)Values.Count, cancellationToken)
-                .ConfigureAwait(false);
-            foreach (var (id, setting) in Values.OrderBy(pair => pair.Key))
+                                 (uint) Values.Count, cancellationToken)
+                             .ConfigureAwait(false);
+            foreach (var setting in Values.OrderBy(setting => setting.Id))
             {
-                await frameWriter.WriteByteAsync((byte)setting.Flags, cancellationToken)
-                    .ConfigureAwait(false);
+                await frameWriter.WriteByteAsync(
+                                     (byte) setting.Flags, cancellationToken)
+                                 .ConfigureAwait(false);
                 await frameWriter.WriteUInt24Async(
-                        UInt24.From((uint)id), cancellationToken)
-                    .ConfigureAwait(false);
+                                     UInt24.From((uint) setting.Id),
+                                     cancellationToken)
+                                 .ConfigureAwait(false);
                 await frameWriter.WriteUInt32Async(
-                        setting.Value, cancellationToken)
-                    .ConfigureAwait(false);
+                                     setting.Value, cancellationToken)
+                                 .ConfigureAwait(false);
             }
         }
+
+        public static Setting ClientCertificateVectorSize(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.ClientCertificateVectorSize,
+                flags,
+                value);
+
+        public static Setting CurrentCwnd(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.CurrentCwnd,
+                flags,
+                value);
+
+        public static Setting DownloadBandwidth(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.DownloadBandwidth,
+                flags,
+                value);
+
+        public static Setting DownloadRetransRate(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.DownloadRetransRate,
+                flags,
+                value);
+
+        public static Setting InitialWindowSize(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.InitialWindowSize,
+                flags,
+                value);
+
+        public static Setting MaxConcurrentStreams(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.MaxConcurrentStreams,
+                flags,
+                value);
+
+        public static Setting RoundTripTime(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.RoundTripTime,
+                flags,
+                value);
+
+        public static Setting UploadBandwidth(
+            ValueOptions flags,
+            uint value)
+            => new Setting(
+                Id.UploadBandwidth,
+                flags,
+                value);
 
         /// <summary>
         /// +----------------------------------+
@@ -118,7 +187,7 @@ namespace Port.Server.Spdy.Frames
         {
             internal Setting(
                 Id id,
-                SettingFlags flags,
+                ValueOptions flags,
                 uint value)
             {
                 Id = id;
@@ -130,16 +199,33 @@ namespace Port.Server.Spdy.Frames
 
             public uint Value { get; }
 
-            public SettingFlags Flags { get; }
+            public bool ShouldPersist => Flags == ValueOptions.PersistValue;
+
+            public bool IsPersisted => Flags == ValueOptions.Persisted;
+
+            public ValueOptions Flags { get; }
         }
 
-        public enum SettingFlags : ushort
+        public sealed class ValuesList : Dictionary<Id, Setting>,
+            IReadOnlyCollection<Setting>
+        {
+            public void Add(
+                Setting setting)
+                => Add(setting.Id, setting);
+
+            IEnumerator<Setting> IEnumerable<Setting>.GetEnumerator()
+                => Values.GetEnumerator();
+        }
+
+        public enum ValueOptions : ushort
         {
             None = 0,
+
             /// <summary>
             /// When set, the sender of this SETTINGS frame is requesting that the recipient persist the ID/Value and return it in future SETTINGS frames sent from the sender to this recipient. Because persistence is only implemented on the client, this flag is only sent by the server.
             /// </summary>
             PersistValue = 1,
+
             /// <summary>
             /// When set, the sender is notifying the recipient that this ID/Value pair was previously sent to the sender by the recipient with the FLAG_SETTINGS_PERSIST_VALUE, and the sender is returning it. Because persistence is only implemented on the client, this flag is only sent by the client.
             /// </summary>
