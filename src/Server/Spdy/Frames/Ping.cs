@@ -18,13 +18,18 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public class Ping : Control
     {
-        public Ping(
+        private Ping(
             Options flags,
             UInt24 length,
-            uint id) : base(Type)
+            uint id) : this(id)
         {
             Flags = flags;
             Length = length;
+        }
+
+        public Ping(
+            uint id) : base(Type)
+        {
             Id = id;
         }
 
@@ -50,7 +55,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public UInt24 Length
         {
-            get => UInt24.From(8);
+            get => UInt24.From(4);
             private set
             {
                 if (value.Value != 4)
