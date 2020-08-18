@@ -15,7 +15,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Server.IntegrationTest
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.Test.API.Server", "tests\Kubernetes.Test.API.Server\Kubernetes.Test.API.Server.csproj", "{9DB62491-B637-4AAF-B80D-FA682CA92A9D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Port.Server.UnitTests", "tests\Port.Server.UnitTests\Port.Server.UnitTests.csproj", "{FC1B10B8-A755-4149-B75D-819FBF500B3E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Server.UnitTests", "tests\Port.Server.UnitTests\Port.Server.UnitTests.csproj", "{FC1B10B8-A755-4149-B75D-819FBF500B3E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{635C3A39-6AFA-4D36-839F-AFECFBA3D1DD}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
