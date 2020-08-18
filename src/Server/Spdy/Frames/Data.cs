@@ -47,6 +47,8 @@ namespace Port.Server.Spdy.Frames
             Fin = 1
         }
 
+        public bool IsLastFrame => Flags == Options.Fin;
+
         /// <summary>
         /// The variable-length data payload;
         /// Length is an unsigned 24-bit value representing the number of bytes after the length field. The total size of a data frame is 8 bytes + length. It is valid to have a zero-length data frame.
