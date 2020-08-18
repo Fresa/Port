@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
@@ -34,7 +35,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             private SynReply _frame;
             private readonly MemoryStream _serialized = new MemoryStream();
 
-            protected override Task GivenAsync()
+            protected override Task GivenAsync(CancellationToken cancellationToken)
             {
                 _frame = new SynReply(
                     SynReply.Options.Fin,
@@ -52,9 +53,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 return Task.CompletedTask;
             }
 
-            protected override async Task WhenAsync()
+            protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
-                await _frame.WriteAsync(new FrameWriter(_serialized))
+                await _frame.WriteAsync(new FrameWriter(_serialized), cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -74,10 +75,10 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             private SynReply _message;
 
-            protected override async Task WhenAsync()
+            protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
                 _message = (SynReply) await Control.ReadAsync(
-                        new FrameReader(PipeReader.Create(_serialized)))
+                        new FrameReader(PipeReader.Create(_serialized)), cancellationToken)
                     .ConfigureAwait(false);
             }
 

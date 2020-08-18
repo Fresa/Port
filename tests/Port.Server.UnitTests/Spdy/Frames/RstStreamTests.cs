@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Pipelines;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
@@ -23,7 +24,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             private RstStream _frame;
             private readonly MemoryStream _serialized = new MemoryStream();
 
-            protected override Task GivenAsync()
+            protected override Task GivenAsync(CancellationToken cancellationToken)
             {
                 _frame = new RstStream(
                     UInt31.From(123),
@@ -31,9 +32,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 return Task.CompletedTask;
             }
 
-            protected override async Task WhenAsync()
+            protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
-                await _frame.WriteAsync(new FrameWriter(_serialized))
+                await _frame.WriteAsync(new FrameWriter(_serialized), cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -50,11 +51,11 @@ namespace Port.Server.UnitTests.Spdy.Frames
         {
             private RstStream _message;
 
-            protected override async Task WhenAsync()
+            protected override async Task WhenAsync(CancellationToken cancellation)
             {
                 _message = (RstStream) await Control.ReadAsync(
                         new FrameReader(
-                            PipeReader.Create(new MemoryStream(Message))))
+                            PipeReader.Create(new MemoryStream(Message))), cancellation)
                     .ConfigureAwait(false);
             }
 
