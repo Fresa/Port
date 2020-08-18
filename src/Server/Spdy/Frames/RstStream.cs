@@ -21,14 +21,22 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public sealed class RstStream : Control
     {
-        public RstStream(
+        private RstStream(
             in Options flags,
             in UInt24 length,
             in UInt31 streamId,
-            StatusCode status) : base(Type)
+            in StatusCode status) : base(Type)
         {
             Flags = flags;
             Length = length;
+            StreamId = streamId;
+            Status = status;
+        }
+
+        public RstStream(
+            in UInt31 streamId,
+            in StatusCode status) : base(Type)
+        {
             StreamId = streamId;
             Status = status;
         }
