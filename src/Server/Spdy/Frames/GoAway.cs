@@ -38,7 +38,7 @@ namespace Port.Server.Spdy.Frames
             Length = length;
         }
 
-        public GoAway(
+        private GoAway(
             UInt31 lastGoodStreamId,
             StatusCode status)
             : base(Type)
@@ -46,6 +46,18 @@ namespace Port.Server.Spdy.Frames
             LastGoodStreamId = lastGoodStreamId;
             Status = status;
         }
+
+        public static GoAway Ok(
+            UInt31 lastGoodStreamId)
+            => new GoAway(lastGoodStreamId, StatusCode.Ok);
+
+        public static GoAway ProtocolError(
+            UInt31 lastGoodStreamId)
+            => new GoAway(lastGoodStreamId, StatusCode.ProtocolError);
+
+        public static GoAway InternalError(
+            UInt31 lastGoodStreamId)
+            => new GoAway(lastGoodStreamId, StatusCode.InternalError);
 
         public const ushort Type = 7;
 
@@ -83,6 +95,8 @@ namespace Port.Server.Spdy.Frames
         /// The last stream id which was accepted by the sender of the GOAWAY message. If no streams were replied to, this value MUST be 0.
         /// </summary>
         public UInt31 LastGoodStreamId { get; }
+
+        public static UInt31 NoLastGoodStreamId { get; } = UInt31.From(0);
 
         /// <summary>
         /// The reason for closing the session.

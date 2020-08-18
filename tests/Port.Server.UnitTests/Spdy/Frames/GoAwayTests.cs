@@ -27,9 +27,8 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override Task GivenAsync(
                 CancellationToken cancellationToken)
             {
-                _frame = new GoAway(
-                    UInt31.From(123),
-                    GoAway.StatusCode.InternalError);
+                _frame = GoAway.InternalError(
+                    UInt31.From(123));
                 return Task.CompletedTask;
             }
 
