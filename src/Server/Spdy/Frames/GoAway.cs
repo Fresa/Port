@@ -32,24 +32,19 @@ namespace Port.Server.Spdy.Frames
             UInt24 length,
             UInt31 lastGoodStreamId,
             StatusCode status)
-            : base(Type)
+            : this(lastGoodStreamId, status)
         {
             Flags = flags;
             Length = length;
-            LastGoodStreamId = lastGoodStreamId;
-            Status = status;
         }
 
         public GoAway(
-            UInt24 length,
             UInt31 lastGoodStreamId,
             StatusCode status)
-            : this(
-                Options.None,
-                length,
-                lastGoodStreamId,
-                status)
+            : base(Type)
         {
+            LastGoodStreamId = lastGoodStreamId;
+            Status = status;
         }
 
         public const ushort Type = 7;
@@ -94,7 +89,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public StatusCode Status { get; }
 
-        public enum StatusCode
+        public enum StatusCode : uint
         {
             /// <summary>
             /// This is a normal session teardown.
@@ -120,13 +115,14 @@ namespace Port.Server.Spdy.Frames
         {
             var lastGoodStreamId =
                 await frameReader.ReadUInt32Async(cancellation)
-                    .AsUInt31Async()
-                    .ConfigureAwait(false);
+                                 .AsUInt31Async()
+                                 .ConfigureAwait(false);
             var status = await frameReader.ReadUInt32Async(cancellation)
-                .ToEnumAsync<StatusCode>()
-                .ConfigureAwait(false);
+                                          .ToEnumAsync<StatusCode>()
+                                          .ConfigureAwait(false);
 
-            return new GoAway(flags.ToEnum<Options>(), length, lastGoodStreamId, status);
+            return new GoAway(
+                flags.ToEnum<Options>(), length, lastGoodStreamId, status);
         }
 
         protected override async ValueTask WriteControlFrameAsync(
@@ -134,12 +130,12 @@ namespace Port.Server.Spdy.Frames
             CancellationToken cancellationToken = default)
         {
             await frameWriter.WriteUInt24Async(Length, cancellationToken)
-                .ConfigureAwait(false);
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                    LastGoodStreamId.Value, cancellationToken)
-                .ConfigureAwait(false);
+                                 LastGoodStreamId.Value, cancellationToken)
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async((uint) Status, cancellationToken)
-                .ConfigureAwait(false);
+                             .ConfigureAwait(false);
         }
     }
 }
