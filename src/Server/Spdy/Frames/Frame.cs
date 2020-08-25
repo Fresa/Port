@@ -10,16 +10,16 @@ namespace Port.Server.Spdy.Frames
             CancellationToken cancellation = default)
         {
             var firstByte = await frameReader.PeekByteAsync(cancellation)
-                .ConfigureAwait(false);
+                                             .ConfigureAwait(false);
             var isControlFrame = (firstByte & 0x80) != 0;
             if (isControlFrame)
             {
                 return await Control.ReadAsync(frameReader, cancellation)
-                    .ConfigureAwait(false);
+                                    .ConfigureAwait(false);
             }
 
             return await Data.ReadAsync(frameReader, cancellation)
-                .ConfigureAwait(false);
+                             .ConfigureAwait(false);
         }
 
         internal async ValueTask WriteAsync(
@@ -28,7 +28,7 @@ namespace Port.Server.Spdy.Frames
         {
             await WriteFrameAsync(frameWriter, cancellationToken)
                 .ConfigureAwait(false);
-        } 
+        }
 
         protected abstract ValueTask WriteFrameAsync(
             IFrameWriter frameWriter,

@@ -8,7 +8,7 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
-    internal class FrameWriter : IFrameWriter
+    internal class FrameWriter : IFrameWriter, IAsyncDisposable
     {
         private readonly Stream _buffer;
 
