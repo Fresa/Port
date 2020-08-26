@@ -14,7 +14,7 @@ namespace Port.Server.Spdy
     /// <summary>
     /// Client implementation
     /// </summary>
-    public class SpdySession
+    public class SpdySession : IAsyncDisposable
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
@@ -141,7 +141,7 @@ namespace Port.Server.Spdy
                 id = 1;
             }
 
-            var ping = new Ping((uint) id);
+            var ping = new Ping((uint)id);
             await ping.WriteToAsync(
                           _sendingPriorityQueue, SynStream.PriorityLevel.Top,
                           SessionCancellationToken)
@@ -267,7 +267,7 @@ namespace Port.Server.Spdy
             SynStream.PriorityLevel priority,
             CancellationToken cancellationToken = default)
         {
-            var streamId = (uint) Interlocked.Increment(ref _streamCounter);
+            var streamId = (uint)Interlocked.Increment(ref _streamCounter);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
@@ -276,6 +276,27 @@ namespace Port.Server.Spdy
             await stream.Open(cancellationToken)
                         .ConfigureAwait(false);
             return stream;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                _sessionCancellationTokenSource.Cancel(false);
+            }
+            catch
+            {
+                // Try cancel
+            }
+
+            await Task.WhenAll(_receivingTask, _sendingTask)
+                      .ConfigureAwait(false);
+
+            await Send(GoAway.Ok(UInt31.From((uint) _streamCounter)))
+                .ConfigureAwait(false);
+
+            await _networkClient.DisposeAsync()
+                                .ConfigureAwait(false);
         }
     }
 }
