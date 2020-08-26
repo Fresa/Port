@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -11,8 +13,9 @@ namespace Port.Server.Spdy
     {
         private readonly ConcurrentPriorityQueue<byte[]> _sendingPriorityQueue;
 
-        private readonly ConcurrentPriorityQueue<Frame> _receivingPriorityQueue
-            = new ConcurrentPriorityQueue<Frame>();
+        private readonly ConcurrentQueue<Frame> _receivingPriorityQueue
+            = new ConcurrentQueue<Frame>();
+        private readonly SemaphoreSlim _itemsAvailable = new SemaphoreSlim(0);
 
         internal SpdyStream(
             UInt31 id,
@@ -28,7 +31,8 @@ namespace Port.Server.Spdy
         internal void Receive(
             Frame frame)
         {
-            _receivingPriorityQueue.Enqueue(Priority, frame);
+            _receivingPriorityQueue.Enqueue(frame);
+            _itemsAvailable.Release();
         }
 
         public SynStream.PriorityLevel Priority { get; }
@@ -43,15 +47,23 @@ namespace Port.Server.Spdy
                       .ConfigureAwait(false);
         }
 
-        public void Enqueue(
+        public void Send(
             byte[] data)
         {
             _sendingPriorityQueue.Enqueue(Priority, data);
         }
 
-        public async Task<Frame> Dequeue(
+        public async Task<Frame> ReadAsync(
             CancellationToken cancellationToken = default)
-            => await _receivingPriorityQueue.DequeueAsync(cancellationToken)
-                                            .ConfigureAwait(false);
+        {
+            await _itemsAvailable.WaitAsync(cancellationToken)
+                           .ConfigureAwait(false);
+            if (_receivingPriorityQueue.TryDequeue(out var frame))
+            {
+                return frame;
+            }
+            
+            throw new InvalidOperationException("Receiving queue got out of sync");
+        }
     }
 }
