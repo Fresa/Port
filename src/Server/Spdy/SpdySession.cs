@@ -1,17 +1,10 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
 using System.IO.Pipelines;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.VisualBasic.CompilerServices;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
@@ -50,7 +43,7 @@ namespace Port.Server.Spdy
 
         private int _streamCounter;
 
-        private ConcurrentDictionary<UInt31, SpdyStream> _streams =
+        private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
 
         private Dictionary<Settings.Id, Settings.Setting> _settings =
@@ -278,110 +271,11 @@ namespace Port.Server.Spdy
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
+            _streams.TryAdd(stream.Id, stream);
 
             await stream.Open(cancellationToken)
                         .ConfigureAwait(false);
             return stream;
-        }
-    }
-
-    public class SpdyStream
-    {
-        private Pipe _reader = new Pipe();
-        private Pipe _writer = new Pipe();
-
-        private readonly UInt31 _streamId;
-        private readonly ConcurrentPriorityQueue<byte[]> _sendingPriorityQueue;
-
-        private readonly ConcurrentPriorityQueue<Frame> _receivingPriorityQueue
-            = new ConcurrentPriorityQueue<Frame>();
-
-        internal SpdyStream(
-            UInt31 streamId,
-            SynStream.PriorityLevel priority,
-            ConcurrentPriorityQueue<byte[]> sendingPriorityQueue)
-        {
-            _streamId = streamId;
-            _sendingPriorityQueue = sendingPriorityQueue;
-            Priority = priority;
-        }
-
-        internal void Receive(
-            Frame frame)
-        {
-            _receivingPriorityQueue.Enqueue(Priority, frame);
-        }
-
-        public SynStream.PriorityLevel Priority { get; }
-
-        public async Task Open(
-            CancellationToken cancellationToken = default)
-        {
-            var open = new SynStream(
-                SynStream.Options.None, _streamId, UInt31.From(0), Priority, new Dictionary<string, string>());
-            await open.WriteToAsync(
-                    _sendingPriorityQueue, Priority, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        public void Enqueue(
-            byte[] data)
-        {
-            _sendingPriorityQueue.Enqueue(Priority, data);
-        }
-
-        public async Task<Frame> Dequeue(
-            CancellationToken cancellationToken = default)
-            => await _receivingPriorityQueue.DequeueAsync(cancellationToken)
-                                            .ConfigureAwait(false);
-
-        public PipeWriter Sender => _writer.Writer;
-        public PipeReader Reader => _reader.Reader;
-    }
-
-
-    internal sealed class ConcurrentPriorityQueue<T>
-    {
-        private readonly Dictionary<SynStream.PriorityLevel,
-            ConcurrentQueue<T>> _priorityQueues =
-            new Dictionary<SynStream.PriorityLevel,
-                ConcurrentQueue<T>>(
-                Enum.GetValues(typeof(SynStream.PriorityLevel))
-                    .Cast<SynStream.PriorityLevel>()
-                    .OrderBy(priority => priority)
-                    .Select(
-                        priority
-                            => new KeyValuePair<SynStream.PriorityLevel,
-                                ConcurrentQueue<T>>(
-                                priority, new ConcurrentQueue<T>())));
-
-        private readonly SemaphoreSlim _itemsAvailable = new SemaphoreSlim(0);
-
-        public void Enqueue(
-            SynStream.PriorityLevel priority,
-            T item)
-        {
-            _priorityQueues[priority]
-                .Enqueue(item);
-            _itemsAvailable.Release();
-        }
-
-        public async Task<T> DequeueAsync(
-            CancellationToken cancellationToken = default)
-        {
-            await _itemsAvailable
-                  .WaitAsync(cancellationToken)
-                  .ConfigureAwait(false);
-
-            foreach (var queue in _priorityQueues.Values)
-            {
-                if (queue.TryDequeue(out var frame))
-                {
-                    return frame;
-                }
-            }
-
-            throw new InvalidOperationException("Gate is out of sync");
         }
     }
 }
