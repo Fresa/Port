@@ -37,10 +37,6 @@ namespace Port.Server.Spdy
         private readonly ConcurrentPriorityQueue<byte[]> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<byte[]>();
 
-        private readonly ConcurrentPriorityQueue<Frame> _receivingPriorityQueue
-            =
-            new ConcurrentPriorityQueue<Frame>();
-
         private int _streamCounter;
 
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
@@ -91,6 +87,18 @@ namespace Port.Server.Spdy
                     catch (Exception ex)
                     {
                         _logger.Fatal(ex, "Unknown error, closing down");
+                        try
+                        {
+                            await Send(
+                                    GoAway.InternalError(
+                                        UInt31.From((uint)_streamCounter)))
+                                .ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e, "Could not send GoAway");
+                        }
+
                         _sessionCancellationTokenSource.Cancel(false);
                     }
                 });
@@ -258,6 +266,18 @@ namespace Port.Server.Spdy
                     catch (Exception ex)
                     {
                         _logger.Fatal(ex, "Unknown error, closing down");
+                        try
+                        {
+                            await Send(
+                                    GoAway.InternalError(
+                                        UInt31.From((uint) _streamCounter)))
+                                .ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e, "Could not send GoAway");
+                        }
+
                         _sessionCancellationTokenSource.Cancel(false);
                     }
                 });
