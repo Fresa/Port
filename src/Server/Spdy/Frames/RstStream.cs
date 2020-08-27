@@ -33,12 +33,102 @@ namespace Port.Server.Spdy.Frames
             Status = status;
         }
 
-        public RstStream(
+        private RstStream(
             in UInt31 streamId,
             in StatusCode status) : base(Type)
         {
             StreamId = streamId;
             Status = status;
+        }
+
+        /// <summary>
+        /// This is a generic error, and should only be used if a more specific error is not available.
+        /// </summary>
+        public static RstStream ProtocolError(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.ProtocolError);
+        }
+
+        /// <summary>
+        /// This is returned when a frame is received for a stream which is not active.
+        /// </summary>
+        public static RstStream InvalidStream(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.InvalidStream);
+        }
+
+        /// <summary>
+        /// Indicates that the stream was refused before any processing has been done on the stream.
+        /// </summary>
+        public static RstStream RefusedStream(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.RefusedStream);
+        }
+
+        /// <summary>
+        /// Indicates that the recipient of a stream does not support the SPDY version requested.
+        /// </summary>
+        public static RstStream UnsupportedVersion(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.UnsupportedVersion);
+        }
+
+        /// <summary>
+        /// Used by the creator of a stream to indicate that the stream is no longer needed.
+        /// </summary>
+        public static RstStream Cancel(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.Cancel);
+        }
+
+        /// <summary>
+        /// This is a generic error which can be used when the implementation has internally failed, not due to anything in the protocol.
+        /// </summary>
+        public static RstStream InternalError(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.InternalError);
+        }
+
+        /// <summary>
+        /// The endpoint detected that its peer violated the flow control protocol.
+        /// </summary>
+        public static RstStream FlowControlError(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.FlowControlError);
+        }
+
+        /// <summary>
+        /// The endpoint received a <see cref="SynReply">SYN_REPLY</see> for a stream already open.
+        /// </summary>
+        public static RstStream StreamInUse(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.StreamInUse);
+        }
+
+        /// <summary>
+        /// The endpoint received a data or <see cref="SynReply">SYN_REPLY</see> frame for a stream which is half closed.
+        /// </summary>
+        public static RstStream StreamAlreadyClosed(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.StreamAlreadyClosed);
+        }
+
+        /// <summary>
+        /// The endpoint received a frame which this implementation could not support. If FRAME_TOO_LARGE is sent for a <see cref="SynStream">SYN_STREAM</see>, <see cref="Headers">HEADERS</see>, or <see cref="SynReply">SYN_REPLY</see> frame without fully processing the compressed portion of those frames, then the compression state will be out-of-sync with the other endpoint. In this case, senders of FRAME_TOO_LARGE MUST close the session.
+        /// </summary>
+        public static RstStream FrameToLarge(
+            in UInt31 streamId)
+        {
+            return new RstStream(streamId, StatusCode.FrameToLarge);
         }
 
         public const ushort Type = 3;

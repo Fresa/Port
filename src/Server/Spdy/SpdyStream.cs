@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
 
@@ -11,7 +10,7 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyStream
     {
-        private readonly ConcurrentPriorityQueue<byte[]> _sendingPriorityQueue;
+        private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
         private readonly ConcurrentQueue<Frame> _receivingPriorityQueue
             = new ConcurrentQueue<Frame>();
@@ -20,13 +19,14 @@ namespace Port.Server.Spdy
         internal SpdyStream(
             UInt31 id,
             SynStream.PriorityLevel priority,
-            ConcurrentPriorityQueue<byte[]> sendingPriorityQueue)
+            ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
         {
             Id = id;
             _sendingPriorityQueue = sendingPriorityQueue;
             Priority = priority;
         }
         public UInt31 Id { get; }
+        public bool IsClosed { get; private set; } = true;
 
         internal void Receive(
             Frame frame)
@@ -37,20 +37,18 @@ namespace Port.Server.Spdy
 
         public SynStream.PriorityLevel Priority { get; }
 
-        public async Task Open(
-            CancellationToken cancellationToken = default)
+        public void Open()
         {
             var open = new SynStream(
                 SynStream.Options.None, Id, UInt31.From(0), Priority, new Dictionary<string, string>());
-            await open.WriteToAsync(
-                          _sendingPriorityQueue, Priority, cancellationToken)
-                      .ConfigureAwait(false);
+            _sendingPriorityQueue.Enqueue(Priority, open);
+            IsClosed = false;
         }
 
         public void Send(
-            byte[] data)
+            Frame frame)
         {
-            _sendingPriorityQueue.Enqueue(Priority, data);
+            _sendingPriorityQueue.Enqueue(Priority, frame);
         }
 
         public async Task<Frame> ReadAsync(

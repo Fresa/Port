@@ -34,8 +34,8 @@ namespace Port.Server.Spdy
         private Task _sendingTask = Task.CompletedTask;
         private Task _receivingTask = Task.CompletedTask;
 
-        private readonly ConcurrentPriorityQueue<byte[]> _sendingPriorityQueue =
-            new ConcurrentPriorityQueue<byte[]>();
+        private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
+            new ConcurrentPriorityQueue<Frame>();
 
         private int _streamCounter;
 
@@ -57,6 +57,7 @@ namespace Port.Server.Spdy
             RunNetworkReceiver();
         }
 
+
         private void RunNetworkSender()
         {
             // ReSharper disable once MethodSupportsCancellation
@@ -73,11 +74,8 @@ namespace Port.Server.Spdy
                                               .DequeueAsync(
                                                   SendingCancellationToken)
                                               .ConfigureAwait(false);
-                            await _networkClient.SendAsync(
-                                                    new ReadOnlyMemory<byte>(
-                                                        frame),
-                                                    SendingCancellationToken)
-                                                .ConfigureAwait(false);
+                            await Send(frame, SendingCancellationToken)
+                                .ConfigureAwait(false);
                         }
                     }
                     catch when (_sessionCancellationTokenSource
@@ -91,7 +89,8 @@ namespace Port.Server.Spdy
                         {
                             await Send(
                                     GoAway.InternalError(
-                                        UInt31.From((uint)_streamCounter)))
+                                        UInt31.From((uint) _streamCounter)),
+                                    SendingCancellationToken)
                                 .ConfigureAwait(false);
                         }
                         catch (Exception e)
@@ -111,18 +110,18 @@ namespace Port.Server.Spdy
         }
 
         private async Task Send(
-            Frame frame)
+            Frame frame,
+            CancellationToken cancellationToken)
         {
             await foreach (var bufferSequence in frame
-                                                 .WriteAsync(
-                                                     SessionCancellationToken)
+                                                 .WriteAsync(cancellationToken)
                                                  .ConfigureAwait(false))
             {
                 foreach (var buffer in bufferSequence)
                 {
                     await _networkClient.SendAsync(
                                             buffer,
-                                            SessionCancellationToken)
+                                            cancellationToken)
                                         .ConfigureAwait(false);
                 }
             }
@@ -130,17 +129,7 @@ namespace Port.Server.Spdy
 
         private long _pingId = -1;
 
-        // ReSharper disable once SuggestBaseTypeForParameter Explicitly enqueue pings
-        private async Task EnqueuePongAsync(
-            Ping ping)
-        {
-            await ping.WriteToAsync(
-                          _sendingPriorityQueue, SynStream.PriorityLevel.Top,
-                          SessionCancellationToken)
-                      .ConfigureAwait(false);
-        }
-
-        private async Task EnqueuePingAsync()
+        private void EnqueuePing()
         {
             var id = Interlocked.Add(ref _pingId, 2);
             if (id > uint.MaxValue)
@@ -149,15 +138,12 @@ namespace Port.Server.Spdy
                 id = 1;
             }
 
-            var ping = new Ping((uint)id);
-            await ping.WriteToAsync(
-                          _sendingPriorityQueue, SynStream.PriorityLevel.Top,
-                          SessionCancellationToken)
-                      .ConfigureAwait(false);
+            var ping = new Ping((uint) id);
+            _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
         }
 
         private async Task<(bool Found, SpdyStream Stream)>
-            TryGetStreamOrSendGoAway(
+            TryGetStreamOrCloseSession(
                 UInt31 streamId)
         {
             if (_streams.TryGetValue(
@@ -169,7 +155,7 @@ namespace Port.Server.Spdy
 
             await StopNetworkSender()
                 .ConfigureAwait(false);
-            await Send(GoAway.ProtocolError(streamId))
+            await Send(GoAway.ProtocolError(streamId), SessionCancellationToken)
                 .ConfigureAwait(false);
 
             _sessionCancellationTokenSource.Cancel(false);
@@ -208,7 +194,7 @@ namespace Port.Server.Spdy
                                     throw new NotImplementedException();
                                 case SynReply synReply:
                                     (found, stream) =
-                                        await TryGetStreamOrSendGoAway(
+                                        await TryGetStreamOrCloseSession(
                                                 synReply.StreamId)
                                             .ConfigureAwait(false);
                                     if (found == false)
@@ -220,7 +206,7 @@ namespace Port.Server.Spdy
                                     break;
                                 case RstStream rstStream:
                                     (found, stream) =
-                                        await TryGetStreamOrSendGoAway(
+                                        await TryGetStreamOrCloseSession(
                                                 rstStream.StreamId)
                                             .ConfigureAwait(false);
                                     if (found == false)
@@ -253,8 +239,26 @@ namespace Port.Server.Spdy
                                         break;
                                     }
 
-                                    await EnqueuePongAsync(ping)
-                                        .ConfigureAwait(false);
+                                    // Pong
+                                    _sendingPriorityQueue.Enqueue(
+                                        SynStream.PriorityLevel.Top, ping);
+                                    break;
+                                case Data data:
+                                    if (_streams.TryGetValue(
+                                        data.StreamId,
+                                        out stream))
+                                    {
+                                        if (stream.IsClosed)
+                                        {
+                                            _sendingPriorityQueue
+                                                .Enqueue(
+                                                    SynStream
+                                                        .PriorityLevel.High,
+                                                    RstStream.InvalidStream(
+                                                        data.StreamId));
+                                        }
+                                    }
+
                                     break;
                             }
                         }
@@ -270,7 +274,8 @@ namespace Port.Server.Spdy
                         {
                             await Send(
                                     GoAway.InternalError(
-                                        UInt31.From((uint) _streamCounter)))
+                                        UInt31.From((uint) _streamCounter)),
+                                    SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
                         catch (Exception e)
@@ -283,18 +288,16 @@ namespace Port.Server.Spdy
                 });
         }
 
-        public async Task<SpdyStream> Open(
-            SynStream.PriorityLevel priority,
-            CancellationToken cancellationToken = default)
+        public SpdyStream Open(
+            SynStream.PriorityLevel priority)
         {
-            var streamId = (uint)Interlocked.Increment(ref _streamCounter);
+            var streamId = (uint) Interlocked.Increment(ref _streamCounter);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
             _streams.TryAdd(stream.Id, stream);
 
-            await stream.Open(cancellationToken)
-                        .ConfigureAwait(false);
+            stream.Open();
             return stream;
         }
 
@@ -312,7 +315,9 @@ namespace Port.Server.Spdy
             await Task.WhenAll(_receivingTask, _sendingTask)
                       .ConfigureAwait(false);
 
-            await Send(GoAway.Ok(UInt31.From((uint) _streamCounter)))
+            await Send(
+                    GoAway.Ok(UInt31.From((uint) _streamCounter)),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             await _networkClient.DisposeAsync()

@@ -43,30 +43,5 @@ namespace Port.Server.Spdy.Extensions
 
             await writeTask.ConfigureAwait(false);
         }
-
-        internal static async ValueTask
-            WriteToAsync(
-                this Frame frame,
-                ConcurrentPriorityQueue<byte[]> priorityQueue,
-                SynStream.PriorityLevel priorityLevel,
-                CancellationToken cancellationToken = default)
-        {
-            var stream = new MemoryStream();
-            await using (stream.ConfigureAwait(false))
-            {
-                await foreach (var data in frame.WriteAsync(cancellationToken)
-                                                .ConfigureAwait(false))
-                {
-                    foreach (var buffer in data)
-                    {
-                        await stream.WriteAsync(buffer, cancellationToken)
-                                    .ConfigureAwait(false);
-                    }
-                }
-            }
-
-            priorityQueue
-                .Enqueue(priorityLevel, stream.ToArray());
-        }
     }
 }

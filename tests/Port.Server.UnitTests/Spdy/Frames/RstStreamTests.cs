@@ -26,9 +26,8 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override Task GivenAsync(CancellationToken cancellationToken)
             {
-                _frame = new RstStream(
-                    UInt31.From(123),
-                    RstStream.StatusCode.Cancel);
+                _frame = RstStream.Cancel(
+                    UInt31.From(123));
                 return Task.CompletedTask;
             }
 
