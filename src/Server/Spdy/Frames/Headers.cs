@@ -35,7 +35,7 @@ namespace Port.Server.Spdy.Frames
         private Headers(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> values)
+            IReadOnlyDictionary<string, string[]> values)
             : base(Type)
         {
             Flags = flags;
@@ -45,7 +45,7 @@ namespace Port.Server.Spdy.Frames
 
         public Headers(
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> values)
+            IReadOnlyDictionary<string, string[]> values)
             : this(
                 Options.None,
                 streamId,
@@ -55,7 +55,7 @@ namespace Port.Server.Spdy.Frames
 
         public static Headers Last(
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> values)
+            IReadOnlyDictionary<string, string[]> values)
         {
             return new Headers(Options.Fin, streamId, values);
         }
@@ -91,7 +91,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string> Values { get; }
+        public IReadOnlyDictionary<string, string[]> Values { get; }
 
         internal static async ValueTask<Headers> ReadAsync(
             byte flags,

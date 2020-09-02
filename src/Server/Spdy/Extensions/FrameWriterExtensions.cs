@@ -10,7 +10,7 @@ namespace Port.Server.Spdy.Extensions
     {
         internal static async ValueTask WriteNameValuePairs(
             this IFrameWriter frameWriter,
-            IReadOnlyDictionary<string, string> nameValuePairs,
+            IReadOnlyDictionary<string, string[]> nameValuePairs,
             CancellationToken cancellationToken)
         {
             if (!nameValuePairs.Any())
@@ -21,13 +21,13 @@ namespace Port.Server.Spdy.Extensions
             await frameWriter.WriteInt32Async(
                     nameValuePairs.Count, cancellationToken)
                 .ConfigureAwait(false);
-            foreach (var (name, value) in nameValuePairs)
+            foreach (var (name, values) in nameValuePairs)
             {
                 await frameWriter.WriteStringAsync(
                         name, Encoding.ASCII, cancellationToken)
                     .ConfigureAwait(false);
                 await frameWriter.WriteStringAsync(
-                        value, Encoding.ASCII, cancellationToken)
+                        string.Join('\0', values), Encoding.ASCII, cancellationToken)
                     .ConfigureAwait(false);
             }
         }

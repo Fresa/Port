@@ -35,7 +35,7 @@ namespace Port.Server.Spdy.Frames
         public SynReply(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string> headers) : base(Type)
+            IReadOnlyDictionary<string, string[]> headers) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
@@ -73,7 +73,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string> Headers { get; }
+        public IReadOnlyDictionary<string, string[]> Headers { get; }
 
         internal static async ValueTask<SynReply> ReadAsync(
             byte flags,

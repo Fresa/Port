@@ -41,7 +41,7 @@ namespace Port.Server.Spdy.Frames
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            IReadOnlyDictionary<string, string> headers)
+            IReadOnlyDictionary<string, string[]> headers)
             : base(Type)
         {
             Flags = flags;
@@ -100,7 +100,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string> Headers { get; }
+        public IReadOnlyDictionary<string, string[]> Headers { get; }
 
         internal static async ValueTask<SynStream> ReadAsync(
             byte flags,

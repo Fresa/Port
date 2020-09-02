@@ -40,14 +40,14 @@ namespace Port.Server.UnitTests.Spdy.Frames
             {
                 _frame = Headers.Last(
                     UInt31.From(123),
-                    new Dictionary<string, string>
+                    new Dictionary<string, string[]>
                     {
                         {
-                            "Host", "test"
+                            "Host", new []{"test"}
                         },
                         {
                             "User-Agent",
-                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"
+                            new []{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"}
                         }
                     });
                 return Task.CompletedTask;
@@ -81,7 +81,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _message = (Headers) await
+                _message = (Headers)await
                     Control.ReadAsync(
                                new FrameReader(PipeReader.Create(_serialized)),
                                cancellationToken)
@@ -108,12 +108,12 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 _message.Values.Should()
                         .HaveCount(2)
                         .And
-                        .Contain(
-                            new KeyValuePair<string, string>("Host", "test"))
-                        .And.Contain(
-                            new KeyValuePair<string, string>(
+                        .ContainEquivalentOf(
+                            new KeyValuePair<string, string[]>("Host", new[] { "test" }))
+                        .And.ContainEquivalentOf(
+                            new KeyValuePair<string, string[]>(
                                 "User-Agent",
-                                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"));
+                                new[] { "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0" }));
             }
         }
     }
