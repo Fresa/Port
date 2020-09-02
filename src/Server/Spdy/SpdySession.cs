@@ -248,17 +248,13 @@ namespace Port.Server.Spdy
                                         data.StreamId,
                                         out stream))
                                     {
-                                        if (stream.IsClosed)
-                                        {
-                                            _sendingPriorityQueue
-                                                .Enqueue(
-                                                    SynStream
-                                                        .PriorityLevel.High,
-                                                    RstStream.InvalidStream(
-                                                        data.StreamId));
-                                        }
+                                        stream.Receive(data);
                                     }
 
+                                    // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
+                                    _sendingPriorityQueue.Enqueue(
+                                        SynStream.PriorityLevel.High,
+                                        RstStream.InvalidStream(data.StreamId));
                                     break;
                             }
                         }
