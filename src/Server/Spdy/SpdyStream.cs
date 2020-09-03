@@ -127,18 +127,21 @@ namespace Port.Server.Spdy
             var open = new SynStream(
                 SynStream.Options.None, Id, UInt31.From(0), Priority,
                 new Dictionary<string, string[]>());
-            _sendingPriorityQueue.Enqueue(Priority, open);
+            Send(open);
+        }
+
+        private void Send(
+            RstStream rstStream)
+        {
+            CloseRemote();
+            CloseLocal();
+
+            Send((Frame)rstStream);
         }
 
         private void Send(
             Frame frame)
         {
-            if (frame is RstStream)
-            {
-                CloseRemote();
-                CloseLocal();
-            }
-
             _sendingPriorityQueue.Enqueue(Priority, frame);
         }
 
@@ -149,7 +152,7 @@ namespace Port.Server.Spdy
             {
                 throw new InvalidOperationException("The stream is closed");
             }
-            
+
             Send((Frame)frame);
         }
 
@@ -157,16 +160,11 @@ namespace Port.Server.Spdy
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
-            if (timeout == default)
-            {
-                await _frameAvailable.WaitAsync(cancellationToken)
-                                     .ConfigureAwait(false);
-            }
-            else
-            {
-                await _frameAvailable.WaitAsync(timeout, cancellationToken)
-                                     .ConfigureAwait(false);
-            }
+            timeout = timeout == default ? Timeout.InfiniteTimeSpan : timeout;
+            
+            await _frameAvailable.WaitAsync(timeout, cancellationToken)
+                                 .ConfigureAwait(false);
+
             if (_receivingQueue.TryDequeue(out var frame))
             {
                 return frame;

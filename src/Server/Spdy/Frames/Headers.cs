@@ -93,7 +93,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public IReadOnlyDictionary<string, string[]> Values { get; }
 
-        internal static async ValueTask<Headers> ReadAsync(
+        internal static async ValueTask<ReadResult<Headers>> TryReadAsync(
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
@@ -115,7 +115,7 @@ namespace Port.Server.Spdy.Frames
                     .ReadNameValuePairs(cancellation)
                     .ConfigureAwait(false);
 
-            return new Headers(flags.ToEnum<Options>(), streamId, values);
+            return ReadResult.Ok(new Headers(flags.ToEnum<Options>(), streamId, values));
         }
 
         protected override async ValueTask WriteControlFrameAsync(

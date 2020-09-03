@@ -52,10 +52,10 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override async Task WhenAsync(CancellationToken cancellation)
             {
-                _message = (RstStream) await Control.ReadAsync(
+                _message = (RstStream) (await Control.TryReadAsync(
                         new FrameReader(
                             PipeReader.Create(new MemoryStream(Message))), cancellation)
-                    .ConfigureAwait(false);
+                    .ConfigureAwait(false)).Result;
             }
 
             [Fact]

@@ -142,7 +142,7 @@ namespace Port.Server.Spdy
                 return ReadOnlySequence<byte>.Empty;
             }
 
-            ReadResult result;
+            System.IO.Pipelines.ReadResult result;
             do
             {
                 result = await _reader.ReadAsync(cancellationToken)

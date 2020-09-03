@@ -77,9 +77,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
-                _message = (SynReply)await Control.ReadAsync(
+                _message = (SynReply)(await Control.TryReadAsync(
                         new FrameReader(PipeReader.Create(_serialized)), cancellationToken)
-                    .ConfigureAwait(false);
+                    .ConfigureAwait(false)).Result;
             }
 
             [Fact]

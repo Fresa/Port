@@ -32,7 +32,7 @@ namespace Port.Server.Spdy.Extensions
                     }
                 }, cancellationToken);
 
-            ReadResult result;
+            System.IO.Pipelines.ReadResult result;
             do
             {
                 result = await pipe.Reader.ReadAsync(cancellationToken)

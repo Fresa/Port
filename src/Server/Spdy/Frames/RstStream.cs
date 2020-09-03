@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -163,6 +164,9 @@ namespace Port.Server.Spdy.Frames
             }
         }
 
+        public static implicit operator Exception(RstStream stream) =>
+            new ProtocolViolationException(Enum.GetName(typeof(StatusCode), stream.Status));
+
         /// <summary>
         /// The 31-bit identifier for this stream.
         /// </summary>
@@ -173,7 +177,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public StatusCode Status { get; set; }
 
-        internal static async ValueTask<RstStream> ReadAsync(
+        internal static async ValueTask<ReadResult<RstStream>> TryReadAsync(
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
@@ -188,7 +192,7 @@ namespace Port.Server.Spdy.Frames
                     .ToEnumAsync<StatusCode>()
                     .ConfigureAwait(false);
 
-            return new RstStream(flags.ToEnum<Options>(), length, streamId, status);
+            return ReadResult.Ok(new RstStream(flags.ToEnum<Options>(), length, streamId, status));
         }
 
         public enum StatusCode

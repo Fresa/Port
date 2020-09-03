@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -89,7 +90,7 @@ namespace Port.Server.Spdy.Frames
                 .ConfigureAwait(false);
         }
 
-        internal new static async ValueTask<Data> ReadAsync(
+        internal new static async ValueTask<ReadResult<Data>> TryReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
@@ -105,7 +106,7 @@ namespace Port.Server.Spdy.Frames
             var payload = await frameReader.ReadBytesAsync(
                     (int)length.Value, cancellation)
                 .ConfigureAwait(false);
-            return new Data(streamId, flags.ToEnum<Options>(), payload);
+            return ReadResult.Ok(new Data(streamId, flags.ToEnum<Options>(), payload));
         }
     }
 }

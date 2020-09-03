@@ -102,7 +102,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public IReadOnlyDictionary<string, string[]> Headers { get; }
 
-        internal static async ValueTask<SynStream> ReadAsync(
+        internal static async ValueTask<ReadResult<SynStream>> TryReadAsync(
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
@@ -135,8 +135,8 @@ namespace Port.Server.Spdy.Frames
                     .ReadNameValuePairs(cancellation)
                     .ConfigureAwait(false);
 
-            return new SynStream(
-                flags.ToEnum<Options>(), streamId, associatedToStreamId, priority, headers);
+            return ReadResult.Ok(new SynStream(
+                flags.ToEnum<Options>(), streamId, associatedToStreamId, priority, headers));
         }
 
         public enum PriorityLevel : byte

@@ -60,7 +60,7 @@ namespace Port.Server.Spdy.Frames
 
         public IReadOnlyCollection<Setting> Values { get; }
 
-        internal static async ValueTask<Settings> ReadAsync(
+        internal static async ValueTask<ReadResult<Settings>> TryReadAsync(
             byte flags,
             UInt24 _,
             IFrameReader frameReader,
@@ -84,7 +84,7 @@ namespace Port.Server.Spdy.Frames
                 settings.TryAdd(id, new Setting(id, flag, value));
             }
 
-            return new Settings(flags.ToEnum<Options>(), settings);
+            return ReadResult.Ok(new Settings(flags.ToEnum<Options>(), settings));
         }
 
         protected override async ValueTask WriteControlFrameAsync(

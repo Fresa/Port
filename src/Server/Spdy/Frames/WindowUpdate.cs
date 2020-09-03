@@ -104,7 +104,7 @@ namespace Port.Server.Spdy.Frames
             }
         }
 
-        internal static async ValueTask<WindowUpdate> ReadAsync(
+        internal static async ValueTask<ReadResult<WindowUpdate>> TryReadAsync(
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
@@ -119,8 +119,8 @@ namespace Port.Server.Spdy.Frames
                                  .AsUInt31Async()
                                  .ConfigureAwait(false);
 
-            return new WindowUpdate(
-                flags.ToEnum<Options>(), length, streamId, deltaWindowSize);
+            return ReadResult.Ok(new WindowUpdate(
+                flags.ToEnum<Options>(), length, streamId, deltaWindowSize));
         }
 
         protected override async ValueTask WriteControlFrameAsync(

@@ -121,7 +121,7 @@ namespace Port.Server.Spdy.Frames
             InternalError = 2
         }
 
-        internal static async ValueTask<GoAway> ReadAsync(
+        internal static async ValueTask<ReadResult<GoAway>> TryReadAsync(
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
@@ -135,8 +135,8 @@ namespace Port.Server.Spdy.Frames
                                           .ToEnumAsync<StatusCode>()
                                           .ConfigureAwait(false);
 
-            return new GoAway(
-                flags.ToEnum<Options>(), length, lastGoodStreamId, status);
+            return ReadResult.Ok(new GoAway(
+                flags.ToEnum<Options>(), length, lastGoodStreamId, status));
         }
 
         protected override async ValueTask WriteControlFrameAsync(

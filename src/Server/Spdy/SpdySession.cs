@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using AutoMapper.Configuration.Annotations;
 using Log.It;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
@@ -182,10 +183,15 @@ namespace Port.Server.Spdy
                                 pipe.Writer.GetMemory(),
                                 SessionCancellationToken);
 
-                            var frame = await Frame.ReadAsync(
-                                                       frameReader,
-                                                       SessionCancellationToken)
-                                                   .ConfigureAwait(false);
+                            if ((await Frame.TryReadAsync(
+                                                frameReader,
+                                                SessionCancellationToken)
+                                            .ConfigureAwait(false)).Out(
+                                out var frame, out var error) == false)
+                            {
+                                await Send(error, SessionCancellationToken);
+                                continue;
+                            }
                             bool found;
                             SpdyStream? stream;
                             switch (frame)

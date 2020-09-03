@@ -71,7 +71,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public uint Id { get; }
 
-        internal static async ValueTask<Ping> ReadAsync(
+        internal static async ValueTask<ReadResult<Ping>> TryReadAsync(
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
@@ -80,7 +80,7 @@ namespace Port.Server.Spdy.Frames
             var id = await frameReader.ReadUInt32Async(cancellation)
                 .ConfigureAwait(false);
 
-            return new Ping(flags.ToEnum<Options>(), length, id);
+            return ReadResult.Ok(new Ping(flags.ToEnum<Options>(), length, id));
         }
 
         protected override async ValueTask WriteControlFrameAsync(

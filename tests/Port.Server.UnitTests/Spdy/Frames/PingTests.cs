@@ -59,11 +59,11 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 CancellationToken cancellationToken)
             {
                 _message = (Ping)
-                    await Control.ReadAsync(
+                    (await Control.TryReadAsync(
                                      new FrameReader(
                                          PipeReader.Create(_serialized)),
                                      cancellationToken)
-                                 .ConfigureAwait(false);
+                                 .ConfigureAwait(false)).Result;
             }
 
             [Fact]
