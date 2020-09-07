@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Routing;
+using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy.Frames
@@ -51,7 +51,7 @@ namespace Port.Server.Spdy.Frames
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default);
         
-        internal new static async ValueTask<ReadResult<Frame>> TryReadAsync(
+        internal new static async ValueTask<ReadResult<Control>> TryReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
@@ -73,30 +73,30 @@ namespace Port.Server.Spdy.Frames
             
             return type switch
             {
-                SynStream.Type => await SynStream.TryReadAsync(
+                SynStream.Type => (await SynStream.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                SynReply.Type => await SynReply.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                SynReply.Type => (await SynReply.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                RstStream.Type => await RstStream.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                RstStream.Type => (await RstStream.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                Settings.Type => await Settings.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                Settings.Type => (await Settings.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                Ping.Type => await Ping.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                Ping.Type => (await Ping.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                GoAway.Type => await GoAway.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                GoAway.Type => (await GoAway.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                Headers.Type => await Headers.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                Headers.Type => (await Headers.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
-                WindowUpdate.Type => await WindowUpdate.TryReadAsync(
+                    .ConfigureAwait(false)).AsControl(),
+                WindowUpdate.Type => (await WindowUpdate.TryReadAsync(
                         flags, length, frameReader, cancellation)
-                    .ConfigureAwait(false),
+                    .ConfigureAwait(false)).AsControl(),
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(type), $"Unknown control frame type {type} received")
             };
