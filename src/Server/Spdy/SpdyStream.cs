@@ -23,6 +23,8 @@ namespace Port.Server.Spdy
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
+        private ConcurrentDictionary<string, string[]> _headers = new ConcurrentDictionary<string, string[]>();
+
         private int _remote;
         private int _local;
         private const int Closed = 1;
@@ -92,12 +94,16 @@ namespace Port.Server.Spdy
                         CloseRemote();
                     }
 
-                    if (headers.Values.Any(pair => pair.Key.Length == 0))
+                    foreach (var (key, values) in headers.Values)
                     {
-                        Send(_protocolError);
-                        return;
-                    }
+                        if (_headers.TryAdd(key, values))
+                        {
+                            continue;
+                        }
 
+                        Send(_protocolError);
+                        break;
+                    }
                     break;
                 case Data data:
                     // If the endpoint which created the stream receives a data frame before receiving a SYN_REPLY on that stream, it is a protocol error, and the recipient MUST issue a stream error (Section 2.4.2) with the status code PROTOCOL_ERROR for the stream-id.

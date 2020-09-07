@@ -248,6 +248,22 @@ namespace Port.Server.Spdy
                                     _sendingPriorityQueue.Enqueue(
                                         SynStream.PriorityLevel.Top, ping);
                                     break;
+                                case GoAway goAway:
+                                    _sessionCancellationTokenSource.Cancel(false);
+                                    Interlocked.Exchange(ref _streamCounter, goAway.LastGoodStreamId);
+                                    return;
+                                case Headers headers:
+                                    (found, stream) =
+                                        await TryGetStreamOrCloseSession(
+                                                headers.StreamId)
+                                            .ConfigureAwait(false);
+                                    if (found == false)
+                                    {
+                                        return;
+                                    }
+
+                                    stream.Receive(headers);
+                                    break;
                                 case Data data:
                                     if (_streams.TryGetValue(
                                         data.StreamId,
@@ -261,10 +277,7 @@ namespace Port.Server.Spdy
                                         SynStream.PriorityLevel.High,
                                         RstStream.InvalidStream(data.StreamId));
                                     break;
-                                case GoAway goAway:
-                                    _sessionCancellationTokenSource.Cancel(false);
-                                    Interlocked.Exchange(ref _streamCounter, goAway.LastGoodStreamId);
-                                    return;
+                                
                             }
                         }
                     }

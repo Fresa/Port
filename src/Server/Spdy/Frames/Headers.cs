@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Extensions;
@@ -88,10 +89,29 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public UInt31 StreamId { get; }
 
+        private IReadOnlyDictionary<string, string[]> _values;
         /// <summary>
         /// A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string[]> Values { get; }
+        public IReadOnlyDictionary<string, string[]> Values
+        {
+            get => _values;
+            private set
+            {
+                if (value.ContainsKey(""))
+                {
+                    throw new InvalidOperationException("A key cannot be empty");
+                }
+
+                if (value.Values.Any(
+                    strings => strings.Any(value => value.Length == 0)))
+                {
+                    throw new InvalidOperationException("A value cannot be empty");
+                }
+
+                _values = value;
+            }
+        }
 
         internal static async ValueTask<ReadResult<Headers>> TryReadAsync(
             byte flags,
