@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
-using AutoMapper.Configuration.Annotations;
 using Log.It;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
@@ -90,7 +89,7 @@ namespace Port.Server.Spdy
                         {
                             await Send(
                                     GoAway.InternalError(
-                                        UInt31.From((uint) _streamCounter)),
+                                        UInt31.From((uint)_streamCounter)),
                                     SendingCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -139,7 +138,7 @@ namespace Port.Server.Spdy
                 id = 1;
             }
 
-            var ping = new Ping((uint) id);
+            var ping = new Ping((uint)id);
             _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
         }
 
@@ -262,6 +261,10 @@ namespace Port.Server.Spdy
                                         SynStream.PriorityLevel.High,
                                         RstStream.InvalidStream(data.StreamId));
                                     break;
+                                case GoAway goAway:
+                                    _sessionCancellationTokenSource.Cancel(false);
+                                    Interlocked.Exchange(ref _streamCounter, goAway.LastGoodStreamId);
+                                    return;
                             }
                         }
                     }
@@ -276,7 +279,7 @@ namespace Port.Server.Spdy
                         {
                             await Send(
                                     GoAway.InternalError(
-                                        UInt31.From((uint) _streamCounter)),
+                                        UInt31.From((uint)_streamCounter)),
                                     SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -293,7 +296,7 @@ namespace Port.Server.Spdy
         public SpdyStream Open(
             SynStream.PriorityLevel priority)
         {
-            var streamId = (uint) Interlocked.Increment(ref _streamCounter);
+            var streamId = (uint)Interlocked.Increment(ref _streamCounter);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
@@ -305,6 +308,8 @@ namespace Port.Server.Spdy
 
         public async ValueTask DisposeAsync()
         {
+            var isClosed = _sessionCancellationTokenSource
+                .IsCancellationRequested;
             try
             {
                 _sessionCancellationTokenSource.Cancel(false);
@@ -317,10 +322,13 @@ namespace Port.Server.Spdy
             await Task.WhenAll(_receivingTask, _sendingTask)
                       .ConfigureAwait(false);
 
-            await Send(
-                    GoAway.Ok(UInt31.From((uint) _streamCounter)),
-                    CancellationToken.None)
-                .ConfigureAwait(false);
+            if (isClosed == false)
+            {
+                await Send(
+                       GoAway.Ok(UInt31.From((uint)_streamCounter)),
+                       CancellationToken.None)
+                   .ConfigureAwait(false);
+            }
 
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);

@@ -63,6 +63,12 @@ namespace Port.Server.Spdy.Primitives
             return Value.ToString();
         }
 
+        public static implicit operator uint(
+            UInt31 value) => value.Value;
+        
+        public static implicit operator int(
+            UInt31 value) => (int)value.Value;
+
         public static UInt31 From(
             uint value)
         {
