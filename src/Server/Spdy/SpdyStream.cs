@@ -21,6 +21,7 @@ namespace Port.Server.Spdy
         private readonly RstStream _invalidStream;
         private readonly RstStream _streamInUse;
         private readonly RstStream _protocolError;
+        private readonly RstStream _flowControlError;
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
@@ -44,6 +45,7 @@ namespace Port.Server.Spdy
             _invalidStream = RstStream.InvalidStream(Id);
             _streamInUse = RstStream.StreamInUse(Id);
             _protocolError = RstStream.ProtocolError(Id);
+            _flowControlError = RstStream.FlowControlError(Id);
         }
 
         public UInt31 Id { get; }
@@ -85,7 +87,7 @@ namespace Port.Server.Spdy
                         return;
                     }
 
-                    break;
+                    return;
                 case RstStream rstStream:
                     _controlFramesReceived.TryAdd(typeof(RstStream), rstStream);
                     CloseRemote();
@@ -109,8 +111,8 @@ namespace Port.Server.Spdy
                     }
                     break;
                 case WindowUpdate windowUpdate:
-                    Interlocked.Add(ref _windowSize, windowUpdate.DeltaWindowSize);
-                    break;
+                    TryIncreaseWindowSize(windowUpdate.DeltaWindowSize);
+                    return;
                 case Data data:
                     // If the endpoint which created the stream receives a data frame before receiving a SYN_REPLY on that stream, it is a protocol error, and the recipient MUST issue a stream error (Section 2.4.2) with the status code PROTOCOL_ERROR for the stream-id.
                     if (_controlFramesReceived.ContainsKey(typeof(SynReply)) == false)
@@ -156,22 +158,52 @@ namespace Port.Server.Spdy
         {
             _sendingPriorityQueue.Enqueue(Priority, frame);
         }
-
-        public void Send(
-            Data frame)
+        
+        public async Task SendAsync(
+            Data data, 
+            TimeSpan timeout = default,
+            CancellationToken cancellationToken = default)
         {
             if (_local == Closed)
             {
                 throw new InvalidOperationException("The stream is closed");
             }
 
-            if (Interlocked.Add(ref _windowSize, -frame.Payload.Length) < 0)
+            timeout = timeout == default ? Timeout.InfiniteTimeSpan : timeout;
+            using var gate = SemaphoreSlimGate.OneAtATime;
             {
-                Interlocked.Add(ref _windowSize, frame.Payload.Length);
-                throw new InternalBufferOverflowException("Recipient is out of buffer");
+                while (Interlocked.Add(ref _windowSize, -data.Payload.Length) < 0)
+                {
+                    Interlocked.Add(ref _windowSize, data.Payload.Length);
+                    await _windowSizeGate.WaitAsync(timeout, cancellationToken)
+                                         .ConfigureAwait(false);
+                }
             }
 
-            Send((Frame)frame);
+            Send(data);
+        }
+
+        private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
+
+        private void TryIncreaseWindowSize(
+            int delta)
+        {
+            var newWindowSize = Interlocked.Add(ref _windowSize, delta);
+            try
+            {
+                // Check if we encountered overflow
+                _ = checked(newWindowSize - delta);
+            }
+            catch (OverflowException)
+            {
+                Send(_flowControlError);
+                return;
+            }
+
+            if (newWindowSize > 0)
+            {
+                _windowSizeGate.Release();
+            }
         }
 
         public async Task<Data> ReadAsync(

@@ -155,7 +155,7 @@ namespace Port.Server.Spdy
         }
 
         private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
-        private async Task<bool> TryUpdateWindowSizeAsync(
+        private async Task<bool> TryIncreaseWindowSizeOrCloseSessionAsync(
             int delta)
         {
             var newWindowSize = Interlocked.Add(ref _windowSize, delta);
@@ -328,8 +328,13 @@ namespace Port.Server.Spdy
                                     stream.Receive(headers);
                                     break;
                                 case WindowUpdate windowUpdate:
-                                    TryUpdateWindowSizeAsync(
-                                        windowUpdate.DeltaWindowSize);
+                                    if (await TryIncreaseWindowSizeOrCloseSessionAsync(
+                                            windowUpdate.DeltaWindowSize)
+                                        .ConfigureAwait(false) == false)
+                                    {
+                                        return;
+                                    }
+
                                     if (windowUpdate
                                         .IsConnectionFlowControl)
                                     {
