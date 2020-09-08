@@ -16,7 +16,6 @@ namespace Port.Server.Spdy
             = new ConcurrentQueue<Data>();
         private readonly SemaphoreSlim _frameAvailable = new SemaphoreSlim(0);
 
-        private readonly RstStream _invalidStream;
         private readonly RstStream _streamInUse;
         private readonly RstStream _protocolError;
         private readonly RstStream _flowControlError;
@@ -28,7 +27,7 @@ namespace Port.Server.Spdy
 
         private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
         private bool IsLocalClosed => _localStream.IsCancellationRequested;
-      
+
         private int _windowSize = 64000;
 
         internal SpdyStream(
@@ -40,7 +39,6 @@ namespace Port.Server.Spdy
             _sendingPriorityQueue = sendingPriorityQueue;
             Priority = priority;
 
-            _invalidStream = RstStream.InvalidStream(Id);
             _streamInUse = RstStream.StreamInUse(Id);
             _protocolError = RstStream.ProtocolError(Id);
             _flowControlError = RstStream.FlowControlError(Id);
@@ -144,7 +142,7 @@ namespace Port.Server.Spdy
 
         public SynStream.PriorityLevel Priority { get; }
 
-        public void Open()
+        internal void Open()
         {
             var open = new SynStream(
                 SynStream.Options.None, Id, UInt31.From(0), Priority,
@@ -189,7 +187,8 @@ namespace Port.Server.Spdy
                         .CreateLinkedTokenSource(tokens.ToArray())
                         .Token;
 
-            using var gate = _sendingGate.WaitAsync(token);
+            using var gate = await _sendingGate.WaitAsync(token)
+                                               .ConfigureAwait(false);
             {
                 while (Interlocked.Add(ref _windowSize, -data.Payload.Length) < 0)
                 {
