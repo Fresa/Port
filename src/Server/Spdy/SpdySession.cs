@@ -38,12 +38,15 @@ namespace Port.Server.Spdy
             new ConcurrentPriorityQueue<Frame>();
 
         private int _streamCounter;
+        private UInt31 _lastGoodRepliedStreamId;
 
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
 
         private Dictionary<Settings.Id, Settings.Setting> _settings =
             new Dictionary<Settings.Id, Settings.Setting>();
+
+        private int _windowSize = 64000;
 
         internal SpdySession(
             INetworkClient networkClient)
@@ -56,7 +59,6 @@ namespace Port.Server.Spdy
             RunNetworkSender();
             RunNetworkReceiver();
         }
-
 
         private void RunNetworkSender()
         {
@@ -74,6 +76,15 @@ namespace Port.Server.Spdy
                                               .DequeueAsync(
                                                   SendingCancellationToken)
                                               .ConfigureAwait(false);
+
+                            if (frame is Data data)
+                            {
+                                // todo: Should we always wait for data frames to be sent before sending the next frame (which might be a control frame that are not under flow control)?
+                                await Send(data, SendingCancellationToken)
+                                    .ConfigureAwait(false);
+                                continue;
+                            }
+
                             await Send(frame, SendingCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -127,6 +138,49 @@ namespace Port.Server.Spdy
             }
         }
 
+        private async Task Send(Data data, CancellationToken cancellationToken)
+        {
+            using var gate = SemaphoreSlimGate.OneAtATime;
+            {
+                while (Interlocked.Add(ref _windowSize, -data.Payload.Length) < 0)
+                {
+                    Interlocked.Add(ref _windowSize, data.Payload.Length);
+                    await _windowSizeGate.WaitAsync(SessionCancellationToken)
+                                         .ConfigureAwait(false);
+                }
+            }
+
+            await Send((Frame)data, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
+        private async Task<bool> TryUpdateWindowSizeAsync(
+            int delta)
+        {
+            var newWindowSize = Interlocked.Add(ref _windowSize, delta);
+            try
+            {
+                // Check if we encountered overflow
+                _ = checked(newWindowSize - delta);
+            }
+            catch (OverflowException)
+            {
+                await Send(RstStream.FlowControlError(_lastGoodRepliedStreamId), SessionCancellationToken)
+                    .ConfigureAwait(false);
+
+                _sessionCancellationTokenSource.Cancel(false);
+                return false;
+            }
+
+            if (newWindowSize > 0)
+            {
+                _windowSizeGate.Release();
+            }
+
+            return true;
+        }
+
         private long _pingId = -1;
 
         private void EnqueuePing()
@@ -155,7 +209,7 @@ namespace Port.Server.Spdy
 
             await StopNetworkSender()
                 .ConfigureAwait(false);
-            await Send(GoAway.ProtocolError(streamId), SessionCancellationToken)
+            await Send(GoAway.ProtocolError(_lastGoodRepliedStreamId), SessionCancellationToken)
                 .ConfigureAwait(false);
 
             _sessionCancellationTokenSource.Cancel(false);
@@ -234,6 +288,15 @@ namespace Port.Server.Spdy
                                                 setting.Id,
                                                 Settings.ValueOptions.Persisted,
                                                 setting.Value);
+
+                                        if (setting.Id ==
+                                            Settings.Id.InitialWindowSize)
+                                        {
+                                            Interlocked.Add(
+                                                ref _windowSize,
+                                                (int)setting.Value -
+                                                _windowSize);
+                                        }
                                     }
 
                                     break;
@@ -264,6 +327,26 @@ namespace Port.Server.Spdy
 
                                     stream.Receive(headers);
                                     break;
+                                case WindowUpdate windowUpdate:
+                                    TryUpdateWindowSizeAsync(
+                                        windowUpdate.DeltaWindowSize);
+                                    if (windowUpdate
+                                        .IsConnectionFlowControl)
+                                    {
+                                        break;
+                                    }
+
+                                    (found, stream) =
+                                        await TryGetStreamOrCloseSession(
+                                                windowUpdate.StreamId)
+                                            .ConfigureAwait(false);
+                                    if (found == false)
+                                    {
+                                        return;
+                                    }
+
+                                    stream.Receive(windowUpdate);
+                                    break;
                                 case Data data:
                                     if (_streams.TryGetValue(
                                         data.StreamId,
@@ -277,7 +360,7 @@ namespace Port.Server.Spdy
                                         SynStream.PriorityLevel.High,
                                         RstStream.InvalidStream(data.StreamId));
                                     break;
-                                
+
                             }
                         }
                     }

@@ -81,7 +81,8 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public UInt31 StreamId { get; }
 
-        public bool IsConnectionLevelFlowControl => StreamId == UInt31.From(0);
+        public bool IsStreamFlowControl => !IsConnectionFlowControl;
+        public bool IsConnectionFlowControl => StreamId == UInt31.From(0);
 
         private UInt31 _deltaWindowSize;
 

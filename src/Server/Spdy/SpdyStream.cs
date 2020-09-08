@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,11 +24,13 @@ namespace Port.Server.Spdy
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
-        private ConcurrentDictionary<string, string[]> _headers = new ConcurrentDictionary<string, string[]>();
+        private readonly ConcurrentDictionary<string, string[]> _headers = new ConcurrentDictionary<string, string[]>();
 
         private int _remote;
         private int _local;
         private const int Closed = 1;
+
+        private int _windowSize = 64000;
 
         internal SpdyStream(
             UInt31 id,
@@ -105,6 +108,9 @@ namespace Port.Server.Spdy
                         break;
                     }
                     break;
+                case WindowUpdate windowUpdate:
+                    Interlocked.Add(ref _windowSize, windowUpdate.DeltaWindowSize);
+                    break;
                 case Data data:
                     // If the endpoint which created the stream receives a data frame before receiving a SYN_REPLY on that stream, it is a protocol error, and the recipient MUST issue a stream error (Section 2.4.2) with the status code PROTOCOL_ERROR for the stream-id.
                     if (_controlFramesReceived.ContainsKey(typeof(SynReply)) == false)
@@ -157,6 +163,12 @@ namespace Port.Server.Spdy
             if (_local == Closed)
             {
                 throw new InvalidOperationException("The stream is closed");
+            }
+
+            if (Interlocked.Add(ref _windowSize, -frame.Payload.Length) < 0)
+            {
+                Interlocked.Add(ref _windowSize, frame.Payload.Length);
+                throw new InternalBufferOverflowException("Recipient is out of buffer");
             }
 
             Send((Frame)frame);

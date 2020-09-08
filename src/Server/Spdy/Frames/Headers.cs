@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -89,7 +90,7 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public UInt31 StreamId { get; }
 
-        private IReadOnlyDictionary<string, string[]> _values;
+        private IReadOnlyDictionary<string, string[]> _values = new Dictionary<string, string[]>();
         /// <summary>
         /// A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>

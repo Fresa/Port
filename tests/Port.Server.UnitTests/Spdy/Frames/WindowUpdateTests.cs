@@ -85,7 +85,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             [Fact]
             public void It_should_not_be_connection_level_flow_control()
             {
-                _message.IsConnectionLevelFlowControl.Should()
+                _message.IsConnectionFlowControl.Should()
                         .BeFalse();
             }
         }
