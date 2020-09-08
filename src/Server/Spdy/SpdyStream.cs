@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Frames;
@@ -10,7 +8,7 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
-    public sealed class SpdyStream
+    public sealed class SpdyStream : IDisposable
     {
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
@@ -22,15 +20,15 @@ namespace Port.Server.Spdy
         private readonly RstStream _streamInUse;
         private readonly RstStream _protocolError;
         private readonly RstStream _flowControlError;
+        private readonly RstStream _streamAlreadyClosedError;
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
         private readonly ConcurrentDictionary<string, string[]> _headers = new ConcurrentDictionary<string, string[]>();
 
-        private int _remote;
-        private int _local;
-        private const int Closed = 1;
-
+        private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
+        private bool IsLocalClosed => _localStream.IsCancellationRequested;
+      
         private int _windowSize = 64000;
 
         internal SpdyStream(
@@ -46,30 +44,41 @@ namespace Port.Server.Spdy
             _streamInUse = RstStream.StreamInUse(Id);
             _protocolError = RstStream.ProtocolError(Id);
             _flowControlError = RstStream.FlowControlError(Id);
+            _streamAlreadyClosedError = RstStream.StreamAlreadyClosed(Id);
         }
 
         public UInt31 Id { get; }
 
         private void CloseRemote()
         {
-            Interlocked.Exchange(ref _remote, Closed);
+            _remoteStream.Cancel(false);
         }
         private void CloseLocal()
         {
-            Interlocked.Exchange(ref _local, Closed);
+            _localStream.Cancel(false);
         }
 
         internal void Receive(
             Frame frame)
         {
-            if (_remote == Closed)
+            if (IsRemoteClosed)
             {
-                if (frame is RstStream)
+                if (IsLocalClosed)
                 {
+                    Send(_protocolError);
                     return;
                 }
-                Send(_protocolError);
-                return;
+
+                switch (frame)
+                {
+                    case RstStream _:
+                        return;
+                    case WindowUpdate _:
+                        break;
+                    default:
+                        Send(_streamAlreadyClosedError);
+                        return;
+                }
             }
 
             switch (frame)
@@ -88,8 +97,7 @@ namespace Port.Server.Spdy
                     }
 
                     return;
-                case RstStream rstStream:
-                    _controlFramesReceived.TryAdd(typeof(RstStream), rstStream);
+                case RstStream _:
                     CloseRemote();
                     CloseLocal();
                     return;
@@ -158,29 +166,45 @@ namespace Port.Server.Spdy
         {
             _sendingPriorityQueue.Enqueue(Priority, frame);
         }
-        
+
+        private readonly CancellationTokenSource _localStream = new CancellationTokenSource();
+        private readonly SemaphoreSlimGate _sendingGate = SemaphoreSlimGate.OneAtATime;
         public async Task SendAsync(
-            Data data, 
+            Data data,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
-            if (_local == Closed)
+            var tokens = new List<CancellationToken>
             {
-                throw new InvalidOperationException("The stream is closed");
+                _localStream.Token,
+                cancellationToken
+            };
+
+            if (timeout != default)
+            {
+                tokens.Add(new CancellationTokenSource(timeout).Token);
             }
 
-            timeout = timeout == default ? Timeout.InfiniteTimeSpan : timeout;
-            using var gate = SemaphoreSlimGate.OneAtATime;
+            var token = CancellationTokenSource
+                        .CreateLinkedTokenSource(tokens.ToArray())
+                        .Token;
+
+            using var gate = _sendingGate.WaitAsync(token);
             {
                 while (Interlocked.Add(ref _windowSize, -data.Payload.Length) < 0)
                 {
                     Interlocked.Add(ref _windowSize, data.Payload.Length);
-                    await _windowSizeGate.WaitAsync(timeout, cancellationToken)
+                    await _windowSizeGate.WaitAsync(token)
                                          .ConfigureAwait(false);
                 }
             }
 
             Send(data);
+
+            if (data.IsLastFrame)
+            {
+                CloseLocal();
+            }
         }
 
         private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
@@ -206,22 +230,43 @@ namespace Port.Server.Spdy
             }
         }
 
-        public async Task<Data> ReadAsync(
+        private readonly CancellationTokenSource _remoteStream = new CancellationTokenSource();
+        public async Task<Data> ReceiveAsync(
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
-            timeout = timeout == default ? Timeout.InfiniteTimeSpan : timeout;
-            
-            await _frameAvailable.WaitAsync(timeout, cancellationToken)
-                                 .ConfigureAwait(false);
-
-            if (_receivingQueue.TryDequeue(out var frame))
+            var tokens = new List<CancellationToken>
             {
-                return frame;
+                _remoteStream.Token,
+                cancellationToken
+            };
+            if (timeout != default)
+            {
+                tokens.Add(new CancellationTokenSource(timeout).Token);
             }
+            var token = CancellationTokenSource
+                        .CreateLinkedTokenSource(tokens.ToArray())
+                        .Token;
 
-            throw new InvalidOperationException(
-                "Receiving queue got out of sync");
+            do
+            {
+                if (_receivingQueue.TryDequeue(out var frame))
+                {
+                    return frame;
+                }
+
+                await _frameAvailable.WaitAsync(token)
+                                     .ConfigureAwait(false);
+            } while (true);
+        }
+
+        public void Dispose()
+        {
+            _frameAvailable.Dispose();
+            _localStream.Dispose();
+            _windowSizeGate.Dispose();
+            _remoteStream.Dispose();
+            _sendingGate.Dispose();
         }
     }
 }
