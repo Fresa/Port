@@ -126,10 +126,10 @@ namespace Port.Server.Spdy
                         {
                             case Settings.Id.InitialWindowSize:
                                 IncreaseWindowSize(
-                                    (int) setting.Value - _initialWindowSize);
+                                    (int)setting.Value - _initialWindowSize);
                                 Interlocked.Exchange(
                                     ref _initialWindowSize,
-                                    (int) setting.Value);
+                                    (int)setting.Value);
                                 break;
                         }
                     }
@@ -159,13 +159,13 @@ namespace Port.Server.Spdy
         public SynStream.PriorityLevel Priority { get; }
 
         internal void Open(
-            SynStream.Options options, 
+            SynStream.Options options,
             IReadOnlyDictionary<string, string[]> headers)
         {
             var open = new SynStream(
                 options, Id, UInt31.From(0), Priority,
                 headers);
-            
+
             if (!open.IsUnidirectional)
             {
                 Interlocked.Exchange(
@@ -235,6 +235,26 @@ namespace Port.Server.Spdy
             {
                 CloseLocal();
             }
+        }
+
+        public Task SendAsync(
+            Headers headers,
+            TimeSpan timeout = default,
+            CancellationToken cancellationToken = default)
+        {
+            if (_localStream.IsCancellationRequested)
+            {
+                throw new InvalidOperationException("Stream is closed");
+            }
+
+            Send(headers);
+
+            if (headers.IsLastFrame)
+            {
+                CloseLocal();
+            }
+
+            return Task.CompletedTask;
         }
 
         private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
