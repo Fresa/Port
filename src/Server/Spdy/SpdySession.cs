@@ -46,7 +46,8 @@ namespace Port.Server.Spdy
         private Dictionary<Settings.Id, Settings.Setting> _settings =
             new Dictionary<Settings.Id, Settings.Setting>();
 
-        private int _windowSize = 64000;
+        private const int InitialWindowSize = 64000;
+        private int _windowSize = InitialWindowSize;
 
         internal SpdySession(
             INetworkClient networkClient)
@@ -288,17 +289,12 @@ namespace Port.Server.Spdy
                                                 setting.Id,
                                                 Settings.ValueOptions.Persisted,
                                                 setting.Value);
-
-                                        if (setting.Id ==
-                                            Settings.Id.InitialWindowSize)
-                                        {
-                                            Interlocked.Add(
-                                                ref _windowSize,
-                                                (int)setting.Value -
-                                                _windowSize);
-                                        }
                                     }
 
+                                    foreach (var spdyStream in _streams.Values)
+                                    {
+                                        spdyStream.Receive(settings);
+                                    }
                                     break;
                                 case Ping ping:
                                     // If a client receives an odd numbered PING which it did not initiate, it must ignore the PING.

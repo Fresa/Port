@@ -183,7 +183,7 @@ namespace Port.Server.Spdy.Frames
         /// |          Value (32 bits)         |
         /// +----------------------------------+
         /// </summary>
-        public class Setting
+        public sealed class Setting
         {
             internal Setting(
                 Id id,

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Frames;
@@ -28,7 +29,7 @@ namespace Port.Server.Spdy
         private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
         private bool IsLocalClosed => _localStream.IsCancellationRequested;
 
-        private int _windowSize = 64000;
+        private int _windowSize, _initialWindowSize = 64000;
 
         internal SpdyStream(
             UInt31 id,
@@ -117,8 +118,24 @@ namespace Port.Server.Spdy
                     }
                     break;
                 case WindowUpdate windowUpdate:
-                    TryIncreaseWindowSize(windowUpdate.DeltaWindowSize);
+                    IncreaseWindowSize(windowUpdate.DeltaWindowSize);
                     return;
+                case Settings settings:
+                    foreach (var setting in settings.Values)
+                    {
+                        switch (setting.Id)
+                        {
+                            case Settings.Id.InitialWindowSize:
+                                IncreaseWindowSize(
+                                    (int) setting.Value - _initialWindowSize);
+                                Interlocked.Exchange(
+                                    ref _initialWindowSize,
+                                    (int) setting.Value);
+                                break;
+                        }
+                    }
+
+                    break;
                 case Data data:
                     // If the endpoint which created the stream receives a data frame before receiving a SYN_REPLY on that stream, it is a protocol error, and the recipient MUST issue a stream error (Section 2.4.2) with the status code PROTOCOL_ERROR for the stream-id.
                     if (_controlFramesReceived.ContainsKey(typeof(SynReply)) == false)
@@ -135,9 +152,9 @@ namespace Port.Server.Spdy
                     _receivingQueue.Enqueue(data);
                     _frameAvailable.Release();
                     return;
+                default:
+                    throw new InvalidOperationException($"{frame.GetType()} was not handled");
             }
-
-            throw new InvalidOperationException($"{frame.GetType()} was not handled");
         }
 
         public SynStream.PriorityLevel Priority { get; }
@@ -208,7 +225,7 @@ namespace Port.Server.Spdy
 
         private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
 
-        private void TryIncreaseWindowSize(
+        private void IncreaseWindowSize(
             int delta)
         {
             var newWindowSize = Interlocked.Add(ref _windowSize, delta);
