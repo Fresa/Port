@@ -391,7 +391,9 @@ namespace Port.Server.Spdy
         }
 
         public SpdyStream Open(
-            SynStream.PriorityLevel priority)
+            SynStream.PriorityLevel priority,
+            SynStream.Options options,
+            IReadOnlyDictionary<string, string[]> headers)
         {
             var streamId = (uint)Interlocked.Increment(ref _streamCounter);
 
@@ -399,7 +401,7 @@ namespace Port.Server.Spdy
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
             _streams.TryAdd(stream.Id, stream);
 
-            stream.Open();
+            stream.Open(options, headers);
             return stream;
         }
 

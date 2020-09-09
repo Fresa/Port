@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Frames;
@@ -159,11 +158,26 @@ namespace Port.Server.Spdy
 
         public SynStream.PriorityLevel Priority { get; }
 
-        internal void Open()
+        internal void Open(
+            SynStream.Options options, 
+            IReadOnlyDictionary<string, string[]> headers)
         {
             var open = new SynStream(
-                SynStream.Options.None, Id, UInt31.From(0), Priority,
-                new Dictionary<string, string[]>());
+                options, Id, UInt31.From(0), Priority,
+                headers);
+            
+            if (!open.IsUnidirectional)
+            {
+                Interlocked.Exchange(
+                    ref _remoteStream, new CancellationTokenSource());
+            }
+
+            if (!open.IsFin)
+            {
+                Interlocked.Exchange(
+                    ref _localStream, new CancellationTokenSource());
+            }
+
             Send(open);
         }
 
@@ -182,7 +196,7 @@ namespace Port.Server.Spdy
             _sendingPriorityQueue.Enqueue(Priority, frame);
         }
 
-        private readonly CancellationTokenSource _localStream = new CancellationTokenSource();
+        private CancellationTokenSource _localStream = CancellationTokenSource.CreateLinkedTokenSource(new CancellationToken(true));
         private readonly SemaphoreSlimGate _sendingGate = SemaphoreSlimGate.OneAtATime;
         public async Task SendAsync(
             Data data,
@@ -246,7 +260,7 @@ namespace Port.Server.Spdy
             }
         }
 
-        private readonly CancellationTokenSource _remoteStream = new CancellationTokenSource();
+        private CancellationTokenSource _remoteStream = CancellationTokenSource.CreateLinkedTokenSource(new CancellationToken(true));
         public async Task<Data> ReceiveAsync(
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
@@ -278,6 +292,9 @@ namespace Port.Server.Spdy
 
         public void Dispose()
         {
+            CloseLocal();
+            CloseRemote();
+
             _frameAvailable.Dispose();
             _localStream.Dispose();
             _windowSizeGate.Dispose();
