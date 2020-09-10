@@ -25,6 +25,8 @@ namespace Port.Server.Spdy
 
         private readonly ConcurrentDictionary<string, string[]> _headers = new ConcurrentDictionary<string, string[]>();
 
+        public IReadOnlyDictionary<string, string[]> Headers => _headers;
+
         private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
         private bool IsLocalClosed => _localStream.IsCancellationRequested;
 
