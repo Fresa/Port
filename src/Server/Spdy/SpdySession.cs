@@ -279,7 +279,7 @@ namespace Port.Server.Spdy
                                         _settings[setting.Id] =
                                             new Settings.Setting(
                                                 setting.Id,
-                                                Settings.ValueOptions.Persisted,
+                                                Frames.Settings.ValueOptions.Persisted,
                                                 setting.Value);
                                     }
 
