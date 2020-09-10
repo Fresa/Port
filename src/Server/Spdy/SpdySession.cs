@@ -37,7 +37,7 @@ namespace Port.Server.Spdy
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
 
-        private int _streamCounter;
+        private int _streamCounter = -1;
         private UInt31 _lastGoodRepliedStreamId;
 
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
@@ -385,7 +385,7 @@ namespace Port.Server.Spdy
             SynStream.Options options,
             IReadOnlyDictionary<string, string[]> headers)
         {
-            var streamId = (uint)Interlocked.Increment(ref _streamCounter);
+            var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
