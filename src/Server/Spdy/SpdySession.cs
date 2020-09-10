@@ -43,8 +43,10 @@ namespace Port.Server.Spdy
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
 
-        private Dictionary<Settings.Id, Settings.Setting> _settings =
+        private readonly Dictionary<Settings.Id, Settings.Setting> _settings =
             new Dictionary<Settings.Id, Settings.Setting>();
+
+        public IReadOnlyCollection<Settings.Setting> Settings => _settings.Values;
 
         private const int InitialWindowSize = 64000;
         private int _windowSize = InitialWindowSize;

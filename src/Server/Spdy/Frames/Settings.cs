@@ -199,8 +199,14 @@ namespace Port.Server.Spdy.Frames
 
             public uint Value { get; }
 
+            /// <summary>
+            /// When set, the sender of this SETTINGS frame is requesting that the recipient persist the ID/Value and return it in future SETTINGS frames sent from the sender to this recipient. Because persistence is only implemented on the client, this flag is only sent by the server.
+            /// </summary>
             public bool ShouldPersist => Flags == ValueOptions.PersistValue;
 
+            /// <summary>
+            /// When set, the sender is notifying the recipient that this ID/Value pair was previously sent to the sender by the recipient with the FLAG_SETTINGS_PERSIST_VALUE, and the sender is returning it. Because persistence is only implemented on the client, this flag is only sent by the client.
+            /// </summary>
             public bool IsPersisted => Flags == ValueOptions.Persisted;
 
             public ValueOptions Flags { get; }
