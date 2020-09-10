@@ -181,6 +181,17 @@ namespace Port.Server.Spdy
             Send(open);
         }
 
+        public void Close()
+        {
+            if (IsLocalClosed)
+            {
+                return;
+            }
+
+            CloseLocal();
+            Send(Data.LastFrame(Id, new byte[0]));
+        }
+
         private void Send(
             RstStream rstStream)
         {
@@ -312,6 +323,10 @@ namespace Port.Server.Spdy
 
         public void Dispose()
         {
+            if (IsLocalClosed == false)
+            {
+                Send(RstStream.Cancel(Id));
+            }
             CloseLocal();
             CloseRemote();
 
