@@ -101,7 +101,7 @@ namespace Port.Server.Spdy
                         {
                             await Send(
                                     GoAway.InternalError(
-                                        UInt31.From((uint)_streamCounter)),
+                                        UInt31.From(_lastGoodRepliedStreamId)),
                                     SendingCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -366,7 +366,7 @@ namespace Port.Server.Spdy
                         {
                             await Send(
                                     GoAway.InternalError(
-                                        UInt31.From((uint)_streamCounter)),
+                                        _lastGoodRepliedStreamId),
                                     SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -414,7 +414,7 @@ namespace Port.Server.Spdy
             if (isClosed == false)
             {
                 await Send(
-                       GoAway.Ok(UInt31.From((uint)_streamCounter)),
+                       GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
                        CancellationToken.None)
                    .ConfigureAwait(false);
             }
