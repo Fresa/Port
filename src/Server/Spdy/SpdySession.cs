@@ -125,18 +125,8 @@ namespace Port.Server.Spdy
             Frame frame,
             CancellationToken cancellationToken)
         {
-            await foreach (var bufferSequence in frame
-                                                 .WriteAsync(cancellationToken)
-                                                 .ConfigureAwait(false))
-            {
-                foreach (var buffer in bufferSequence)
-                {
-                    await _networkClient.SendAsync(
-                                            buffer,
-                                            cancellationToken)
-                                        .ConfigureAwait(false);
-                }
-            }
+            await _networkClient.SendAsync(frame, cancellationToken)
+                                .ConfigureAwait(false);
         }
 
         private async Task Send(Data data, CancellationToken cancellationToken)
