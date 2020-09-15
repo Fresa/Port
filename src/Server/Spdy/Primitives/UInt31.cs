@@ -24,7 +24,12 @@ namespace Port.Server.Spdy.Primitives
         public override bool Equals(
             object? obj)
         {
-            return obj is UInt31 other && Equals(other);
+            return obj switch
+            {
+                UInt31 uInt31 => Equals(uInt31),
+                uint i => Equals(i),
+                _ => false
+            };
         }
 
         public override int GetHashCode()
@@ -68,6 +73,9 @@ namespace Port.Server.Spdy.Primitives
         
         public static implicit operator int(
             UInt31 value) => (int)value.Value;
+
+        public static implicit operator UInt31(
+            uint value) => From(value);
 
         public static UInt31 From(
             uint value)

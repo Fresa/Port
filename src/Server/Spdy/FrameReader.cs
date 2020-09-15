@@ -130,6 +130,7 @@ namespace Port.Server.Spdy
         {
             var sequence = await GetAsync(length, cancellationToken)
                 .ConfigureAwait(false);
+            _reader.AdvanceTo(sequence.GetPosition(0));
             return sequence.ToArray();
         }
 

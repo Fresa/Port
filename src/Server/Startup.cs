@@ -9,8 +9,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
+using Port.Server.Observability;
 using SimpleInjector;
-using LogFactory = Log.It.LogFactory;
 
 namespace Port.Server
 {
@@ -20,7 +20,7 @@ namespace Port.Server
 
         static Startup()
         {
-            LogFactory.Initialize(new NLogFactory(new LogicalThreadContext()));
+            LogFactoryExtensions.InitializeOnce(new NLogFactory(new LogicalThreadContext()));
         }
 
         public Startup(

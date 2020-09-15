@@ -12,13 +12,14 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             new InMemoryNetworkServerFactory();
         public INetworkServerFactory NetworkServerFactory
             => _networkServerFactory;
-    
+
         public async Task<ISendingClient<T>> ConnectAsync<T>(
             IMessageClientFactory<T> messageClientFactory,
             IPAddress address,
             int port,
             ProtocolType protocolType,
             CancellationToken cancellationToken = default)
+            where T : notnull
         {
             var first = new InMemoryNetworkClient();
             var second = new InMemoryNetworkClient();
@@ -26,7 +27,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                 new CrossWiredMemoryNetworkClient(first, second);
             var responseClient =
                 new CrossWiredMemoryNetworkClient(second, first);
-            
+
             var requestMessageClient =
                 messageClientFactory.Create(requestClient);
             ReceiveMessagesFor(requestMessageClient);

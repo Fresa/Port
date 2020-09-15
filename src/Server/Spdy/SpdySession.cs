@@ -225,10 +225,11 @@ namespace Port.Server.Spdy
                                    .IsCancellationRequested ==
                                false)
                         {
-                            await _networkClient.ReceiveAsync(
+                            var bytes = await _networkClient.ReceiveAsync(
                                 pipe.Writer.GetMemory(),
                                 SessionCancellationToken);
-
+                            
+                            pipe.Writer.Advance(bytes);
                             if ((await Frame.TryReadAsync(
                                                 frameReader,
                                                 SessionCancellationToken)

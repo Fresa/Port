@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +19,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         protected void ReceiveMessagesFor<T>(
             IReceivingClient<T> client)
+            where T : notnull
         {
             var task = Task.Run(
                 async () =>
