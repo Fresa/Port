@@ -68,7 +68,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             object message,
             CancellationToken cancellationToken = default);
 
-        public BufferBlock<TRequestMessage> On<TRequestMessage>(CancellationToken cancellationToken = default)
+        public ISourceBlock<TRequestMessage> On<TRequestMessage>(CancellationToken cancellationToken = default)
         {
             var messagesReceived = new BufferBlock<TRequestMessage>();
             On<TRequestMessage>(
