@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using FluentAssertions;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
@@ -23,11 +24,9 @@ namespace Port.Server.IntegrationTests.Spdy
                 SocketTestFramework.SocketTestFramework.InMemory();
 
             private SpdySession _session = null!;
-            private ISendingClient<Frame> _client = null!;
             private SynStream _synStream = null!;
 
-            private readonly SemaphoreSlim _frameReceived =
-                new SemaphoreSlim(0, 1);
+            private BufferBlock<SynStream> _messages = default!;
 
             public When_opening_a_stream(
                 ITestOutputHelper testOutputHelper)
@@ -38,26 +37,21 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task GivenAsync(
                 CancellationToken cancellationToken)
             {
-                var server = _testFramework.NetworkServerFactory.CreateAndStart(
-                    IPAddress.Any, 1,
-                    ProtocolType.Tcp);
-                _testFramework.On<SynStream>(
-                    stream =>
-                    {
-                        _synStream = stream;
-                        _frameReceived.Release();
-                    });
-                var clientTask = _testFramework.ConnectAsync(
-                                                   new FrameClientFactory(),
-                                                   IPAddress.Any, 1,
-                                                   ProtocolType.Tcp,
-                                                   cancellationToken)
-                                               .ConfigureAwait(false);
+                var server = DisposeAsyncOnTearDown(
+                    _testFramework.NetworkServerFactory.CreateAndStart(
+                        IPAddress.Any, 1,
+                        ProtocolType.Tcp));
+                _messages = _testFramework.On<SynStream>(cancellationToken);
+                await _testFramework.ConnectAsync(
+                                        new FrameClientFactory(),
+                                        IPAddress.Any, 1,
+                                        ProtocolType.Tcp,
+                                        cancellationToken)
+                                    .ConfigureAwait(false);
 
                 _session = new SpdySession(
                     await server.WaitForConnectedClientAsync(
                         cancellationToken));
-                _client = await clientTask;
             }
 
             protected override async Task WhenAsync(
@@ -67,8 +61,8 @@ namespace Port.Server.IntegrationTests.Spdy
                     SynStream.PriorityLevel.High, SynStream.Options.None,
                     new Dictionary<string, string[]>
                         {{"header1", new[] {"value1"}}});
-                await _frameReceived.WaitAsync(cancellationToken)
-                                    .ConfigureAwait(false);
+                _synStream = await _messages.ReceiveAsync(cancellationToken)
+                                            .ConfigureAwait(false);
             }
 
             [Fact]

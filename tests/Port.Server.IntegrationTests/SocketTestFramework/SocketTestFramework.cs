@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace Port.Server.IntegrationTests.SocketTestFramework
 {
@@ -57,12 +59,27 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             _backgroundTasks.Add(task);
         }
 
+        private readonly ConcurrentDictionary<Type, List<object>> _messages =
+            new ConcurrentDictionary<Type, List<object>>();
         private readonly Dictionary<Type, MessageSubscription> _subscriptions =
             new Dictionary<Type, MessageSubscription>();
 
         private delegate Task MessageSubscription(
             object message,
             CancellationToken cancellationToken = default);
+
+        public BufferBlock<TRequestMessage> On<TRequestMessage>(CancellationToken cancellationToken = default)
+        {
+            var messagesReceived = new BufferBlock<TRequestMessage>();
+            On<TRequestMessage>(
+                async message =>
+                {
+                    await messagesReceived.SendAsync(message, cancellationToken)
+                                          .ConfigureAwait(false);
+                });
+            
+            return messagesReceived;
+        }
 
         public SocketTestFramework On<TRequestMessage>(
             Action<TRequestMessage> subscription)
@@ -74,6 +91,17 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                     cancellationToken) => Task.Run(
                     () => subscription.Invoke((TRequestMessage) message),
                     cancellationToken));
+            return this;
+        }
+
+        public SocketTestFramework On<TRequestMessage>(
+            Func<TRequestMessage, Task> subscription)
+        {
+            _subscriptions.Add(
+                typeof(TRequestMessage),
+                async (
+                    message,
+                    _) => await subscription.Invoke((TRequestMessage)message));
             return this;
         }
 
