@@ -65,11 +65,11 @@ namespace Port.Server.IntegrationTests.Spdy
 
         public async ValueTask DisposeAsync()
         {
+            await Session.DisposeAsync()
+                         .ConfigureAwait(false);
             await _testFramework.DisposeAsync()
                                 .ConfigureAwait(false);
             await _server.DisposeAsync()
-                         .ConfigureAwait(false);
-            await Session.DisposeAsync()
                          .ConfigureAwait(false);
         }
     }

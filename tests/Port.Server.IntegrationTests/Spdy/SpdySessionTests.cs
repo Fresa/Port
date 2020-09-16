@@ -28,11 +28,12 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task GivenAsync(
                 CancellationToken cancellationToken)
             {
-                _tester = await SpdySessionTester
+                _tester = DisposeAsyncOnTearDown(await SpdySessionTester
                                 .ConnectAsync(cancellationToken)
-                                .ConfigureAwait(false);
+                                .ConfigureAwait(false));
                 _synStreamSubscription =
                     _tester.On<SynStream>(cancellationToken);
+                _tester.On<GoAway>(cancellationToken);
             }
 
             protected override async Task WhenAsync(

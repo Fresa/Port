@@ -1,6 +1,6 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -19,6 +19,9 @@ namespace Port.Server.Spdy.Extensions
             var pipe = new Pipe();
             var writeTask = Task.Run(async
                 () =>
+            {
+                Exception? exception = null;
+                try
                 {
                     var frameWriter =
                         new FrameWriter(pipe.Writer.AsStream());
@@ -30,7 +33,18 @@ namespace Port.Server.Spdy.Extensions
                                        cancellationToken)
                                    .ConfigureAwait(false);
                     }
-                }, cancellationToken);
+
+                    await pipe.Writer.FlushAsync(cancellationToken)
+                              .ConfigureAwait(false);
+                }
+                catch (Exception caughtException)
+                {
+                    exception = caughtException;
+                }
+
+                await pipe.Writer.CompleteAsync(exception)
+                          .ConfigureAwait(false);
+            }, cancellationToken);
 
             System.IO.Pipelines.ReadResult result;
             do

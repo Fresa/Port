@@ -28,6 +28,7 @@ namespace Port.Server.IntegrationTests.Spdy
             _receiverTask = Task.Run(
                 async () =>
                 {
+                    Exception? exception = null;
                     try
                     {
                         FlushResult result;
@@ -36,7 +37,8 @@ namespace Port.Server.IntegrationTests.Spdy
                             var bytes = await _networkClient.ReceiveAsync(
                                                                 _pipe
                                                                     .Writer
-                                                                    .GetMemory(512),
+                                                                    .GetMemory(
+                                                                        512),
                                                                 _cancellationTokenSource
                                                                     .Token)
                                                             .ConfigureAwait(
@@ -55,6 +57,15 @@ namespace Port.Server.IntegrationTests.Spdy
                     catch when (_cancellationTokenSource
                         .IsCancellationRequested)
                     {
+                    }
+                    catch (Exception exceptionCaught)
+                    {
+                        exception = exceptionCaught;
+                    }
+                    finally
+                    {
+                        await _pipe.Writer.CompleteAsync(exception)
+                                   .ConfigureAwait(false);
                     }
                 });
         }

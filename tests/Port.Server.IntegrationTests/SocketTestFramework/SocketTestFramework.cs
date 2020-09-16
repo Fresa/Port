@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,8 +32,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         try
                         {
                             var receivedMessage = await client
-                                .ReceiveAsync(_cancellationTokenSource.Token)
-                                .ConfigureAwait(false);
+                                                        .ReceiveAsync(
+                                                            _cancellationTokenSource
+                                                                .Token)
+                                                        .ConfigureAwait(false);
 
                             if (!_subscriptions.TryGetValue(
                                 receivedMessage.GetType(),
@@ -45,8 +46,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                             }
 
                             await subscription(
-                                receivedMessage,
-                                _cancellationTokenSource.Token)
+                                    receivedMessage,
+                                    _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
                         }
                         catch when (_cancellationTokenSource
@@ -54,13 +55,16 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         {
                             return;
                         }
+                        catch (Exception)
+                        {
+                            _cancellationTokenSource.Cancel(true);
+                            throw;
+                        }
                     }
                 });
             _backgroundTasks.Add(task);
         }
 
-        private readonly ConcurrentDictionary<Type, List<object>> _messages =
-            new ConcurrentDictionary<Type, List<object>>();
         private readonly Dictionary<Type, MessageSubscription> _subscriptions =
             new Dictionary<Type, MessageSubscription>();
 
@@ -135,7 +139,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         public async ValueTask DisposeAsync()
         {
-            _cancellationTokenSource.Cancel();
+            _cancellationTokenSource.Cancel(false);
 
             await Task.WhenAll(_backgroundTasks)
                 .ConfigureAwait(false);
