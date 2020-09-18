@@ -17,6 +17,8 @@ namespace Port.Server
             _semaphore = semaphore;
         }
 
+        internal bool IsBlocked => _semaphore.CurrentCount == 0;
+
         internal async Task<IDisposable> WaitAsync(
             CancellationToken cancellationToken)
         {
