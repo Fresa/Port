@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
@@ -30,7 +31,8 @@ namespace Port.Server.Spdy
         private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
         private bool IsLocalClosed => _localStream.IsCancellationRequested;
 
-        private int _windowSize, _initialWindowSize = 64000;
+        private int _windowSize = 64000;
+        private int _initialWindowSize = 64000;
 
         internal SpdyStream(
             UInt31 id,
@@ -210,9 +212,31 @@ namespace Port.Server.Spdy
         }
 
         private CancellationTokenSource _localStream = CancellationTokenSource.CreateLinkedTokenSource(new CancellationToken(true));
-        private readonly SemaphoreSlimGate _sendingGate = SemaphoreSlimGate.OneAtATime;
+        private readonly ExclusiveLock _sendLock = new ExclusiveLock();
+
         public async Task SendAsync(
-            Data data,
+            ReadOnlyMemory<byte> data,
+            TimeSpan timeout = default,
+            CancellationToken cancellationToken = default)
+        {
+            await SendDataAsync(
+                    data, false, timeout, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task SendLastAsync(
+            ReadOnlyMemory<byte> data,
+            TimeSpan timeout = default,
+            CancellationToken cancellationToken = default)
+        {
+            await SendDataAsync(
+                    data, true, timeout, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        private async Task SendDataAsync(
+            ReadOnlyMemory<byte> data,
+            bool isFin,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
@@ -231,20 +255,46 @@ namespace Port.Server.Spdy
                         .CreateLinkedTokenSource(tokens.ToArray())
                         .Token;
 
-            using var gate = await _sendingGate.WaitAsync(token)
-                                               .ConfigureAwait(false);
+            using (_sendLock.TryAcquire(out var acquired))
             {
-                while (Interlocked.Add(ref _windowSize, -data.Payload.Length) < 0)
+                if (acquired == false)
                 {
-                    Interlocked.Add(ref _windowSize, data.Payload.Length);
-                    await _windowSizeGate.WaitAsync(token)
-                                         .ConfigureAwait(false);
+                    throw new InvalidOperationException("Data is currently being sent");
+                }
+
+                var index = 0;
+                var left = data.Length;
+                while (left > 0)
+                {
+                    var windowSize = _windowSize;
+                    var length = windowSize > left ? left : windowSize;
+
+                    if (length <= 0)
+                    {
+                        await _windowSizeGate.WaitAsync(token)
+                                             .ConfigureAwait(false);
+                        continue;
+                    }
+
+                    if (Interlocked.Add(ref _windowSize, -length) < 0)
+                    {
+                        Interlocked.Add(ref _windowSize, length);
+                        continue;
+                    }
+
+                    var payload = data.Slice(index, length).ToArray();
+                    var frame = left == length && isFin
+                        ? Data.LastFrame(Id, payload)
+                        : Data.Frame(Id, payload);
+                    
+                    Send(frame);
+                    
+                    index += length;
+                    left = data.Length - index;
                 }
             }
 
-            Send(data);
-
-            if (data.IsLastFrame)
+            if (isFin)
             {
                 CloseLocal();
             }
@@ -294,13 +344,12 @@ namespace Port.Server.Spdy
         }
 
         private CancellationTokenSource _remoteStream = CancellationTokenSource.CreateLinkedTokenSource(new CancellationToken(true));
-        public async Task<Data> ReceiveAsync(
+        public async Task<System.IO.Pipelines.ReadResult> ReceiveAsync(
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
             var tokens = new List<CancellationToken>
             {
-                _remoteStream.Token,
                 cancellationToken
             };
             if (timeout != default)
@@ -315,11 +364,21 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
-                    return frame;
+                    return new System.IO.Pipelines.ReadResult(
+                        new ReadOnlySequence<byte>(frame.Payload), false,
+                        frame.IsLastFrame);
                 }
 
-                await _frameAvailable.WaitAsync(token)
-                                     .ConfigureAwait(false);
+                try
+                {
+                    await _frameAvailable.WaitAsync(token)
+                                         .ConfigureAwait(false);
+                }
+                catch when (_remoteStream.IsCancellationRequested)
+                {
+                    return new System.IO.Pipelines.ReadResult(
+                        ReadOnlySequence<byte>.Empty, true, false);
+                }
             } while (true);
         }
 
@@ -336,7 +395,6 @@ namespace Port.Server.Spdy
             _localStream.Dispose();
             _windowSizeGate.Dispose();
             _remoteStream.Dispose();
-            _sendingGate.Dispose();
         }
     }
 }
