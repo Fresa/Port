@@ -1,9 +1,11 @@
 ﻿using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using FluentAssertions;
 using Port.Server.IntegrationTests.TestFramework;
+using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Xunit;
 using Xunit.Abstractions;
@@ -50,14 +52,14 @@ namespace Port.Server.IntegrationTests.Spdy
             }
 
             [Fact]
-            public void It_should_receive_a_syn_stream_frame_with_priority()
+            public void It_should_send_a_syn_stream_frame_with_priority()
             {
                 _synStream.Priority.Should()
                           .Be(SynStream.PriorityLevel.High);
             }
 
             [Fact]
-            public void It_should_receive_a_syn_stream_frame_with_headers()
+            public void It_should_send_a_syn_stream_frame_with_headers()
             {
                 _synStream.Headers.Should()
                           .HaveCount(1)
@@ -67,9 +69,71 @@ namespace Port.Server.IntegrationTests.Spdy
             }
 
             [Fact]
-            public void It_should_receive_a_syn_stream_frame_with_stream_id()
+            public void It_should_send_a_syn_stream_frame_with_stream_id()
             {
                 _synStream.StreamId.Should()
+                          .Be(1u);
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_sending_data : XUnit2UnitTestSpecificationAsync
+        {
+            private Data _dataSent = null!;
+            private SpdyStream _stream = null!;
+            private ISourceBlock<Data> _dataSubscription = null!;
+
+            public When_sending_data(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenAsync(
+                CancellationToken cancellationToken)
+            {
+                var tester = DisposeAsyncOnTearDown(await SpdySessionTester
+                                .ConnectAsync(cancellationToken)
+                                .ConfigureAwait(false));
+                tester.On<SynStream>(cancellationToken);
+                tester.On<GoAway>(cancellationToken);
+                _dataSubscription = tester.On<Data>(cancellationToken);
+                _stream = tester.Session.Open(
+                    SynStream.PriorityLevel.High,
+                    SynStream.Options.None,
+                    new Dictionary<string, string[]>());
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                await _stream.SendAsync(Encoding.UTF8.GetBytes("my data"), cancellationToken: cancellationToken)
+                       .ConfigureAwait(false);
+                _dataSent = await _dataSubscription
+                                   .ReceiveAsync(cancellationToken)
+                                   .ConfigureAwait(false);
+            }
+
+            [Fact]
+            public void It_should_send_a_data_frame_with_payload()
+            {
+                _dataSent.Payload.Should().HaveCount(7)
+                         .And.ContainInOrder(Encoding.UTF8.GetBytes("my data"));
+            }
+
+            [Fact]
+            public void It_should_send_a_data_frame_that_is_not_last()
+            {
+                _dataSent.IsLastFrame.Should().BeFalse();
+            }
+
+            [Fact]
+            public void It_should_send_a_data_frame_with_stream_id()
+            {
+                _dataSent.StreamId.Should()
                           .Be(1u);
             }
         }
