@@ -12,6 +12,11 @@ namespace Port.Server.Spdy.Extensions
             this byte[] input,
             byte[] dictionary)
         {
+            if (input.Any() == false)
+            {
+                return Array.Empty<byte>();
+            }
+
             using var stream = new MemoryStream();
 
             var buffer = new byte[1024];
@@ -74,6 +79,10 @@ namespace Port.Server.Spdy.Extensions
             this byte[] input,
             byte[] dictionary)
         {
+            if (input.Any() == false)
+            {
+                return Array.Empty<byte>();
+            }
             using var stream = new MemoryStream();
             var buffer = new byte[1024];
 

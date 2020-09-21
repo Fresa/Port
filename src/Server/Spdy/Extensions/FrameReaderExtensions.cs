@@ -8,7 +8,7 @@ namespace Port.Server.Spdy.Extensions
     internal static class FrameReaderExtensions
     {
         internal static async ValueTask<IReadOnlyDictionary<string, string[]>>
-            ReadNameValuePairs(
+            ReadNameValuePairsAsync(
                 this IFrameReader frameReader,
                 CancellationToken cancellationToken)
         {

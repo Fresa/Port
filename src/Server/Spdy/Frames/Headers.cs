@@ -126,15 +126,19 @@ namespace Port.Server.Spdy.Frames
                     .ConfigureAwait(false);
             // An unsigned 24 bit value representing the number of bytes after the length field. The minimum length of the length field is 4 (when the number of name value pairs is 0).
             var headerLength = (int) length.Value - 4;
-            var values =
-                await
-                    (await frameReader
-                        .ReadBytesAsync(headerLength, cancellation)
-                        .ConfigureAwait(false))
-                    .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                    .ToFrameReader()
-                    .ReadNameValuePairs(cancellation)
-                    .ConfigureAwait(false);
+            IReadOnlyDictionary<string, string[]> values = new Dictionary<string, string[]>();
+            if (headerLength > 0)
+            {
+                values =
+                    await
+                        (await frameReader
+                               .ReadBytesAsync(headerLength, cancellation)
+                               .ConfigureAwait(false))
+                        .ZlibDecompress(SpdyConstants.HeadersDictionary)
+                        .ToFrameReader()
+                        .ReadNameValuePairsAsync(cancellation)
+                        .ConfigureAwait(false);
+            }
 
             return ReadResult.Ok(new Headers(flags.ToEnum<Options>(), streamId, values));
         }

@@ -116,6 +116,10 @@ namespace Port.Server.Spdy
             int length,
             CancellationToken cancellationToken = default)
         {
+            if (length == 0)
+            {
+                return Array.Empty<byte>();
+            }
             var sequence = await GetAsync(length, cancellationToken)
                 .ConfigureAwait(false);
             var bytes = sequence.ToArray();
@@ -128,6 +132,10 @@ namespace Port.Server.Spdy
             int length,
             CancellationToken cancellationToken = default)
         {
+            if (length == 0)
+            {
+                return Array.Empty<byte>();
+            }
             var sequence = await GetAsync(length, cancellationToken)
                 .ConfigureAwait(false);
             _reader.AdvanceTo(sequence.GetPosition(0));

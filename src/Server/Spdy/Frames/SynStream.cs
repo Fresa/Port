@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -125,15 +126,19 @@ namespace Port.Server.Spdy.Frames
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 10;
-            var headers =
-                await
-                    (await frameReader
-                        .ReadBytesAsync(headerLength, cancellation)
-                        .ConfigureAwait(false))
-                    .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                    .ToFrameReader()
-                    .ReadNameValuePairs(cancellation)
-                    .ConfigureAwait(false);
+            IReadOnlyDictionary<string, string[]> headers = new Dictionary<string, string[]>();
+            if (headerLength > 0)
+            {
+                headers =
+                    await
+                        (await frameReader
+                               .ReadBytesAsync(headerLength, cancellation)
+                               .ConfigureAwait(false))
+                        .ZlibDecompress(SpdyConstants.HeadersDictionary)
+                        .ToFrameReader()
+                        .ReadNameValuePairsAsync(cancellation)
+                        .ConfigureAwait(false);
+            }
 
             return ReadResult.Ok(new SynStream(
                 flags.ToEnum<Options>(), streamId, associatedToStreamId, priority, headers));
