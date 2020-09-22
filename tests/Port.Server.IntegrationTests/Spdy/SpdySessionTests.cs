@@ -82,7 +82,7 @@ namespace Port.Server.IntegrationTests.Spdy
             private Data _dataSent = null!;
             private SpdyStream _stream = null!;
             private ISourceBlock<Data> _dataSubscription = null!;
-            
+
             public When_sending_data(
                 ITestOutputHelper testOutputHelper)
                 : base(testOutputHelper)
@@ -126,6 +126,66 @@ namespace Port.Server.IntegrationTests.Spdy
             public void It_should_send_a_data_frame_with_stream_id()
             {
                 _dataSent.StreamId.Should()
+                          .Be(1u);
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_sending_headers : SpdySessionTestSpecification
+        {
+            private Headers _headersSent = null!;
+            private SpdyStream _stream = null!;
+            private ISourceBlock<Headers> _headersSubscription = null!;
+
+            public When_sending_headers(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                Server.On<SynStream>(cancellationToken);
+                Server.On<GoAway>(cancellationToken);
+                _headersSubscription = Server.On<Headers>(cancellationToken);
+                _stream = Session.Open();
+                return Task.CompletedTask;
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                await _stream.SendHeadersAsync(new Dictionary<string, string[]> { { "header1", new[] { "value1", "value2" } } }, cancellationToken: cancellationToken)
+                       .ConfigureAwait(false);
+                _headersSent = await _headersSubscription
+                                   .ReceiveAsync(cancellationToken)
+                                   .ConfigureAwait(false);
+            }
+
+            [Fact]
+            public void It_should_send_headers()
+            {
+                _headersSent.Values.Should()
+                            .HaveCount(1)
+                            .And.AllBeEquivalentTo(new
+                                KeyValuePair<string, string[]>(
+                                    "header1", new[] {"value1", "value2"}));
+            }
+
+            [Fact]
+            public void It_should_send_a_header_that_is_not_last()
+            {
+                _headersSent.IsLastFrame.Should().BeFalse();
+            }
+
+            [Fact]
+            public void It_should_send_a_header_with_stream_id()
+            {
+                _headersSent.StreamId.Should()
                           .Be(1u);
             }
         }

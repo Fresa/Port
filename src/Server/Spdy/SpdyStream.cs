@@ -300,8 +300,9 @@ namespace Port.Server.Spdy
             }
         }
 
-        public Task SendAsync(
-            Headers headers,
+        public Task SendHeadersAsync(
+            IReadOnlyDictionary<string, string[]> headers,
+            Headers.Options options = Frames.Headers.Options.None,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
@@ -310,11 +311,14 @@ namespace Port.Server.Spdy
                 throw new InvalidOperationException("Stream is closed");
             }
 
-            Send(headers);
-
-            if (headers.IsLastFrame)
+            if (options == Frames.Headers.Options.Fin)
             {
+                Send(Frames.Headers.Last(Id, headers));
                 CloseLocal();
+            }
+            else
+            {
+                Send(new Headers(Id, headers));
             }
 
             return Task.CompletedTask;
