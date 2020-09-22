@@ -37,8 +37,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override Task GivenAsync(CancellationToken cancellationToken)
             {
-                _frame = new SynReply(
-                    SynReply.Options.Fin,
+                _frame = SynReply.AcceptAndClose(
                     UInt31.From(123),
                     new Dictionary<string, string[]>
                     {

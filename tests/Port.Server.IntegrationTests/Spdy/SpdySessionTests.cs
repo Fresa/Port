@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Buffers;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Xunit;
 using Xunit.Abstractions;
+using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server.IntegrationTests.Spdy
 {
@@ -135,6 +137,71 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 _dataSent.StreamId.Should()
                           .Be(1u);
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_receiving_data : XUnit2UnitTestSpecificationAsync
+        {
+            private SpdyStream _stream = null!;
+            private readonly List<byte> _dataReceived = new List<byte>();
+
+            public When_receiving_data(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenAsync(
+                CancellationToken cancellationToken)
+            {
+                var server = DisposeAsyncOnTearDown(await SpdySessionTester
+                                .ConnectAsync(cancellationToken)
+                                .ConfigureAwait(false));
+                var synStreamSubscription = server.On<SynStream>(cancellationToken);
+                server.On<GoAway>(cancellationToken);
+                _stream = server.Session.Open(
+                    SynStream.PriorityLevel.High,
+                    SynStream.Options.None,
+                    new Dictionary<string, string[]>());
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await server.SendAsync(
+                                SynReply.Accept(
+                                    _stream.Id,
+                                    new Dictionary<string, string[]>()),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                await server.SendAsync(
+                                Data.LastFrame(
+                                    _stream.Id,
+                                    Encoding.UTF8.GetBytes("my data")),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                ReadResult data;
+                do
+                {
+                    data = await _stream.ReceiveAsync(cancellationToken: cancellationToken)
+                                             .ConfigureAwait(false);
+
+                    _dataReceived.AddRange(data.Buffer.ToArray());
+                } while (data.IsCanceled == false && 
+                         data.IsCompleted == false);
+            }
+
+            [Fact]
+            public void It_should_receive_data()
+            {
+                _dataReceived.Should().HaveCount(7)
+                             .And.ContainInOrder(Encoding.UTF8.GetBytes("my data"));
             }
         }
     }

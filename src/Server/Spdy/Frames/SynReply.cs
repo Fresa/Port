@@ -30,9 +30,9 @@ namespace Port.Server.Spdy.Frames
     /// +------------------------------------+    |
     /// |           (repeats)                |   &lt;+
     /// </summary>
-    public class SynReply : Control
+    public sealed class SynReply : Control
     {
-        public SynReply(
+        private SynReply(
             Options flags,
             UInt31 streamId,
             IReadOnlyDictionary<string, string[]> headers) : base(Type)
@@ -41,7 +41,21 @@ namespace Port.Server.Spdy.Frames
             StreamId = streamId;
             Headers = headers;
         }
-        
+
+        public static SynReply AcceptAndClose(
+            UInt31 streamId,
+            IReadOnlyDictionary<string, string[]> headers)
+        {
+            return new SynReply(Options.Fin, streamId, headers);
+        }
+
+        public static SynReply Accept(
+            UInt31 streamId,
+            IReadOnlyDictionary<string, string[]> headers)
+        {
+            return new SynReply(Options.None, streamId, headers);
+        }
+
         public const ushort Type = 2;
 
         /// <summary>

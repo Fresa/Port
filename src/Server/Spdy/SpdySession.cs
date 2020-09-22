@@ -18,6 +18,7 @@ namespace Port.Server.Spdy
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
+        private Pipe _messageReceiver = new Pipe();
 
         private readonly CancellationTokenSource
             _sendingCancellationTokenSource;
@@ -33,6 +34,7 @@ namespace Port.Server.Spdy
 
         private Task _sendingTask = Task.CompletedTask;
         private Task _receivingTask = Task.CompletedTask;
+        private Task _messageHandlerTask = Task.CompletedTask;
 
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
@@ -61,6 +63,7 @@ namespace Port.Server.Spdy
             _networkClient = networkClient;
             RunNetworkSender();
             RunNetworkReceiver();
+            RunMessageHandler();
         }
 
         private void RunNetworkSender()
@@ -209,6 +212,7 @@ namespace Port.Server.Spdy
             return (false, stream)!;
         }
 
+
         private void RunNetworkReceiver()
         {
             // ReSharper disable once MethodSupportsCancellation
@@ -216,20 +220,65 @@ namespace Port.Server.Spdy
             _receivingTask = Task.Run(
                 async () =>
                 {
-                    var pipe = new Pipe();
+                    try
+                    {
+                        FlushResult result;
+                        do
+                        {
+                            var bytes = await _networkClient.ReceiveAsync(
+                                _messageReceiver.Writer.GetMemory(),
+                                SessionCancellationToken);
 
-                    var frameReader = new FrameReader(pipe.Reader);
+                            _messageReceiver.Writer.Advance(bytes);
+                            result = await _messageReceiver
+                                           .Writer.FlushAsync(
+                                               SessionCancellationToken)
+                                           .ConfigureAwait(false);
+                        } while (_sessionCancellationTokenSource
+                                     .IsCancellationRequested ==
+                                 false &&
+                                 result.IsCanceled == false &&
+                                 result.IsCompleted == false);
+                    }
+                    catch when (_sessionCancellationTokenSource
+                        .IsCancellationRequested)
+                    {
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Fatal(ex, "Unknown error, closing down");
+                        try
+                        {
+                            await Send(
+                                    GoAway.InternalError(
+                                        _lastGoodRepliedStreamId),
+                                    SessionCancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Error(e, "Could not send GoAway");
+                        }
+
+                        _sessionCancellationTokenSource.Cancel(false);
+                    }
+                });
+        }
+
+        private void RunMessageHandler()
+        {
+            // ReSharper disable once MethodSupportsCancellation
+            // Will gracefully handle cancellation
+            _messageHandlerTask = Task.Run(
+                async () =>
+                {
+                    var frameReader = new FrameReader(_messageReceiver.Reader);
                     try
                     {
                         while (_sessionCancellationTokenSource
                                    .IsCancellationRequested ==
                                false)
                         {
-                            var bytes = await _networkClient.ReceiveAsync(
-                                pipe.Writer.GetMemory(),
-                                SessionCancellationToken);
-                            
-                            pipe.Writer.Advance(bytes);
                             if ((await Frame.TryReadAsync(
                                                 frameReader,
                                                 SessionCancellationToken)
@@ -347,6 +396,7 @@ namespace Port.Server.Spdy
                                         out stream))
                                     {
                                         stream.Receive(data);
+                                        break;
                                     }
 
                                     // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
@@ -411,7 +461,7 @@ namespace Port.Server.Spdy
                 // Try cancel
             }
 
-            await Task.WhenAll(_receivingTask, _sendingTask)
+            await Task.WhenAll(_receivingTask, _sendingTask, _messageHandlerTask)
                       .ConfigureAwait(false);
 
             if (isClosed == false)
