@@ -1,7 +1,6 @@
-﻿using System.Buffers;
-using System.Collections;
+﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -269,7 +268,8 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 var synStreamSubscription = Server.On<SynStream>(cancellationToken);
                 Server.On<GoAway>(cancellationToken);
-                _stream = Session.Open();
+                _stream = DisposeOnTearDown(
+                    Session.Open(options: SynStream.Options.Fin));
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
                                            .ConfigureAwait(false);
                 await Server.SendAsync(
@@ -317,10 +317,64 @@ namespace Port.Server.IntegrationTests.Spdy
                        .HaveCount(2)
                        .And.ContainEquivalentOf(
                            new KeyValuePair<string, string[]>(
-                               "header1", new[] {"Value1"}))
+                               "header1", new[] { "Value1" }))
                        .And.ContainEquivalentOf(
                            new KeyValuePair<string, string[]>(
-                               "header2", new[] {"Value2"}));
+                               "header2", new[] { "Value2" }));
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_receiving_ping : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = null!;
+            private ISourceBlock<Ping> _pingSubscription = default!;
+            private Ping _pingReceived = default!;
+
+            public When_receiving_ping(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>(cancellationToken);
+                _pingSubscription = Server.On<Ping>(cancellationToken);
+                _stream = DisposeOnTearDown(
+                    Session.Open(options: SynStream.Options.Fin));
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(
+                                    _stream.Id,
+                                    new Dictionary<string, string[]>{
+                                    {
+                                        "header1", new []{"Value1"}
+                                    }}),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                await Server.SendAsync(
+                                new Ping(0),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                _pingReceived = await _pingSubscription.ReceiveAsync(cancellationToken);
+            }
+
+            [Fact]
+            public void It_should_have_sent_a_ping_response_back()
+            {
+                _pingReceived.Id.Should()
+                             .Be(0);
             }
         }
     }
