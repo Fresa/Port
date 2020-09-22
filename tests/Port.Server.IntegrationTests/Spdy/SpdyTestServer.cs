@@ -10,29 +10,15 @@ using Port.Server.Spdy.Frames;
 
 namespace Port.Server.IntegrationTests.Spdy
 {
-    internal sealed class SpdySessionTester : IAsyncDisposable
+    public sealed class SpdyTestServer : IAsyncDisposable
     {
         private readonly InMemorySocketTestFramework _testFramework =
             SocketTestFramework.SocketTestFramework.InMemory();
 
         private ISendingClient<Frame> _client = default!;
         private INetworkServer _server = default!;
-        internal SpdySession Session { get; private set; } = default!;
 
-        private SpdySessionTester()
-        {
-        }
-
-        internal static async Task<SpdySessionTester> ConnectAsync(
-            CancellationToken cancellationToken = default)
-        {
-            var tester = new SpdySessionTester();
-            await tester.ConnectInternallyAsync(cancellationToken)
-                        .ConfigureAwait(false);
-            return tester;
-        }
-
-        private async Task ConnectInternallyAsync(
+        internal async Task<SpdySession> ConnectAsync(
             CancellationToken cancellationToken = default)
         {
             _server =
@@ -45,9 +31,8 @@ namespace Port.Server.IntegrationTests.Spdy
                                               ProtocolType.Tcp,
                                               cancellationToken)
                                           .ConfigureAwait(false);
-
-            Session = new SpdySession(
-                await _server.WaitForConnectedClientAsync(cancellationToken));
+        
+            return new SpdySession(await _server.WaitForConnectedClientAsync(cancellationToken));
         }
 
         internal async Task SendAsync(
@@ -65,8 +50,6 @@ namespace Port.Server.IntegrationTests.Spdy
 
         public async ValueTask DisposeAsync()
         {
-            await Session.DisposeAsync()
-                         .ConfigureAwait(false);
             await _testFramework.DisposeAsync()
                                 .ConfigureAwait(false);
             await _server.DisposeAsync()

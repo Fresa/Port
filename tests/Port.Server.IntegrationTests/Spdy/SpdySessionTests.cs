@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using FluentAssertions;
-using Port.Server.IntegrationTests.TestFramework;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Xunit;
@@ -17,11 +16,10 @@ namespace Port.Server.IntegrationTests.Spdy
     public partial class Given_a_connected_spdy_session
     {
         public partial class
-            When_opening_a_stream : XUnit2UnitTestSpecificationAsync
+            When_opening_a_stream : SpdySessionTestSpecification
         {
             private SynStream _synStream = null!;
             private ISourceBlock<SynStream> _synStreamSubscription = default!;
-            private SpdySessionTester _tester = default!;
 
             public When_opening_a_stream(
                 ITestOutputHelper testOutputHelper)
@@ -29,24 +27,21 @@ namespace Port.Server.IntegrationTests.Spdy
             {
             }
 
-            protected override async Task GivenAsync(
+            protected override Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
-                _tester = DisposeAsyncOnTearDown(await SpdySessionTester
-                                .ConnectAsync(cancellationToken)
-                                .ConfigureAwait(false));
                 _synStreamSubscription =
-                    _tester.On<SynStream>(cancellationToken);
-                _tester.On<GoAway>(cancellationToken);
+                    Server.On<SynStream>(cancellationToken);
+                Server.On<GoAway>(cancellationToken);
+                return Task.CompletedTask;
             }
 
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _tester.Session.Open(
+                Session.Open(
                     SynStream.PriorityLevel.High,
-                    SynStream.Options.None,
-                    new Dictionary<string, string[]>
+                    headers: new Dictionary<string, string[]>
                         {{"header1", new[] {"value1"}}});
                 _synStream = await _synStreamSubscription
                                    .ReceiveAsync(cancellationToken)
@@ -67,7 +62,7 @@ namespace Port.Server.IntegrationTests.Spdy
                           .HaveCount(1)
                           .And.ContainEquivalentOf(
                               new KeyValuePair<string, string[]>(
-                                  "header1", new[] {"value1"}));
+                                  "header1", new[] { "value1" }));
             }
 
             [Fact]
@@ -82,31 +77,26 @@ namespace Port.Server.IntegrationTests.Spdy
     public partial class Given_an_opened_spdy_stream
     {
         public partial class
-            When_sending_data : XUnit2UnitTestSpecificationAsync
+            When_sending_data : SpdySessionTestSpecification
         {
             private Data _dataSent = null!;
             private SpdyStream _stream = null!;
             private ISourceBlock<Data> _dataSubscription = null!;
-
+            
             public When_sending_data(
                 ITestOutputHelper testOutputHelper)
                 : base(testOutputHelper)
             {
             }
 
-            protected override async Task GivenAsync(
+            protected override Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
-                var tester = DisposeAsyncOnTearDown(await SpdySessionTester
-                                .ConnectAsync(cancellationToken)
-                                .ConfigureAwait(false));
-                tester.On<SynStream>(cancellationToken);
-                tester.On<GoAway>(cancellationToken);
-                _dataSubscription = tester.On<Data>(cancellationToken);
-                _stream = tester.Session.Open(
-                    SynStream.PriorityLevel.High,
-                    SynStream.Options.None,
-                    new Dictionary<string, string[]>());
+                Server.On<SynStream>(cancellationToken);
+                Server.On<GoAway>(cancellationToken);
+                _dataSubscription = Server.On<Data>(cancellationToken);
+                _stream = Session.Open();
+                return Task.CompletedTask;
             }
 
             protected override async Task WhenAsync(
@@ -144,7 +134,7 @@ namespace Port.Server.IntegrationTests.Spdy
     public partial class Given_an_opened_spdy_stream
     {
         public partial class
-            When_receiving_data : XUnit2UnitTestSpecificationAsync
+            When_receiving_data : SpdySessionTestSpecification
         {
             private SpdyStream _stream = null!;
             private readonly List<byte> _dataReceived = new List<byte>();
@@ -155,27 +145,21 @@ namespace Port.Server.IntegrationTests.Spdy
             {
             }
 
-            protected override async Task GivenAsync(
+            protected override async Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
-                var server = DisposeAsyncOnTearDown(await SpdySessionTester
-                                .ConnectAsync(cancellationToken)
-                                .ConfigureAwait(false));
-                var synStreamSubscription = server.On<SynStream>(cancellationToken);
-                server.On<GoAway>(cancellationToken);
-                _stream = server.Session.Open(
-                    SynStream.PriorityLevel.High,
-                    SynStream.Options.None,
-                    new Dictionary<string, string[]>());
+                var synStreamSubscription = Server.On<SynStream>(cancellationToken);
+                Server.On<GoAway>(cancellationToken);
+                _stream = Session.Open();
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
                                            .ConfigureAwait(false);
-                await server.SendAsync(
+                await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
                                     new Dictionary<string, string[]>()),
                                 cancellationToken)
                             .ConfigureAwait(false);
-                await server.SendAsync(
+                await Server.SendAsync(
                                 Data.LastFrame(
                                     _stream.Id,
                                     Encoding.UTF8.GetBytes("my data")),
@@ -193,7 +177,7 @@ namespace Port.Server.IntegrationTests.Spdy
                                              .ConfigureAwait(false);
 
                     _dataReceived.AddRange(data.Buffer.ToArray());
-                } while (data.IsCanceled == false && 
+                } while (data.IsCanceled == false &&
                          data.IsCompleted == false);
             }
 

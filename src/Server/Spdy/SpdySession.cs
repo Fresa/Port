@@ -18,7 +18,7 @@ namespace Port.Server.Spdy
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
-        private Pipe _messageReceiver = new Pipe();
+        private readonly Pipe _messageReceiver = new Pipe();
 
         private readonly CancellationTokenSource
             _sendingCancellationTokenSource;
@@ -434,10 +434,11 @@ namespace Port.Server.Spdy
         }
 
         public SpdyStream Open(
-            SynStream.PriorityLevel priority,
-            SynStream.Options options,
-            IReadOnlyDictionary<string, string[]> headers)
+            SynStream.PriorityLevel priority = SynStream.PriorityLevel.Normal,
+            SynStream.Options options = SynStream.Options.None,
+            IReadOnlyDictionary<string, string[]>? headers = null)
         {
+            headers ??= new Dictionary<string, string[]>();
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
