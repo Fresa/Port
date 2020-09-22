@@ -16,7 +16,7 @@ namespace Port.Server.Spdy.Frames
     /// |               Data               |
     /// +----------------------------------+
     /// </summary>
-    public class Data : Frame
+    public sealed class Data : Frame
     {
         private Data(
             UInt31 streamId,
@@ -26,6 +26,16 @@ namespace Port.Server.Spdy.Frames
             StreamId = streamId;
             Flags = flags;
             Payload = payload;
+        }
+
+        public Data(
+            UInt31 streamId,
+            byte[] payload) 
+            : this(
+                streamId, 
+                Options.None, 
+                payload)
+        {
         }
 
         /// <summary>
@@ -56,20 +66,13 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public byte[] Payload { get; }
 
-        public static Data LastFrame(
+        public static Data Last(
             UInt31 streamId,
             byte[] payload)
         {
             return new Data(streamId, Options.Fin, payload);
         }
-
-        public static Data Frame(
-            UInt31 streamId,
-            byte[] payload)
-        {
-            return new Data(streamId, Options.None, payload);
-        }
-
+        
         protected override async ValueTask WriteFrameAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)

@@ -84,7 +84,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             [Fact]
             public void It_should_be_fin()
             {
-                _message.IsFin.Should()
+                _message.IsLastFrame.Should()
                     .BeTrue();
             }
 

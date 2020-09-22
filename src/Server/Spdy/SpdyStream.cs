@@ -92,7 +92,9 @@ namespace Port.Server.Spdy
                         return;
                     }
 
-                    if (synReply.IsFin)
+                    SetHeaders(synReply.Headers);
+
+                    if (synReply.IsLastFrame)
                     {
                         CloseRemote();
                         return;
@@ -109,16 +111,7 @@ namespace Port.Server.Spdy
                         CloseRemote();
                     }
 
-                    foreach (var (key, values) in headers.Values)
-                    {
-                        if (_headers.TryAdd(key, values))
-                        {
-                            continue;
-                        }
-
-                        Send(_protocolError);
-                        break;
-                    }
+                    SetHeaders(headers.Values);
                     break;
                 case WindowUpdate windowUpdate:
                     IncreaseWindowSize(windowUpdate.DeltaWindowSize);
@@ -160,6 +153,21 @@ namespace Port.Server.Spdy
             }
         }
 
+        private void SetHeaders(
+            IReadOnlyDictionary<string, string[]> headers)
+        {
+            foreach (var (key, values) in headers)
+            {
+                if (_headers.TryAdd(key, values))
+                {
+                    continue;
+                }
+
+                Send(_protocolError);
+                break;
+            }
+        }
+
         public SynStream.PriorityLevel Priority { get; }
 
         internal void Open(
@@ -193,7 +201,7 @@ namespace Port.Server.Spdy
             }
 
             CloseLocal();
-            Send(Data.LastFrame(Id, new byte[0]));
+            Send(Data.Last(Id, new byte[0]));
         }
 
         private void Send(
@@ -284,8 +292,8 @@ namespace Port.Server.Spdy
 
                     var payload = data.Slice(index, length).ToArray();
                     var frame = left == length && isFin
-                        ? Data.LastFrame(Id, payload)
-                        : Data.Frame(Id, payload);
+                        ? Data.Last(Id, payload)
+                        : new Data(Id, payload);
                     
                     Send(frame);
                     

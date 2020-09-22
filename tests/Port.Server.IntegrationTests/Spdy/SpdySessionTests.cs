@@ -1,5 +1,7 @@
 ﻿using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -173,7 +175,7 @@ namespace Port.Server.IntegrationTests.Spdy
                             .HaveCount(1)
                             .And.AllBeEquivalentTo(new
                                 KeyValuePair<string, string[]>(
-                                    "header1", new[] {"value1", "value2"}));
+                                    "header1", new[] { "value1", "value2" }));
             }
 
             [Fact]
@@ -220,7 +222,7 @@ namespace Port.Server.IntegrationTests.Spdy
                                 cancellationToken)
                             .ConfigureAwait(false);
                 await Server.SendAsync(
-                                Data.LastFrame(
+                                Data.Last(
                                     _stream.Id,
                                     Encoding.UTF8.GetBytes("my data")),
                                 cancellationToken)
@@ -246,6 +248,79 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 _dataReceived.Should().HaveCount(7)
                              .And.ContainInOrder(Encoding.UTF8.GetBytes("my data"));
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_receiving_headers : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = null!;
+            public When_receiving_headers(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>(cancellationToken);
+                Server.On<GoAway>(cancellationToken);
+                _stream = Session.Open();
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(
+                                    _stream.Id,
+                                    new Dictionary<string, string[]>{
+                                    {
+                                        "header1", new []{"Value1"}
+                                    }}),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                await Server.SendAsync(
+                                new Headers(
+                                    _stream.Id,
+                                    new Dictionary<string, string[]>{
+                                    {
+                                        "header2", new []{"Value2"}
+                                    }}),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                await Server.SendAsync(
+                                Data.Last(
+                                    _stream.Id,
+                                    Encoding.UTF8.GetBytes("end")),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                ReadResult data;
+                do
+                {
+                    data = await _stream.ReceiveAsync(cancellationToken: cancellationToken)
+                                             .ConfigureAwait(false);
+                } while (data.IsCanceled == false &&
+                         data.IsCompleted == false);
+            }
+
+            [Fact]
+            public void It_should_have_headers()
+            {
+                _stream.Headers.Should()
+                       .HaveCount(2)
+                       .And.ContainEquivalentOf(
+                           new KeyValuePair<string, string[]>(
+                               "header1", new[] {"Value1"}))
+                       .And.ContainEquivalentOf(
+                           new KeyValuePair<string, string[]>(
+                               "header2", new[] {"Value2"}));
             }
         }
     }

@@ -29,7 +29,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override Task GivenAsync(
                 CancellationToken cancellationToken)
             {
-                _frame = Data.LastFrame(
+                _frame = Data.Last(
                     UInt31.From(123),
                     Encoding.UTF8.GetBytes("this is a payload"));
                 return Task.CompletedTask;
