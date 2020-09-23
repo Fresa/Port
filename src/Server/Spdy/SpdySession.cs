@@ -5,6 +5,7 @@ using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
+using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
@@ -45,11 +46,11 @@ namespace Port.Server.Spdy
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
 
-        private readonly Dictionary<Settings.Id, Settings.Setting> _settings =
-            new Dictionary<Settings.Id, Settings.Setting>();
+        private readonly ObservableConcurrentDictionary<Settings.Id, Settings.Setting> _settings =
+            new ObservableConcurrentDictionary<Settings.Id, Settings.Setting>();
 
-        public IReadOnlyCollection<Settings.Setting> Settings
-            => _settings.Values;
+        public IObservableReadOnlyCollection<Settings.Setting> Settings
+            => _settings;
 
         private const int InitialWindowSize = 64000;
         private int _windowSize = InitialWindowSize;
@@ -314,7 +315,10 @@ namespace Port.Server.Spdy
                         _settings[setting.Id] =
                             new Settings.Setting(
                                 setting.Id,
-                                Frames.Settings.ValueOptions.Persisted,
+                                // todo: Persist values!
+                                setting.ShouldPersist
+                                    ? Frames.Settings.ValueOptions.Persisted
+                                    : Frames.Settings.ValueOptions.None,
                                 setting.Value);
                     }
 
@@ -366,8 +370,7 @@ namespace Port.Server.Spdy
                     }
 
                     (found, stream) =
-                        await TryGetStreamOrCloseSession(
-                                windowUpdate.StreamId)
+                        await TryGetStreamOrCloseSession(windowUpdate.StreamId)
                             .ConfigureAwait(false);
                     if (found == false)
                     {
@@ -391,7 +394,8 @@ namespace Port.Server.Spdy
                         RstStream.InvalidStream(data.StreamId));
                     break;
                 default:
-                    throw new InvalidOperationException($"Frame {frame.GetType().FullName} is unknown");
+                    throw new InvalidOperationException(
+                        $"Frame {frame.GetType().FullName} is unknown");
             }
         }
 
