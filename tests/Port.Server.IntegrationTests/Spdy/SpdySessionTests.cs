@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using FluentAssertions;
+using Port.Server.IntegrationTests.Spdy.Extensions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Xunit;
@@ -376,6 +377,53 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 _pingReceived.Id.Should()
                              .Be(0);
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_session
+    {
+        public partial class
+            When_receiving_settings : SpdySessionTestSpecification
+        {
+            private readonly List<Settings.Setting> _settingsReceived = new List<Settings.Setting>();
+            private ISourceBlock<Settings.Setting> _settingsSubscription = default!;
+
+            public When_receiving_settings(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                _settingsSubscription = Session.Settings.Subscribe();
+                await Server.SendAsync(
+                                new Settings(
+                                        Settings.MaxConcurrentStreams(100),
+                                        Settings.UploadBandwidth(1000)),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                for (var i = 0; i < 2; i++)
+                {
+                    _settingsReceived.Add(await _settingsSubscription.ReceiveAsync(cancellationToken)
+                        .ConfigureAwait(false));
+                }
+            }
+
+            [Fact]
+            public void It_should_have_received_settings()
+            {
+                _settingsReceived.Should()
+                                 .HaveCount(2)
+                                 .And.ContainEquivalentOf(Settings.MaxConcurrentStreams(100))
+                                 .And.ContainEquivalentOf(Settings.UploadBandwidth(1000));
             }
         }
     }

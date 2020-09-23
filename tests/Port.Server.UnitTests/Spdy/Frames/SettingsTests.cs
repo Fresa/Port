@@ -27,17 +27,14 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override Task GivenAsync(
                 CancellationToken cancellationToken)
             {
-                _frame = new Settings(
-                    Settings.Options.ClearSettings,
-                    new Settings.ValuesList
-                    {
+                _frame = Settings.Clear(
                         Settings.ClientCertificateVectorSize(
-                            Settings.ValueOptions.PersistValue,
-                            100),
+                            100,
+                            Settings.ValueOptions.PersistValue),
                         Settings.DownloadBandwidth(
-                            Settings.ValueOptions.Persisted,
-                            1245)
-                    });
+                            1245,
+                            Settings.ValueOptions.Persisted)
+                    );
                 return Task.CompletedTask;
             }
 
@@ -68,7 +65,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _message = (Settings) (await Control.TryReadAsync(
+                _message = (Settings)(await Control.TryReadAsync(
                         new FrameReader(PipeReader.Create(_serialized)),
                         cancellationToken)
                     .ConfigureAwait(false)).Result;

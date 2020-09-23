@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,14 +26,26 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public class Settings : Control
     {
-        internal Settings(
+        private Settings(
             Options flags,
-            ValuesList values)
+            params Setting[] values)
             : base(Type)
         {
             Flags = flags;
-            Values = values;
+            Values = values.ToDictionary(
+                               setting => setting.Id, setting => setting)
+                           .Values;
         }
+
+        public Settings(
+            params Setting[] values)
+            : this(Options.None, values)
+        {
+        }
+
+        public static Settings Clear(
+            params Setting[] values) => new Settings(
+            Options.ClearSettings, values);
 
         public const ushort Type = 4;
 
@@ -70,7 +83,7 @@ namespace Port.Server.Spdy.Frames
             var numberOfSettings = await frameReader
                                          .ReadUInt32Async(cancellation)
                                          .ConfigureAwait(false);
-            var settings = new ValuesList();
+            var settings = new Dictionary<Id, Setting>();
             for (var i = 0; i < numberOfSettings; i++)
             {
                 var flag = await frameReader.ReadByteAsync(cancellation)
@@ -84,7 +97,9 @@ namespace Port.Server.Spdy.Frames
                 settings.TryAdd(id, new Setting(id, flag, value));
             }
 
-            return ReadResult.Ok(new Settings(flags.ToEnum<Options>(), settings));
+            return ReadResult.Ok(
+                new Settings(
+                    flags.ToEnum<Options>(), settings.Values.ToArray()));
         }
 
         protected override async ValueTask WriteControlFrameAsync(
@@ -113,64 +128,65 @@ namespace Port.Server.Spdy.Frames
         }
 
         public static Setting ClientCertificateVectorSize(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.ClientCertificateVectorSize,
                 flags,
                 value);
 
+
         public static Setting CurrentCwnd(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.CurrentCwnd,
                 flags,
                 value);
 
         public static Setting DownloadBandwidth(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.DownloadBandwidth,
                 flags,
                 value);
 
         public static Setting DownloadRetransRate(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.DownloadRetransRate,
                 flags,
                 value);
 
         public static Setting InitialWindowSize(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.InitialWindowSize,
                 flags,
                 value);
 
         public static Setting MaxConcurrentStreams(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.MaxConcurrentStreams,
                 flags,
                 value);
 
         public static Setting RoundTripTime(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.RoundTripTime,
                 flags,
                 value);
 
         public static Setting UploadBandwidth(
-            ValueOptions flags,
-            uint value)
+            uint value,
+            ValueOptions flags = ValueOptions.None)
             => new Setting(
                 Id.UploadBandwidth,
                 flags,
@@ -210,17 +226,6 @@ namespace Port.Server.Spdy.Frames
             public bool IsPersisted => Flags == ValueOptions.Persisted;
 
             public ValueOptions Flags { get; }
-        }
-
-        public sealed class ValuesList : Dictionary<Id, Setting>,
-            IReadOnlyCollection<Setting>
-        {
-            public void Add(
-                Setting setting)
-                => Add(setting.Id, setting);
-
-            IEnumerator<Setting> IEnumerable<Setting>.GetEnumerator()
-                => Values.GetEnumerator();
         }
 
         public enum ValueOptions : ushort
