@@ -48,7 +48,8 @@ namespace Port.Server.Spdy
         private readonly Dictionary<Settings.Id, Settings.Setting> _settings =
             new Dictionary<Settings.Id, Settings.Setting>();
 
-        public IReadOnlyCollection<Settings.Setting> Settings => _settings.Values;
+        public IReadOnlyCollection<Settings.Setting> Settings
+            => _settings.Values;
 
         private const int InitialWindowSize = 64000;
         private int _windowSize = InitialWindowSize;
@@ -134,11 +135,14 @@ namespace Port.Server.Spdy
                                 .ConfigureAwait(false);
         }
 
-        private async Task Send(Data data, CancellationToken cancellationToken)
+        private async Task Send(
+            Data data,
+            CancellationToken cancellationToken)
         {
             using var gate = SemaphoreSlimGate.OneAtATime;
             {
-                while (Interlocked.Add(ref _windowSize, -data.Payload.Length) < 0)
+                while (Interlocked.Add(ref _windowSize, -data.Payload.Length) <
+                       0)
                 {
                     Interlocked.Add(ref _windowSize, data.Payload.Length);
                     await _windowSizeGate.WaitAsync(SessionCancellationToken)
@@ -146,11 +150,13 @@ namespace Port.Server.Spdy
                 }
             }
 
-            await Send((Frame)data, cancellationToken)
+            await Send((Frame) data, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim
+            _windowSizeGate = new SemaphoreSlim(1, 1);
+
         private async Task<bool> TryIncreaseWindowSizeOrCloseSessionAsync(
             int delta)
         {
@@ -162,7 +168,9 @@ namespace Port.Server.Spdy
             }
             catch (OverflowException)
             {
-                await Send(RstStream.FlowControlError(_lastGoodRepliedStreamId), SessionCancellationToken)
+                await Send(
+                        RstStream.FlowControlError(_lastGoodRepliedStreamId),
+                        SessionCancellationToken)
                     .ConfigureAwait(false);
 
                 _sessionCancellationTokenSource.Cancel(false);
@@ -188,7 +196,7 @@ namespace Port.Server.Spdy
                 id = 1;
             }
 
-            var ping = new Ping((uint)id);
+            var ping = new Ping((uint) id);
             _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
         }
 
@@ -205,7 +213,9 @@ namespace Port.Server.Spdy
 
             await StopNetworkSender()
                 .ConfigureAwait(false);
-            await Send(GoAway.ProtocolError(_lastGoodRepliedStreamId), SessionCancellationToken)
+            await Send(
+                    GoAway.ProtocolError(_lastGoodRepliedStreamId),
+                    SessionCancellationToken)
                 .ConfigureAwait(false);
 
             _sessionCancellationTokenSource.Cancel(false);
@@ -279,133 +289,8 @@ namespace Port.Server.Spdy
                                    .IsCancellationRequested ==
                                false)
                         {
-                            if ((await Frame.TryReadAsync(
-                                                frameReader,
-                                                SessionCancellationToken)
-                                            .ConfigureAwait(false)).Out(
-                                out var frame, out var error) == false)
-                            {
-                                await Send(error, SessionCancellationToken);
-                                continue;
-                            }
-                            bool found;
-                            SpdyStream? stream;
-                            switch (frame)
-                            {
-                                case SynStream synStream:
-                                    throw new NotImplementedException();
-                                case SynReply synReply:
-                                    (found, stream) =
-                                        await TryGetStreamOrCloseSession(
-                                                synReply.StreamId)
-                                            .ConfigureAwait(false);
-                                    if (found == false)
-                                    {
-                                        return;
-                                    }
-
-                                    stream.Receive(frame);
-                                    break;
-                                case RstStream rstStream:
-                                    (found, stream) =
-                                        await TryGetStreamOrCloseSession(
-                                                rstStream.StreamId)
-                                            .ConfigureAwait(false);
-                                    if (found == false)
-                                    {
-                                        return;
-                                    }
-
-                                    stream.Receive(frame);
-                                    break;
-                                case Settings settings:
-                                    if (settings.ClearSettings)
-                                    {
-                                        _settings.Clear();
-                                    }
-
-                                    foreach (var setting in settings.Values)
-                                    {
-                                        _settings[setting.Id] =
-                                            new Settings.Setting(
-                                                setting.Id,
-                                                Frames.Settings.ValueOptions.Persisted,
-                                                setting.Value);
-                                    }
-
-                                    foreach (var spdyStream in _streams.Values)
-                                    {
-                                        spdyStream.Receive(settings);
-                                    }
-                                    break;
-                                case Ping ping:
-                                    // If a client receives an odd numbered PING which it did not initiate, it must ignore the PING.
-                                    if (ping.Id % 2 != 0)
-                                    {
-                                        break;
-                                    }
-
-                                    // Pong
-                                    _sendingPriorityQueue.Enqueue(
-                                        SynStream.PriorityLevel.Top, ping);
-                                    break;
-                                case GoAway goAway:
-                                    _sessionCancellationTokenSource.Cancel(false);
-                                    Interlocked.Exchange(ref _streamCounter, goAway.LastGoodStreamId);
-                                    return;
-                                case Headers headers:
-                                    (found, stream) =
-                                        await TryGetStreamOrCloseSession(
-                                                headers.StreamId)
-                                            .ConfigureAwait(false);
-                                    if (found == false)
-                                    {
-                                        return;
-                                    }
-
-                                    stream.Receive(headers);
-                                    break;
-                                case WindowUpdate windowUpdate:
-                                    if (await TryIncreaseWindowSizeOrCloseSessionAsync(
-                                            windowUpdate.DeltaWindowSize)
-                                        .ConfigureAwait(false) == false)
-                                    {
-                                        return;
-                                    }
-
-                                    if (windowUpdate
-                                        .IsConnectionFlowControl)
-                                    {
-                                        break;
-                                    }
-
-                                    (found, stream) =
-                                        await TryGetStreamOrCloseSession(
-                                                windowUpdate.StreamId)
-                                            .ConfigureAwait(false);
-                                    if (found == false)
-                                    {
-                                        return;
-                                    }
-
-                                    stream.Receive(windowUpdate);
-                                    break;
-                                case Data data:
-                                    if (_streams.TryGetValue(
-                                        data.StreamId,
-                                        out stream))
-                                    {
-                                        stream.Receive(data);
-                                        break;
-                                    }
-
-                                    // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
-                                    _sendingPriorityQueue.Enqueue(
-                                        SynStream.PriorityLevel.High,
-                                        RstStream.InvalidStream(data.StreamId));
-                                    break;
-
-                            }
+                            await HandleMessage(frameReader)
+                                .ConfigureAwait(false);
                         }
                     }
                     catch when (_sessionCancellationTokenSource
@@ -433,13 +318,143 @@ namespace Port.Server.Spdy
                 });
         }
 
+        private async Task HandleMessage(
+            IFrameReader frameReader)
+        {
+            if ((await Frame.TryReadAsync(
+                                frameReader,
+                                SessionCancellationToken)
+                            .ConfigureAwait(false)).Out(
+                out var frame, out var error) == false)
+            {
+                await Send(error, SessionCancellationToken);
+                return;
+            }
+
+            bool found;
+            SpdyStream? stream;
+            switch (frame)
+            {
+                case SynStream synStream:
+                    throw new NotImplementedException();
+                case SynReply synReply:
+                    (found, stream) =
+                        await TryGetStreamOrCloseSession(synReply.StreamId)
+                            .ConfigureAwait(false);
+                    if (found == false)
+                    {
+                        return;
+                    }
+
+                    stream.Receive(frame);
+                    break;
+                case RstStream rstStream:
+                    (found, stream) =
+                        await TryGetStreamOrCloseSession(rstStream.StreamId)
+                            .ConfigureAwait(false);
+                    if (found == false)
+                    {
+                        return;
+                    }
+
+                    stream.Receive(frame);
+                    break;
+                case Settings settings:
+                    if (settings.ClearSettings)
+                    {
+                        _settings.Clear();
+                    }
+
+                    foreach (var setting in settings.Values)
+                    {
+                        _settings[setting.Id] =
+                            new Settings.Setting(
+                                setting.Id,
+                                Frames.Settings.ValueOptions.Persisted,
+                                setting.Value);
+                    }
+
+                    foreach (var spdyStream in _streams.Values)
+                    {
+                        spdyStream.Receive(settings);
+                    }
+
+                    break;
+                case Ping ping:
+                    // If a client receives an odd numbered PING which it did not initiate, it must ignore the PING.
+                    if (ping.Id % 2 != 0)
+                    {
+                        break;
+                    }
+
+                    // Pong
+                    _sendingPriorityQueue.Enqueue(
+                        SynStream.PriorityLevel.Top, ping);
+                    break;
+                case GoAway goAway:
+                    _sessionCancellationTokenSource.Cancel(false);
+                    Interlocked.Exchange(
+                        ref _streamCounter, goAway.LastGoodStreamId);
+                    return;
+                case Headers headers:
+                    (found, stream) =
+                        await TryGetStreamOrCloseSession(headers.StreamId)
+                            .ConfigureAwait(false);
+                    if (found == false)
+                    {
+                        return;
+                    }
+
+                    stream.Receive(headers);
+                    break;
+                case WindowUpdate windowUpdate:
+                    if (await TryIncreaseWindowSizeOrCloseSessionAsync(
+                            windowUpdate.DeltaWindowSize)
+                        .ConfigureAwait(false) == false)
+                    {
+                        return;
+                    }
+
+                    if (windowUpdate
+                        .IsConnectionFlowControl)
+                    {
+                        break;
+                    }
+
+                    (found, stream) =
+                        await TryGetStreamOrCloseSession(windowUpdate.StreamId)
+                            .ConfigureAwait(false);
+                    if (found == false)
+                    {
+                        return;
+                    }
+
+                    stream.Receive(windowUpdate);
+                    break;
+                case Data data:
+                    if (_streams.TryGetValue(
+                        data.StreamId,
+                        out stream))
+                    {
+                        stream.Receive(data);
+                        break;
+                    }
+
+                    // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
+                    _sendingPriorityQueue.Enqueue(
+                        SynStream.PriorityLevel.High,
+                        RstStream.InvalidStream(data.StreamId));
+                    break;
+            }
+        }
+
         public SpdyStream Open(
             SynStream.PriorityLevel priority = SynStream.PriorityLevel.Normal,
             SynStream.Options options = SynStream.Options.None,
             IReadOnlyDictionary<string, string[]>? headers = null)
         {
             headers ??= new Dictionary<string, string[]>();
-            var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
+            var streamId = (uint) Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
@@ -462,15 +477,16 @@ namespace Port.Server.Spdy
                 // Try cancel
             }
 
-            await Task.WhenAll(_receivingTask, _sendingTask, _messageHandlerTask)
+            await Task.WhenAll(
+                          _receivingTask, _sendingTask, _messageHandlerTask)
                       .ConfigureAwait(false);
 
             if (isClosed == false)
             {
                 await Send(
-                       GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
-                       CancellationToken.None)
-                   .ConfigureAwait(false);
+                        GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
             }
 
             await _networkClient.DisposeAsync()
