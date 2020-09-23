@@ -10,7 +10,7 @@ namespace Port.Server.Spdy.Extensions
     {
         internal static async ValueTask WriteNameValuePairs(
             this IFrameWriter frameWriter,
-            IReadOnlyDictionary<string, string[]> nameValuePairs,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> nameValuePairs,
             CancellationToken cancellationToken)
         {
             if (!nameValuePairs.Any())

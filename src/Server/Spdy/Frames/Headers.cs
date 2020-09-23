@@ -37,7 +37,7 @@ namespace Port.Server.Spdy.Frames
         private Headers(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string[]> values)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> values)
             : base(Type)
         {
             Flags = flags;
@@ -47,7 +47,7 @@ namespace Port.Server.Spdy.Frames
 
         public Headers(
             UInt31 streamId,
-            IReadOnlyDictionary<string, string[]> values)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> values)
             : this(
                 Options.None,
                 streamId,
@@ -57,7 +57,7 @@ namespace Port.Server.Spdy.Frames
 
         public static Headers Last(
             UInt31 streamId,
-            IReadOnlyDictionary<string, string[]> values)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> values)
         {
             return new Headers(Options.Fin, streamId, values);
         }
@@ -90,11 +90,11 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public UInt31 StreamId { get; }
 
-        private IReadOnlyDictionary<string, string[]> _values = new Dictionary<string, string[]>();
+        private IReadOnlyDictionary<string, IReadOnlyList<string>> _values = new Dictionary<string, IReadOnlyList<string>>();
         /// <summary>
         /// A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string[]> Values
+        public IReadOnlyDictionary<string, IReadOnlyList<string>> Values
         {
             get => _values;
             private set
@@ -126,7 +126,7 @@ namespace Port.Server.Spdy.Frames
                     .ConfigureAwait(false);
             // An unsigned 24 bit value representing the number of bytes after the length field. The minimum length of the length field is 4 (when the number of name value pairs is 0).
             var headerLength = (int) length.Value - 4;
-            IReadOnlyDictionary<string, string[]> values = new Dictionary<string, string[]>();
+            IReadOnlyDictionary<string, IReadOnlyList<string>> values = new Dictionary<string, IReadOnlyList<string>>();
             if (headerLength > 0)
             {
                 values =

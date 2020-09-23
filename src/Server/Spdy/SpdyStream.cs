@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
 
@@ -24,9 +25,9 @@ namespace Port.Server.Spdy
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
-        private readonly ConcurrentDictionary<string, string[]> _headers = new ConcurrentDictionary<string, string[]>();
+        private readonly ObservableConcurrentDictionary<string, IReadOnlyList<string>> _headers = new ObservableConcurrentDictionary<string, IReadOnlyList<string>>();
 
-        public IReadOnlyDictionary<string, string[]> Headers => _headers;
+        public IObservableReadOnlyDictionary<string, IReadOnlyList<string>> Headers => _headers;
 
         private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
         private bool IsLocalClosed => _localStream.IsCancellationRequested;
@@ -154,7 +155,7 @@ namespace Port.Server.Spdy
         }
 
         private void SetHeaders(
-            IReadOnlyDictionary<string, string[]> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
         {
             foreach (var (key, values) in headers)
             {
@@ -172,7 +173,7 @@ namespace Port.Server.Spdy
 
         internal void Open(
             SynStream.Options options,
-            IReadOnlyDictionary<string, string[]> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
         {
             var open = new SynStream(
                 options, Id, UInt31.From(0), Priority,
@@ -309,7 +310,7 @@ namespace Port.Server.Spdy
         }
 
         public Task SendHeadersAsync(
-            IReadOnlyDictionary<string, string[]> headers,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers,
             Headers.Options options = Frames.Headers.Options.None,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)

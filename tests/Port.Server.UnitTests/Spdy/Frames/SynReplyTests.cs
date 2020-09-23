@@ -44,7 +44,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
                     UInt31.From(123),
                     UInt31.From(524),
                     SynStream.PriorityLevel.High,
-                    new Dictionary<string, string[]>
+                    new Dictionary<string, IReadOnlyList<string>>
                     {
                         {
                             "Host", new[] {"test", "test2"}

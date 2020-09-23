@@ -35,7 +35,7 @@ namespace Port.Server.Spdy.Frames
         private SynReply(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, string[]> headers) : base(Type)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
@@ -44,14 +44,14 @@ namespace Port.Server.Spdy.Frames
 
         public static SynReply AcceptAndClose(
             UInt31 streamId,
-            IReadOnlyDictionary<string, string[]> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
         {
             return new SynReply(Options.Fin, streamId, headers);
         }
 
         public static SynReply Accept(
             UInt31 streamId,
-            IReadOnlyDictionary<string, string[]> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
         {
             return new SynReply(Options.None, streamId, headers);
         }
@@ -87,7 +87,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string[]> Headers { get; }
+        public IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; }
 
         internal static async ValueTask<ReadResult<SynReply>> TryReadAsync(
             byte flags,
@@ -101,7 +101,7 @@ namespace Port.Server.Spdy.Frames
                     .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_REPLY frames, this is 4 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 4;
-            IReadOnlyDictionary<string, string[]> headers = new Dictionary<string, string[]>();
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers = new Dictionary<string, IReadOnlyList<string>>();
             if (headerLength > 0)
             {
                 headers =

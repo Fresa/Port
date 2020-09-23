@@ -42,7 +42,7 @@ namespace Port.Server.Spdy.Frames
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            IReadOnlyDictionary<string, string[]> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
             : base(Type)
         {
             Flags = flags;
@@ -101,7 +101,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, string[]> Headers { get; }
+        public IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; }
 
         internal static async ValueTask<ReadResult<SynStream>> TryReadAsync(
             byte flags,
@@ -126,7 +126,7 @@ namespace Port.Server.Spdy.Frames
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 10;
-            IReadOnlyDictionary<string, string[]> headers = new Dictionary<string, string[]>();
+            IReadOnlyDictionary<string, IReadOnlyList<string>> headers = new Dictionary<string, IReadOnlyList<string>>();
             if (headerLength > 0)
             {
                 headers =

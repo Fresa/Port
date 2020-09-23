@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,7 +43,7 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 Session.Open(
                     SynStream.PriorityLevel.High,
-                    headers: new Dictionary<string, string[]>
+                    headers: new Dictionary<string, IReadOnlyList<string>>
                         {{"header1", new[] {"value1"}}});
                 _synStream = await _synStreamSubscription
                                    .ReceiveAsync(cancellationToken)
@@ -160,7 +161,7 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                await _stream.SendHeadersAsync(new Dictionary<string, string[]> { { "header1", new[] { "value1", "value2" } } }, cancellationToken: cancellationToken)
+                await _stream.SendHeadersAsync(new Dictionary<string, IReadOnlyList<string>> { { "header1", new[] { "value1", "value2" } } }, cancellationToken: cancellationToken)
                        .ConfigureAwait(false);
                 _headersSent = await _headersSubscription
                                    .ReceiveAsync(cancellationToken)
@@ -217,7 +218,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
-                                    new Dictionary<string, string[]>()),
+                                    new Dictionary<string, IReadOnlyList<string>>()),
                                 cancellationToken)
                             .ConfigureAwait(false);
                 await Server.SendAsync(
@@ -275,7 +276,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
-                                    new Dictionary<string, string[]>{
+                                    new Dictionary<string, IReadOnlyList<string>>{
                                     {
                                         "header1", new []{"Value1"}
                                     }}),
@@ -284,7 +285,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 await Server.SendAsync(
                                 new Headers(
                                     _stream.Id,
-                                    new Dictionary<string, string[]>{
+                                    new Dictionary<string, IReadOnlyList<string>>{
                                     {
                                         "header2", new []{"Value2"}
                                     }}),
@@ -313,7 +314,7 @@ namespace Port.Server.IntegrationTests.Spdy
             [Fact]
             public void It_should_have_headers()
             {
-                _stream.Headers.Should()
+                _stream.Headers.ToList().Should()
                        .HaveCount(2)
                        .And.ContainEquivalentOf(
                            new KeyValuePair<string, string[]>(
@@ -352,7 +353,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
-                                    new Dictionary<string, string[]>{
+                                    new Dictionary<string, IReadOnlyList<string>>{
                                     {
                                         "header1", new []{"Value1"}
                                     }}),

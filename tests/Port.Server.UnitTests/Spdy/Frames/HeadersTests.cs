@@ -40,7 +40,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             {
                 _frame = Headers.Last(
                     UInt31.From(123),
-                    new Dictionary<string, string[]>
+                    new Dictionary<string, IReadOnlyList<string>>
                     {
                         {
                             "Host", new []{"test"}

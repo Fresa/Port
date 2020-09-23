@@ -2,7 +2,7 @@
 
 namespace Port.Server.Spdy.Collections
 {
-    internal interface
+    public interface
         IObservableReadOnlyDictionary<TKey, TValue> : IReadOnlyDictionary<TKey,
             TValue>
         where TKey : notnull

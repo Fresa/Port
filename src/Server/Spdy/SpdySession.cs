@@ -402,9 +402,9 @@ namespace Port.Server.Spdy
         public SpdyStream Open(
             SynStream.PriorityLevel priority = SynStream.PriorityLevel.Normal,
             SynStream.Options options = SynStream.Options.None,
-            IReadOnlyDictionary<string, string[]>? headers = null)
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
         {
-            headers ??= new Dictionary<string, string[]>();
+            headers ??= new Dictionary<string, IReadOnlyList<string>>();
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
