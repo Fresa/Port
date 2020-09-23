@@ -390,6 +390,8 @@ namespace Port.Server.Spdy
                         SynStream.PriorityLevel.High,
                         RstStream.InvalidStream(data.StreamId));
                     break;
+                default:
+                    throw new InvalidOperationException($"Frame {frame.GetType().FullName} is unknown");
             }
         }
 
