@@ -32,9 +32,9 @@ namespace Port.Server.Spdy
         private CancellationToken SessionCancellationToken
             => _sessionCancellationTokenSource.Token;
 
-        private Task _sendingTask = Task.CompletedTask;
-        private Task _receivingTask = Task.CompletedTask;
-        private Task _messageHandlerTask = Task.CompletedTask;
+        private readonly Task _sendingTask;
+        private readonly Task _receivingTask;
+        private readonly Task _messageHandlerTask;
 
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
@@ -62,39 +62,24 @@ namespace Port.Server.Spdy
                     SessionCancellationToken);
 
             _networkClient = networkClient;
-            RunNetworkSender();
-            RunNetworkReceiver();
-            RunMessageHandler();
+
+            _sendingTask = StartBackgroundTask(SendFramesAsync);
+            _receivingTask = StartBackgroundTask(ReceiveFromNetworkClientAsync);
+            _messageHandlerTask = StartBackgroundTask(HandleMessagesAsync);
         }
 
-        private void RunNetworkSender()
+        private Task StartBackgroundTask(
+            Func<Task> action)
         {
             // ReSharper disable once MethodSupportsCancellation
             // Will gracefully handle cancellation
-            _sendingTask = Task.Run(
+            return Task.Run(
                 async () =>
                 {
                     try
                     {
-                        while (_sessionCancellationTokenSource
-                            .IsCancellationRequested == false)
-                        {
-                            var frame = await _sendingPriorityQueue
-                                              .DequeueAsync(
-                                                  SendingCancellationToken)
-                                              .ConfigureAwait(false);
-
-                            if (frame is Data data)
-                            {
-                                // todo: Should we always wait for data frames to be sent before sending the next frame (which might be a control frame that are not under flow control)?
-                                await Send(data, SendingCancellationToken)
-                                    .ConfigureAwait(false);
-                                continue;
-                            }
-
-                            await Send(frame, SendingCancellationToken)
-                                .ConfigureAwait(false);
-                        }
+                        await action()
+                            .ConfigureAwait(false);
                     }
                     catch when (_sessionCancellationTokenSource
                         .IsCancellationRequested)
@@ -105,7 +90,7 @@ namespace Port.Server.Spdy
                         _logger.Fatal(ex, "Unknown error, closing down");
                         try
                         {
-                            await Send(
+                            await SendAsync(
                                     GoAway.InternalError(
                                         UInt31.From(_lastGoodRepliedStreamId)),
                                     SendingCancellationToken)
@@ -121,13 +106,35 @@ namespace Port.Server.Spdy
                 });
         }
 
+        private async Task SendFramesAsync()
+        {
+            while (_sessionCancellationTokenSource
+                .IsCancellationRequested == false)
+            {
+                var frame = await _sendingPriorityQueue
+                                  .DequeueAsync(SendingCancellationToken)
+                                  .ConfigureAwait(false);
+
+                if (frame is Data data)
+                {
+                    // todo: Should we always wait for data frames to be sent before sending the next frame (which might be a control frame that are not under flow control)?
+                    await SendAsync(data, SendingCancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
+
+                await SendAsync(frame, SendingCancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
         private async Task StopNetworkSender()
         {
             _sendingCancellationTokenSource.Cancel();
             await _sendingTask.ConfigureAwait(false);
         }
 
-        private async Task Send(
+        private async Task SendAsync(
             Frame frame,
             CancellationToken cancellationToken)
         {
@@ -135,7 +142,7 @@ namespace Port.Server.Spdy
                                 .ConfigureAwait(false);
         }
 
-        private async Task Send(
+        private async Task SendAsync(
             Data data,
             CancellationToken cancellationToken)
         {
@@ -150,7 +157,7 @@ namespace Port.Server.Spdy
                 }
             }
 
-            await Send((Frame) data, cancellationToken)
+            await SendAsync((Frame)data, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -168,7 +175,7 @@ namespace Port.Server.Spdy
             }
             catch (OverflowException)
             {
-                await Send(
+                await SendAsync(
                         RstStream.FlowControlError(_lastGoodRepliedStreamId),
                         SessionCancellationToken)
                     .ConfigureAwait(false);
@@ -196,7 +203,7 @@ namespace Port.Server.Spdy
                 id = 1;
             }
 
-            var ping = new Ping((uint) id);
+            var ping = new Ping((uint)id);
             _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
         }
 
@@ -213,7 +220,7 @@ namespace Port.Server.Spdy
 
             await StopNetworkSender()
                 .ConfigureAwait(false);
-            await Send(
+            await SendAsync(
                     GoAway.ProtocolError(_lastGoodRepliedStreamId),
                     SessionCancellationToken)
                 .ConfigureAwait(false);
@@ -223,102 +230,39 @@ namespace Port.Server.Spdy
         }
 
 
-        private void RunNetworkReceiver()
+        private async Task ReceiveFromNetworkClientAsync()
         {
-            // ReSharper disable once MethodSupportsCancellation
-            // Will gracefully handle cancellation
-            _receivingTask = Task.Run(
-                async () =>
-                {
-                    try
-                    {
-                        FlushResult result;
-                        do
-                        {
-                            var bytes = await _networkClient.ReceiveAsync(
-                                _messageReceiver.Writer.GetMemory(),
-                                SessionCancellationToken);
+            FlushResult result;
+            do
+            {
+                var bytes = await _networkClient.ReceiveAsync(
+                    _messageReceiver.Writer.GetMemory(),
+                    SessionCancellationToken);
 
-                            _messageReceiver.Writer.Advance(bytes);
-                            result = await _messageReceiver
-                                           .Writer.FlushAsync(
-                                               SessionCancellationToken)
-                                           .ConfigureAwait(false);
-                        } while (_sessionCancellationTokenSource
-                                     .IsCancellationRequested ==
-                                 false &&
-                                 result.IsCanceled == false &&
-                                 result.IsCompleted == false);
-                    }
-                    catch when (_sessionCancellationTokenSource
-                        .IsCancellationRequested)
-                    {
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Fatal(ex, "Unknown error, closing down");
-                        try
-                        {
-                            await Send(
-                                    GoAway.InternalError(
-                                        _lastGoodRepliedStreamId),
-                                    SessionCancellationToken)
-                                .ConfigureAwait(false);
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Error(e, "Could not send GoAway");
-                        }
-
-                        _sessionCancellationTokenSource.Cancel(false);
-                    }
-                });
+                _messageReceiver.Writer.Advance(bytes);
+                result = await _messageReceiver
+                               .Writer.FlushAsync(SessionCancellationToken)
+                               .ConfigureAwait(false);
+            } while (_sessionCancellationTokenSource
+                         .IsCancellationRequested ==
+                     false &&
+                     result.IsCanceled == false &&
+                     result.IsCompleted == false);
         }
 
-        private void RunMessageHandler()
+        private async Task HandleMessagesAsync()
         {
-            // ReSharper disable once MethodSupportsCancellation
-            // Will gracefully handle cancellation
-            _messageHandlerTask = Task.Run(
-                async () =>
-                {
-                    var frameReader = new FrameReader(_messageReceiver.Reader);
-                    try
-                    {
-                        while (_sessionCancellationTokenSource
-                                   .IsCancellationRequested ==
-                               false)
-                        {
-                            await HandleMessage(frameReader)
-                                .ConfigureAwait(false);
-                        }
-                    }
-                    catch when (_sessionCancellationTokenSource
-                        .IsCancellationRequested)
-                    {
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Fatal(ex, "Unknown error, closing down");
-                        try
-                        {
-                            await Send(
-                                    GoAway.InternalError(
-                                        _lastGoodRepliedStreamId),
-                                    SessionCancellationToken)
-                                .ConfigureAwait(false);
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.Error(e, "Could not send GoAway");
-                        }
+            var frameReader = new FrameReader(_messageReceiver.Reader);
 
-                        _sessionCancellationTokenSource.Cancel(false);
-                    }
-                });
+            while (_sessionCancellationTokenSource
+                .IsCancellationRequested == false)
+            {
+                await HandleNextMessageAsync(frameReader)
+                    .ConfigureAwait(false);
+            }
         }
 
-        private async Task HandleMessage(
+        private async Task HandleNextMessageAsync(
             IFrameReader frameReader)
         {
             if ((await Frame.TryReadAsync(
@@ -327,7 +271,7 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false)).Out(
                 out var frame, out var error) == false)
             {
-                await Send(error, SessionCancellationToken);
+                await SendAsync(error, SessionCancellationToken);
                 return;
             }
 
@@ -422,7 +366,8 @@ namespace Port.Server.Spdy
                     }
 
                     (found, stream) =
-                        await TryGetStreamOrCloseSession(windowUpdate.StreamId)
+                        await TryGetStreamOrCloseSession(
+                                windowUpdate.StreamId)
                             .ConfigureAwait(false);
                     if (found == false)
                     {
@@ -454,7 +399,7 @@ namespace Port.Server.Spdy
             IReadOnlyDictionary<string, string[]>? headers = null)
         {
             headers ??= new Dictionary<string, string[]>();
-            var streamId = (uint) Interlocked.Add(ref _streamCounter, 2);
+            var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
@@ -483,7 +428,7 @@ namespace Port.Server.Spdy
 
             if (isClosed == false)
             {
-                await Send(
+                await SendAsync(
                         GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
                         CancellationToken.None)
                     .ConfigureAwait(false);
