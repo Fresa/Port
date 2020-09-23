@@ -143,11 +143,14 @@ namespace Port.Server.Spdy
                                 .ConfigureAwait(false);
         }
 
+        private readonly SemaphoreSlimGate _sendDataGate = SemaphoreSlimGate.OneAtATime;
+
         private async Task SendAsync(
             Data data,
             CancellationToken cancellationToken)
         {
-            using var gate = SemaphoreSlimGate.OneAtATime;
+            using (await _sendDataGate.WaitAsync(cancellationToken)
+                                      .ConfigureAwait(false))
             {
                 while (Interlocked.Add(ref _windowSize, -data.Payload.Length) <
                        0)
@@ -440,6 +443,7 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false);
             }
 
+            _sendDataGate.Dispose();
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);
         }
