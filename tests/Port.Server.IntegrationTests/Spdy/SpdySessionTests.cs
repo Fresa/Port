@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -386,7 +388,7 @@ namespace Port.Server.IntegrationTests.Spdy
         public partial class
             When_receiving_settings : SpdySessionTestSpecification
         {
-            private readonly List<Settings.Setting> _settingsReceived = new List<Settings.Setting>();
+            private IEnumerable<Settings.Setting> _settingsReceived = new List<Settings.Setting>();
             private ISourceBlock<Settings.Setting> _settingsSubscription = default!;
 
             public When_receiving_settings(
@@ -410,11 +412,9 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                for (var i = 0; i < 2; i++)
-                {
-                    _settingsReceived.Add(await _settingsSubscription.ReceiveAsync(cancellationToken)
-                        .ConfigureAwait(false));
-                }
+                _settingsReceived = await _settingsSubscription
+                                    .ReceiveAsync(2, cancellationToken)
+                                    .ConfigureAwait(false);
             }
 
             [Fact]
