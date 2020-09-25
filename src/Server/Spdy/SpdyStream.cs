@@ -3,7 +3,6 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Collections;
@@ -51,20 +50,22 @@ namespace Port.Server.Spdy
 
         public UInt31 Id { get; }
 
-        public SpdyEndPoint Local { get; } = new SpdyEndPoint();
-        public SpdyEndPoint Remote { get; } = new SpdyEndPoint();
+        private readonly SpdyEndPoint _local = new SpdyEndPoint();
+        public IEndPoint Local => _local;
+        private readonly SpdyEndPoint _remote = new SpdyEndPoint();
+        public IEndPoint Remote => _remote;
 
         private void OpenRemote()
         {
-            Remote.Open();
+            _remote.Open();
         }
         private void CloseRemote()
         {
-            Remote.Close();
+            _remote.Close();
         }
         private void CloseLocal()
         {
-            Local.Close();
+            _local.Close();
         }
 
         internal void Receive(
@@ -192,16 +193,16 @@ namespace Port.Server.Spdy
 
             if (open.IsUnidirectional)
             {
-                Remote.Close();
+                _remote.Close();
             }
 
             if (open.IsFin)
             {
-                Local.Close();
+                _local.Close();
             }
             else
             {
-                Local.Open();
+                _local.Open();
             }
 
             Send(open);
@@ -261,7 +262,7 @@ namespace Port.Server.Spdy
         {
             var tokens = new List<CancellationToken>
             {
-                Local.Cancellation,
+                _local.Cancellation,
                 cancellationToken
             };
 
@@ -387,7 +388,7 @@ namespace Port.Server.Spdy
             var tokens = new List<CancellationToken>
             {
                 cancellationToken,
-                Remote.Cancellation
+                _remote.Cancellation
             };
             if (timeout != default)
             {
@@ -430,8 +431,8 @@ namespace Port.Server.Spdy
 
             _frameAvailable.Dispose();
             _windowSizeGate.Dispose();
-            Local.Dispose();
-            Remote.Dispose();
+            _local.Dispose();
+            _remote.Dispose();
         }
     }
 }

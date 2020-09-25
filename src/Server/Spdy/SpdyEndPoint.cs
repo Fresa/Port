@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Port.Server.Spdy
 {
-    public sealed class SpdyEndPoint : IDisposable
+    public sealed class SpdyEndPoint : IDisposable, IEndPoint
     {
         private int _state = Closed;
         private const int Closed = 0;
@@ -50,7 +50,7 @@ namespace Port.Server.Spdy
             return WaitForStateAsync(Closed, cancellationToken);
         }
 
-        public async Task WaitForStateAsync(int state, CancellationToken cancellationToken = default)
+        private async Task WaitForStateAsync(int state, CancellationToken cancellationToken = default)
         {
             using var signal = new SemaphoreSlim(0);
             StateChanged += OnStateChanged;
