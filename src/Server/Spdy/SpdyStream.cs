@@ -2,6 +2,8 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Collections;
@@ -29,9 +31,6 @@ namespace Port.Server.Spdy
 
         public IObservableReadOnlyDictionary<string, IReadOnlyList<string>> Headers => _headers;
 
-        private bool IsRemoteClosed => _remoteStream.IsCancellationRequested;
-        private bool IsLocalClosed => _localStream.IsCancellationRequested;
-
         private int _windowSize = 64000;
         private int _initialWindowSize = 64000;
 
@@ -52,33 +51,41 @@ namespace Port.Server.Spdy
 
         public UInt31 Id { get; }
 
+        public SpdyEndPoint Local { get; } = new SpdyEndPoint();
+        public SpdyEndPoint Remote { get; } = new SpdyEndPoint();
+
+        private void OpenRemote()
+        {
+            Remote.Open();
+        }
         private void CloseRemote()
         {
-            _remoteStream.Cancel(false);
+            Remote.Close();
         }
         private void CloseLocal()
         {
-            _localStream.Cancel(false);
+            Local.Close();
         }
 
         internal void Receive(
             Frame frame)
         {
-            if (IsRemoteClosed)
+            if (Remote.IsClosed)
             {
-                if (IsLocalClosed)
-                {
-                    Send(_protocolError);
-                    return;
-                }
-
                 switch (frame)
                 {
                     case RstStream _:
                         return;
                     case WindowUpdate _:
                         break;
+                    case SynReply _:
+                        break;
                     default:
+                        if (Local.IsClosed)
+                        {
+                            Send(_protocolError);
+                            return;
+                        }
                         Send(_streamAlreadyClosedError);
                         return;
                 }
@@ -99,6 +106,10 @@ namespace Port.Server.Spdy
                     {
                         CloseRemote();
                         return;
+                    }
+                    else
+                    {
+                        OpenRemote();
                     }
 
                     return;
@@ -141,13 +152,13 @@ namespace Port.Server.Spdy
                         return;
                     }
 
+                    _receivingQueue.Enqueue(data);
+                    _frameAvailable.Release();
+
                     if (data.IsLastFrame)
                     {
                         CloseRemote();
                     }
-
-                    _receivingQueue.Enqueue(data);
-                    _frameAvailable.Release();
                     return;
                 default:
                     throw new InvalidOperationException($"{frame.GetType()} was not handled");
@@ -179,16 +190,18 @@ namespace Port.Server.Spdy
                 options, Id, UInt31.From(0), Priority,
                 headers);
 
-            if (!open.IsUnidirectional)
+            if (open.IsUnidirectional)
             {
-                Interlocked.Exchange(
-                    ref _remoteStream, new CancellationTokenSource());
+                Remote.Close();
             }
 
-            if (!open.IsFin)
+            if (open.IsFin)
             {
-                Interlocked.Exchange(
-                    ref _localStream, new CancellationTokenSource());
+                Local.Close();
+            }
+            else
+            {
+                Local.Open();
             }
 
             Send(open);
@@ -196,7 +209,7 @@ namespace Port.Server.Spdy
 
         public void Close()
         {
-            if (IsLocalClosed)
+            if (Local.IsClosed)
             {
                 return;
             }
@@ -220,30 +233,27 @@ namespace Port.Server.Spdy
             _sendingPriorityQueue.Enqueue(Priority, frame);
         }
 
-        private CancellationTokenSource _localStream = CancellationTokenSource.CreateLinkedTokenSource(new CancellationToken(true));
         private readonly ExclusiveLock _sendLock = new ExclusiveLock();
 
-        public async Task SendAsync(
+        public Task<FlushResult> SendAsync(
             ReadOnlyMemory<byte> data,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
-            await SendDataAsync(
-                    data, false, timeout, cancellationToken)
-                .ConfigureAwait(false);
+            return SendDataAsync(
+                    data, false, timeout, cancellationToken);
         }
 
-        public async Task SendLastAsync(
+        public Task<FlushResult> SendLastAsync(
             ReadOnlyMemory<byte> data,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
-            await SendDataAsync(
-                    data, true, timeout, cancellationToken)
-                .ConfigureAwait(false);
+            return SendDataAsync(
+                    data, true, timeout, cancellationToken);
         }
 
-        private async Task SendDataAsync(
+        private async Task<FlushResult> SendDataAsync(
             ReadOnlyMemory<byte> data,
             bool isFin,
             TimeSpan timeout = default,
@@ -251,7 +261,7 @@ namespace Port.Server.Spdy
         {
             var tokens = new List<CancellationToken>
             {
-                _localStream.Token,
+                Local.Cancellation,
                 cancellationToken
             };
 
@@ -280,8 +290,16 @@ namespace Port.Server.Spdy
 
                     if (length <= 0)
                     {
-                        await _windowSizeGate.WaitAsync(token)
-                                             .ConfigureAwait(false);
+                        try
+                        {
+                            await _windowSizeGate.WaitAsync(token)
+                                                 .ConfigureAwait(false);
+                        }
+                        catch when (token.IsCancellationRequested)
+                        {
+                            return new FlushResult(true, false);
+                        }
+
                         continue;
                     }
 
@@ -295,9 +313,13 @@ namespace Port.Server.Spdy
                     var frame = left == length && isFin
                         ? Data.Last(Id, payload)
                         : new Data(Id, payload);
-                    
+
+                    if (Local.IsClosed)
+                    {
+                        return new FlushResult(true, false);
+                    }
                     Send(frame);
-                    
+
                     index += length;
                     left = data.Length - index;
                 }
@@ -307,6 +329,8 @@ namespace Port.Server.Spdy
             {
                 CloseLocal();
             }
+
+            return new FlushResult(false, true);
         }
 
         public Task SendHeadersAsync(
@@ -315,7 +339,7 @@ namespace Port.Server.Spdy
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
-            if (_localStream.IsCancellationRequested)
+            if (Local.IsClosed)
             {
                 throw new InvalidOperationException("Stream is closed");
             }
@@ -356,14 +380,14 @@ namespace Port.Server.Spdy
             }
         }
 
-        private CancellationTokenSource _remoteStream = CancellationTokenSource.CreateLinkedTokenSource(new CancellationToken(true));
         public async Task<System.IO.Pipelines.ReadResult> ReceiveAsync(
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
         {
             var tokens = new List<CancellationToken>
             {
-                cancellationToken
+                cancellationToken,
+                Remote.Cancellation
             };
             if (timeout != default)
             {
@@ -387,7 +411,7 @@ namespace Port.Server.Spdy
                     await _frameAvailable.WaitAsync(token)
                                          .ConfigureAwait(false);
                 }
-                catch when (_remoteStream.IsCancellationRequested)
+                catch when (token.IsCancellationRequested)
                 {
                     return new System.IO.Pipelines.ReadResult(
                         ReadOnlySequence<byte>.Empty, true, false);
@@ -397,7 +421,7 @@ namespace Port.Server.Spdy
 
         public void Dispose()
         {
-            if (IsLocalClosed == false)
+            if (Local.IsOpen)
             {
                 Send(RstStream.Cancel(Id));
             }
@@ -405,9 +429,9 @@ namespace Port.Server.Spdy
             CloseRemote();
 
             _frameAvailable.Dispose();
-            _localStream.Dispose();
             _windowSizeGate.Dispose();
-            _remoteStream.Dispose();
+            Local.Dispose();
+            Remote.Dispose();
         }
     }
 }

@@ -242,8 +242,7 @@ namespace Port.Server.IntegrationTests.Spdy
                                              .ConfigureAwait(false);
 
                     _dataReceived.AddRange(data.Buffer.ToArray());
-                } while (data.IsCanceled == false &&
-                         data.IsCompleted == false);
+                } while (data.IsCompleted == false);
             }
 
             [Fact]
@@ -261,6 +260,8 @@ namespace Port.Server.IntegrationTests.Spdy
             When_receiving_headers : SpdySessionTestSpecification
         {
             private SpdyStream _stream = null!;
+            private ISourceBlock<(string, IReadOnlyList<string>)> _headersSubscription = default!;
+
             public When_receiving_headers(
                 ITestOutputHelper testOutputHelper)
                 : base(testOutputHelper)
@@ -276,6 +277,13 @@ namespace Port.Server.IntegrationTests.Spdy
                     Session.Open(options: SynStream.Options.Fin));
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
                                            .ConfigureAwait(false);
+                _headersSubscription = _stream.Headers.Subscribe();
+                             
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
                 await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
@@ -294,24 +302,9 @@ namespace Port.Server.IntegrationTests.Spdy
                                     }}),
                                 cancellationToken)
                             .ConfigureAwait(false);
-                await Server.SendAsync(
-                                Data.Last(
-                                    _stream.Id,
-                                    Encoding.UTF8.GetBytes("end")),
-                                cancellationToken)
-                            .ConfigureAwait(false);
-            }
 
-            protected override async Task WhenAsync(
-                CancellationToken cancellationToken)
-            {
-                ReadResult data;
-                do
-                {
-                    data = await _stream.ReceiveAsync(cancellationToken: cancellationToken)
-                                             .ConfigureAwait(false);
-                } while (data.IsCanceled == false &&
-                         data.IsCompleted == false);
+                await _headersSubscription.ReceiveAsync(2, cancellationToken)
+                                          .ConfigureAwait(false);
             }
 
             [Fact]
@@ -379,6 +372,65 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 _pingReceived.Id.Should()
                              .Be(0);
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_receiving_rst : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = null!;
+
+            public When_receiving_rst(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>(cancellationToken);
+                _stream = DisposeOnTearDown(
+                    Session.Open());
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(_stream.Id), cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                await Server.SendAsync(
+                                RstStream.Cancel(_stream.Id),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                await _stream.Local.WaitForClosedAsync(cancellationToken)
+                             .ConfigureAwait(false);
+            }
+
+            [Fact]
+            public async Task It_should_not_be_possible_to_receive_more_data()
+            {
+                (await _stream.ReceiveAsync().ConfigureAwait(false))
+                    .IsCanceled.Should()
+                    .BeTrue();
+            }
+
+            [Fact]
+            public async Task It_should_not_be_possible_to_send_more_data()
+            {
+                (await _stream.SendAsync(
+                                  Encoding.UTF8.GetBytes("end"),
+                                  cancellationToken: CancellationTokenSource
+                                      .Token)
+                              .ConfigureAwait(false))
+                    .IsCanceled.Should()
+                    .BeTrue();
             }
         }
     }

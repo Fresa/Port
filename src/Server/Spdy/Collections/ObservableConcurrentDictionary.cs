@@ -26,6 +26,20 @@ namespace Port.Server.Spdy.Collections
             }
         }
 
+        public new bool TryAdd(
+            TKey key,
+            TValue value)
+        {
+            if (base.TryAdd(key, value))
+            {
+                Updated.Invoke(key, value);
+                UpdatedValue.Invoke(value);
+                return true;
+            }
+
+            return false;
+        }
+
         IEnumerator<TValue> IEnumerable<TValue>.GetEnumerator() => Values.GetEnumerator();
 
         private event NotifyCollectionUpdatedHandler<TValue> UpdatedValue = item => {};

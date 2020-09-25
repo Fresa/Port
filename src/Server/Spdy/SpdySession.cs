@@ -163,6 +163,7 @@ namespace Port.Server.Spdy
 
             await SendAsync((Frame)data, cancellationToken)
                 .ConfigureAwait(false);
+            // todo: send WINDOW_UPDATE!
         }
 
         private readonly SemaphoreSlim

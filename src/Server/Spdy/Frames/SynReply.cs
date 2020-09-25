@@ -35,23 +35,23 @@ namespace Port.Server.Spdy.Frames
         private SynReply(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers) : base(Type)
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
-            Headers = headers;
+            Headers = headers ?? new Dictionary<string, IReadOnlyList<string>>();
         }
 
         public static SynReply AcceptAndClose(
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
         {
             return new SynReply(Options.Fin, streamId, headers);
         }
 
         public static SynReply Accept(
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
         {
             return new SynReply(Options.None, streamId, headers);
         }
@@ -61,10 +61,10 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Flags related to this frame.
         /// </summary>
-        protected new Options Flags
+        private new Options Flags
         {
             get => (Options) base.Flags;
-            private set => base.Flags = (byte)value;
+            set => base.Flags = (byte)value;
         }
 
         [Flags]

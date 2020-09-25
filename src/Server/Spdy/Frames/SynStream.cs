@@ -77,8 +77,14 @@ namespace Port.Server.Spdy.Frames
             Unidirectional = 2
         }
 
+        /// <summary>
+        /// The local stream is in the half-closed (Section 2.3.6) state.
+        /// </summary>
         public bool IsFin => Flags == Options.Fin;
 
+        /// <summary>
+        /// The remote stream is in the half-closed (Section 2.3.6) state.
+        /// </summary>
         public bool IsUnidirectional => Flags == Options.Unidirectional;
 
         /// <summary>
