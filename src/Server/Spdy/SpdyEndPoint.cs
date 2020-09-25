@@ -6,75 +6,57 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyEndPoint : IDisposable
     {
-        private CancellationTokenSource _state;
+        private int _state = Closed;
+        private const int Closed = 0;
+        private const int Opened = 1;
 
-        private readonly CancellationTokenSource _closed = new CancellationTokenSource(0);
-        private readonly CancellationTokenSource _opened = new CancellationTokenSource();
+        private readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 
         internal CancellationToken Cancellation
-            => _opened.Token;
+            => _cancellationSource.Token;
 
-        private event Action<CancellationTokenSource> StateChanged = source => { };
+        private event Action<int> StateChanged = source => { };
 
         internal SpdyEndPoint()
         {
-            _state = _closed;
         }
 
         internal void Open()
         {
-            if (Interlocked.CompareExchange(ref _state, _opened, _closed) == _closed)
+            if (Interlocked.CompareExchange(ref _state, Opened, Closed) == Closed)
             {
-                StateChanged.Invoke(_opened);
+                StateChanged.Invoke(Opened);
             }
         }
 
         public bool IsOpen => !IsClosed;
-        public async Task WaitForOpenedAsync(CancellationToken cancellationToken = default)
+        public Task WaitForOpenedAsync(CancellationToken cancellationToken = default)
         {
-            using var signal = new SemaphoreSlim(0);
-            StateChanged += OnStateChanged;
-            try
-            {
-                if (IsOpen)
-                {
-                    return;
-                }
-                await signal.WaitAsync(cancellationToken)
-                            .ConfigureAwait(false);
-            }
-            finally
-            {
-                StateChanged -= OnStateChanged;
-            }
-
-            void OnStateChanged(
-                CancellationTokenSource args)
-            {
-                if (args == _opened)
-                {
-                    signal.Release();
-                }
-            }
+            return WaitForStateAsync(Opened, cancellationToken);
         }
 
         internal void Close()
         {
-            if (Interlocked.CompareExchange(ref _state, _closed, _opened) == _opened)
+            if (Interlocked.CompareExchange(ref _state, Closed, Opened) == Opened)
             {
-                _opened.Cancel(false);
-                StateChanged.Invoke(_closed);
+                _cancellationSource.Cancel(false);
+                StateChanged.Invoke(Closed);
             }
         }
 
-        public bool IsClosed => _state.IsCancellationRequested;
-        public async Task WaitForClosedAsync(CancellationToken cancellationToken = default)
+        public bool IsClosed => _state == Closed;
+        public Task WaitForClosedAsync(CancellationToken cancellationToken = default)
+        {
+            return WaitForStateAsync(Closed, cancellationToken);
+        }
+
+        public async Task WaitForStateAsync(int state, CancellationToken cancellationToken = default)
         {
             using var signal = new SemaphoreSlim(0);
             StateChanged += OnStateChanged;
             try
             {
-                if (IsClosed)
+                if (_state == state)
                 {
                     return;
                 }
@@ -87,9 +69,9 @@ namespace Port.Server.Spdy
             }
 
             void OnStateChanged(
-                CancellationTokenSource args)
+                int changedState)
             {
-                if (args == _closed)
+                if (changedState == state)
                 {
                     signal.Release();
                 }
@@ -98,8 +80,7 @@ namespace Port.Server.Spdy
 
         public void Dispose()
         {
-            _closed.Dispose();
-            _opened.Dispose();
+            _cancellationSource.Dispose();
         }
     }
 }
