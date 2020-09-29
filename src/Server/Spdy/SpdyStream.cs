@@ -208,17 +208,6 @@ namespace Port.Server.Spdy
             Send(open);
         }
 
-        public void Close()
-        {
-            if (Local.IsClosed)
-            {
-                return;
-            }
-
-            CloseLocal();
-            Send(Data.Last(Id, new byte[0]));
-        }
-
         private void Send(
             RstStream rstStream)
         {
@@ -358,7 +347,7 @@ namespace Port.Server.Spdy
             return Task.CompletedTask;
         }
 
-        private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(0);
 
         private void IncreaseWindowSize(
             int delta)
@@ -375,7 +364,9 @@ namespace Port.Server.Spdy
                 return;
             }
 
-            if (newWindowSize > 0)
+            // Check if we transitioned from no buffer available to having buffer at the receiving end
+            if (newWindowSize > 0 &&
+                newWindowSize - delta <= 0)
             {
                 _windowSizeGate.Release();
             }

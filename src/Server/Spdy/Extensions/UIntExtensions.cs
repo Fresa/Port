@@ -39,7 +39,7 @@ namespace Port.Server.Spdy.Extensions
             this ValueTask<uint> value)
         {
             return UInt31.From(await value
-                .ConfigureAwait(false) & 0x7FFF);
+                .ConfigureAwait(false) & 0x7FFFFFFF);
         }
     }
 }

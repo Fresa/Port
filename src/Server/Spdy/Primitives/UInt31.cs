@@ -12,7 +12,7 @@ namespace Port.Server.Spdy.Primitives
         public uint Value => (uint)(One | (Two << 8) | (Three << 16) | (Four << 24));
 
         internal static readonly UInt31 MaxValue = new UInt31(
-            0x7F, byte.MaxValue, byte.MaxValue, byte.MaxValue);
+            byte.MaxValue, byte.MaxValue, byte.MaxValue, 0x7F);
 
         public bool Equals(
             UInt31 other)
@@ -80,10 +80,10 @@ namespace Port.Server.Spdy.Primitives
         public static UInt31 From(
             uint value)
         {
-            if (value >= MaxValue.Value)
+            if (value > MaxValue.Value)
             {
                 throw new InvalidOperationException(
-                    $"value {value} must be less than {MaxValue}");
+                    $"value {value} must be less than or equal to {MaxValue}");
             }
 
             return new UInt31(

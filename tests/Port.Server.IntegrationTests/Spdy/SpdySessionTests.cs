@@ -10,6 +10,7 @@ using FluentAssertions;
 using Port.Server.IntegrationTests.Spdy.Extensions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
+using Port.Server.Spdy.Primitives;
 using Xunit;
 using Xunit.Abstractions;
 using ReadResult = System.IO.Pipelines.ReadResult;
@@ -324,6 +325,78 @@ namespace Port.Server.IntegrationTests.Spdy
 
             [Fact]
             public void It_should_send_stream_in_use_error_with_stream_id()
+            {
+                _rstStream.StreamId.Should()
+                          .Be(_stream.Id);
+            }
+
+            [Fact]
+            public void It_should_close_the_local_endpoint()
+            {
+                _stream.Local.IsClosed.Should()
+                       .BeTrue();
+            }
+
+            [Fact]
+            public void It_should_close_the_remote_endpoint()
+            {
+                _stream.Remote.IsClosed.Should()
+                       .BeTrue();
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_receiving_a_window_update_that_exceeds_maximum_window_size : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = null!;
+            private ISourceBlock<RstStream> _rstStreamSubscription = default!;
+            private RstStream _rstStream = default!;
+
+            public When_receiving_a_window_update_that_exceeds_maximum_window_size(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>(cancellationToken);
+                _rstStreamSubscription = Server.On<RstStream>(cancellationToken);
+                _stream = DisposeOnTearDown(
+                    Session.Open());
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(_stream.Id),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                await Server.SendAsync(
+                                new WindowUpdate(_stream.Id, UInt31.MaxValue),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                _rstStream = await _rstStreamSubscription
+                                   .ReceiveAsync(CancellationToken)
+                                   .ConfigureAwait(false);
+            }
+
+            [Fact]
+            public void It_should_send_flow_control_error()
+            {
+                _rstStream.Status.Should()
+                          .Be(RstStream.StatusCode.FlowControlError);
+            }
+
+            [Fact]
+            public void It_should_send_flow_control_error_with_stream_id()
             {
                 _rstStream.StreamId.Should()
                           .Be(_stream.Id);
