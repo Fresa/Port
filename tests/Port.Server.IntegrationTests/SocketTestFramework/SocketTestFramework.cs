@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using Log.It;
 
 namespace Port.Server.IntegrationTests.SocketTestFramework
 {
@@ -11,6 +12,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         private readonly CancellationTokenSource _cancellationTokenSource =
             new CancellationTokenSource();
 
+        private readonly ILogger _logger = LogFactory.Create<SocketTestFramework>();
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
         public static InMemorySocketTestFramework InMemory()
@@ -55,10 +57,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         {
                             return;
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
-                            _cancellationTokenSource.Cancel(true);
-                            throw;
+                            _logger.Error(ex, "Unhandled exception when receiving messages");
+                            _cancellationTokenSource.Cancel(false);
                         }
                     }
                 });
@@ -105,7 +107,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                 typeof(TRequestMessage),
                 async (
                     message,
-                    _) => await subscription.Invoke((TRequestMessage)message));
+                    _) => await subscription.Invoke((TRequestMessage)message)
+                                            .ConfigureAwait(false));
             return this;
         }
 
@@ -117,7 +120,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                 typeof(TRequestMessage),
                 async (
                     message,
-                    _) => await subscription.Invoke((TRequestMessage) message));
+                    _) => await subscription.Invoke((TRequestMessage) message)
+                                            .ConfigureAwait(false));
             return this;
         }
 

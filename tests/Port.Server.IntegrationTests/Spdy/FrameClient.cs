@@ -15,11 +15,14 @@ namespace Port.Server.IntegrationTests.Spdy
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         private Task _receiverTask = Task.CompletedTask;
         private readonly Pipe _pipe = new Pipe();
+        private readonly FrameReader _frameReader;
+        private readonly SemaphoreSlimGate _frameReaderGate = SemaphoreSlimGate.OneAtATime;
 
         public FrameClient(
             INetworkClient networkClient)
         {
             _networkClient = networkClient;
+            _frameReader = new FrameReader(_pipe.Reader);
             RunReceiver();
         }
 
@@ -73,10 +76,14 @@ namespace Port.Server.IntegrationTests.Spdy
         public async ValueTask<Frame> ReceiveAsync(
             CancellationToken cancellationToken = default)
         {
-            return (await Frame.TryReadAsync(
-                                   new FrameReader(_pipe.Reader),
-                                   cancellationToken)
-                               .ConfigureAwait(false)).Result;
+            using (await _frameReaderGate.WaitAsync(cancellationToken)
+                                           .ConfigureAwait(false))
+            {
+                return (await Frame.TryReadAsync(
+                                       _frameReader,
+                                       cancellationToken)
+                                   .ConfigureAwait(false)).Result;
+            }
         }
 
         public async ValueTask DisposeAsync()
@@ -91,6 +98,7 @@ namespace Port.Server.IntegrationTests.Spdy
             }
 
             await _receiverTask.ConfigureAwait(false);
+            _frameReaderGate.Dispose();
         }
 
         public async ValueTask SendAsync(

@@ -47,6 +47,14 @@ namespace Port.Server.Spdy.Frames
             DeltaWindowSize = deltaWindowSize;
         }
 
+        private static readonly UInt31 ConnectionFlowId = UInt31.From(0);
+
+        public static WindowUpdate ConnectionFlowControl(
+            UInt31 deltaWindowSize)
+        {
+            return new WindowUpdate(ConnectionFlowId, deltaWindowSize);
+        }
+
         public const ushort Type = 9;
 
         /// <summary>
@@ -71,7 +79,7 @@ namespace Port.Server.Spdy.Frames
                 if (value.Value != 8)
                 {
                     throw new ArgumentOutOfRangeException(
-                        nameof(Length), "Length can only be 8");
+                        nameof(Length), $"Length can only be 8, was {value}");
                 }
             }
         }
@@ -82,7 +90,7 @@ namespace Port.Server.Spdy.Frames
         public UInt31 StreamId { get; }
 
         public bool IsStreamFlowControl => !IsConnectionFlowControl;
-        public bool IsConnectionFlowControl => StreamId == UInt31.From(0);
+        public bool IsConnectionFlowControl => StreamId == ConnectionFlowId;
 
         private UInt31 _deltaWindowSize;
 

@@ -402,7 +402,10 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
-                    Send(new WindowUpdate(Id, (uint)frame.Payload.Length));
+                    if (frame.Payload.Length > 0)
+                    {
+                        Send(new WindowUpdate(Id, (uint)frame.Payload.Length));
+                    }
                     return new System.IO.Pipelines.ReadResult(
                         new ReadOnlySequence<byte>(frame.Payload), false,
                         frame.IsLastFrame);

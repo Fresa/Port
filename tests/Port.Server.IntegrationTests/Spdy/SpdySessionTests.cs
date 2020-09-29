@@ -1,9 +1,6 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Concurrent;
+﻿using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,7 +9,6 @@ using FluentAssertions;
 using Port.Server.IntegrationTests.Spdy.Extensions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
-using Port.Server.Spdy.Primitives;
 using Xunit;
 using Xunit.Abstractions;
 using ReadResult = System.IO.Pipelines.ReadResult;
@@ -205,6 +201,7 @@ namespace Port.Server.IntegrationTests.Spdy
             private SpdyStream _stream = null!;
             private readonly List<byte> _dataReceived = new List<byte>();
             private ISourceBlock<WindowUpdate> _windowUpdateSubscription = default!;
+            private readonly List<WindowUpdate> _flowControlMessages = new List<WindowUpdate>();
 
             public When_receiving_data(
                 ITestOutputHelper testOutputHelper)
@@ -246,6 +243,10 @@ namespace Port.Server.IntegrationTests.Spdy
 
                     _dataReceived.AddRange(data.Buffer.ToArray());
                 } while (data.IsCompleted == false);
+
+                _flowControlMessages.AddRange(await _windowUpdateSubscription
+                                               .ReceiveAsync(2, cancellationToken)
+                                               .ConfigureAwait(false));
             }
 
             [Fact]
@@ -256,23 +257,17 @@ namespace Port.Server.IntegrationTests.Spdy
             }
 
             [Fact]
-            public async Task It_should_send_window_update_with_stream_id()
+            public void It_should_send_window_update_for_the_stream()
             {
-                (await _windowUpdateSubscription
-                       .ReceiveAsync(CancellationTokenSource.Token)
-                       .ConfigureAwait(false))
-                    .StreamId.Should()
-                    .Be(_stream.Id);
+                _flowControlMessages
+                    .Should().ContainEquivalentOf(new WindowUpdate(_stream.Id, 7));
             }
 
             [Fact]
-            public async Task It_should_send_window_update_with_received_payload_size()
+            public void It_should_send_window_update_for_the_connection()
             {
-                (await _windowUpdateSubscription
-                       .ReceiveAsync(CancellationTokenSource.Token)
-                       .ConfigureAwait(false))
-                    .DeltaWindowSize.Should()
-                    .Be((UInt31)7);
+                _flowControlMessages
+                    .Should().ContainEquivalentOf(WindowUpdate.ConnectionFlowControl(7));
             }
         }
     }

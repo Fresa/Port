@@ -19,6 +19,10 @@ namespace Port.Server.Spdy
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
+
+        private readonly SemaphoreSlimGate _sendingGate =
+            SemaphoreSlimGate.OneAtATime;
+
         private readonly Pipe _messageReceiver = new Pipe();
 
         private readonly CancellationTokenSource
@@ -46,8 +50,11 @@ namespace Port.Server.Spdy
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
 
-        private readonly ObservableConcurrentDictionary<Settings.Id, Settings.Setting> _settings =
-            new ObservableConcurrentDictionary<Settings.Id, Settings.Setting>();
+        private readonly
+            ObservableConcurrentDictionary<Settings.Id, Settings.Setting>
+            _settings =
+                new ObservableConcurrentDictionary<Settings.Id, Settings.Setting
+                >();
 
         public IObservableReadOnlyCollection<Settings.Setting> Settings
             => _settings;
@@ -89,6 +96,8 @@ namespace Port.Server.Spdy
                     catch (Exception ex)
                     {
                         _logger.Fatal(ex, "Unknown error, closing down");
+                        await StopNetworkSender()
+                            .ConfigureAwait(false);
                         try
                         {
                             await SendAsync(
@@ -139,11 +148,16 @@ namespace Port.Server.Spdy
             Frame frame,
             CancellationToken cancellationToken)
         {
-            await _networkClient.SendAsync(frame, cancellationToken)
-                                .ConfigureAwait(false);
+            using (await _sendingGate.WaitAsync(cancellationToken)
+                                     .ConfigureAwait(false))
+            {
+                await _networkClient.SendAsync(frame, cancellationToken)
+                                    .ConfigureAwait(false);
+            }
         }
 
-        private readonly SemaphoreSlimGate _sendDataGate = SemaphoreSlimGate.OneAtATime;
+        private readonly SemaphoreSlimGate _sendDataGate =
+            SemaphoreSlimGate.OneAtATime;
 
         private async Task SendAsync(
             Data data,
@@ -154,24 +168,26 @@ namespace Port.Server.Spdy
                 using (await _sendDataGate.WaitAsync(cancellationToken)
                                           .ConfigureAwait(false))
                 {
-                    while (Interlocked.Add(ref _windowSize, -data.Payload.Length) <
+                    while (Interlocked.Add(
+                               ref _windowSize, -data.Payload.Length) <
                            0)
                     {
                         Interlocked.Add(ref _windowSize, data.Payload.Length);
-                        await _windowSizeGate.WaitAsync(SessionCancellationToken)
-                                             .ConfigureAwait(false);
+                        await _windowSizeGate
+                              .WaitAsync(SessionCancellationToken)
+                              .ConfigureAwait(false);
                     }
                 }
             }
 
-            await SendAsync((Frame)data, cancellationToken)
+            await SendAsync((Frame) data, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         private readonly SemaphoreSlim
             _windowSizeGate = new SemaphoreSlim(1, 1);
 
-        private async Task<bool> TryIncreaseWindowSizeOrCloseSessionAsync(
+        private void TryIncreaseWindowSizeOrCloseSession(
             int delta)
         {
             var newWindowSize = Interlocked.Add(ref _windowSize, delta);
@@ -182,21 +198,17 @@ namespace Port.Server.Spdy
             }
             catch (OverflowException)
             {
-                await SendAsync(
-                        RstStream.FlowControlError(_lastGoodRepliedStreamId),
-                        SessionCancellationToken)
-                    .ConfigureAwait(false);
+                _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, 
+                        RstStream.FlowControlError(_lastGoodRepliedStreamId));
 
                 _sessionCancellationTokenSource.Cancel(false);
-                return false;
+                return;
             }
 
             if (newWindowSize > 0)
             {
                 _windowSizeGate.Release();
             }
-
-            return true;
         }
 
         private long _pingId = -1;
@@ -210,7 +222,7 @@ namespace Port.Server.Spdy
                 id = 1;
             }
 
-            var ping = new Ping((uint)id);
+            var ping = new Ping((uint) id);
             _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
         }
 
@@ -278,7 +290,7 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false)).Out(
                 out var frame, out var error) == false)
             {
-                await SendAsync(error, SessionCancellationToken);
+                _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.High, error);
                 return;
             }
 
@@ -362,16 +374,11 @@ namespace Port.Server.Spdy
                     stream.Receive(headers);
                     break;
                 case WindowUpdate windowUpdate:
-                    if (await TryIncreaseWindowSizeOrCloseSessionAsync(
-                            windowUpdate.DeltaWindowSize)
-                        .ConfigureAwait(false) == false)
-                    {
-                        return;
-                    }
-
                     if (windowUpdate
                         .IsConnectionFlowControl)
                     {
+                        TryIncreaseWindowSizeOrCloseSession(
+                                windowUpdate.DeltaWindowSize);
                         break;
                     }
 
@@ -391,6 +398,14 @@ namespace Port.Server.Spdy
                         out stream))
                     {
                         stream.Receive(data);
+                        if (data.Payload.Length > 0)
+                        {
+                            _sendingPriorityQueue.Enqueue(SynStream
+                                    .PriorityLevel.AboveNormal,
+                                WindowUpdate.ConnectionFlowControl(
+                                    (uint) data.Payload.Length));
+                        }
+
                         break;
                     }
 
@@ -411,7 +426,7 @@ namespace Port.Server.Spdy
             IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
         {
             headers ??= new Dictionary<string, IReadOnlyList<string>>();
-            var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
+            var streamId = (uint) Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
