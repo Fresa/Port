@@ -103,7 +103,7 @@ namespace Port.Server.Spdy
                             await SendAsync(
                                     GoAway.InternalError(
                                         UInt31.From(_lastGoodRepliedStreamId)),
-                                    SendingCancellationToken)
+                                    SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
                         catch (Exception e)

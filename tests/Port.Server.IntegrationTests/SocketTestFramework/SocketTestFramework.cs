@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Log.It;
 
 namespace Port.Server.IntegrationTests.SocketTestFramework
 {
@@ -12,7 +11,6 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         private readonly CancellationTokenSource _cancellationTokenSource =
             new CancellationTokenSource();
 
-        private readonly ILogger _logger = LogFactory.Create<SocketTestFramework>();
         private readonly List<Task> _backgroundTasks = new List<Task>();
 
         public static InMemorySocketTestFramework InMemory()
@@ -57,10 +55,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         {
                             return;
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            _logger.Error(ex, "Unhandled exception when receiving messages");
                             _cancellationTokenSource.Cancel(false);
+                            throw;
                         }
                     }
                 });

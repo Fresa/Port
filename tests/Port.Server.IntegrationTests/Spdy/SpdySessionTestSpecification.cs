@@ -18,6 +18,9 @@ namespace Port.Server.IntegrationTests.Spdy
         protected SpdyTestServer Server { get; } = new SpdyTestServer();
         protected SpdySession Session { get; private set; } = default!;
 
+        protected CancellationToken CancellationToken
+            => CancellationTokenSource.Token;
+
         protected sealed override async Task GivenAsync(
             CancellationToken cancellationToken)
         {

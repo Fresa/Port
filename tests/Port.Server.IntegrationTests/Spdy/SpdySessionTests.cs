@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Collections.Generic;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -268,6 +269,78 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 _flowControlMessages
                     .Should().ContainEquivalentOf(WindowUpdate.ConnectionFlowControl(7));
+            }
+        }
+    }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_accepting_a_stream_multiple_times : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = null!;
+            private ISourceBlock<RstStream> _rstStreamSubscription = default!;
+            private RstStream _rstStream = default!;
+
+            public When_accepting_a_stream_multiple_times(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>(cancellationToken);
+                _rstStreamSubscription = Server.On<RstStream>(cancellationToken);
+                _stream = DisposeOnTearDown(
+                    Session.Open());
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(_stream.Id),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                await Server.SendAsync(
+                                SynReply.Accept(_stream.Id),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                _rstStream = await _rstStreamSubscription
+                                   .ReceiveAsync(CancellationToken)
+                                   .ConfigureAwait(false);
+            }
+
+            [Fact]
+            public void It_should_send_stream_in_use_error()
+            {
+                _rstStream.Status.Should()
+                          .Be(RstStream.StatusCode.StreamInUse);
+            }
+
+            [Fact]
+            public void It_should_send_stream_in_use_error_with_stream_id()
+            {
+                _rstStream.StreamId.Should()
+                          .Be(_stream.Id);
+            }
+
+            [Fact]
+            public void It_should_close_the_local_endpoint()
+            {
+                _stream.Local.IsClosed.Should()
+                       .BeTrue();
+            }
+
+            [Fact]
+            public void It_should_close_the_remote_endpoint()
+            {
+                _stream.Remote.IsClosed.Should()
+                       .BeTrue();
             }
         }
     }
