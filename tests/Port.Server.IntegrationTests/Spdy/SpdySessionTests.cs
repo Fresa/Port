@@ -12,6 +12,7 @@ using FluentAssertions;
 using Port.Server.IntegrationTests.Spdy.Extensions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
+using Port.Server.Spdy.Primitives;
 using Xunit;
 using Xunit.Abstractions;
 using ReadResult = System.IO.Pipelines.ReadResult;
@@ -203,6 +204,7 @@ namespace Port.Server.IntegrationTests.Spdy
         {
             private SpdyStream _stream = null!;
             private readonly List<byte> _dataReceived = new List<byte>();
+            private ISourceBlock<WindowUpdate> _windowUpdateSubscription = default!;
 
             public When_receiving_data(
                 ITestOutputHelper testOutputHelper)
@@ -215,6 +217,7 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 var synStreamSubscription = Server.On<SynStream>(cancellationToken);
                 Server.On<GoAway>(cancellationToken);
+                _windowUpdateSubscription = Server.On<WindowUpdate>(cancellationToken);
                 _stream = Session.Open();
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
                                            .ConfigureAwait(false);
@@ -251,6 +254,26 @@ namespace Port.Server.IntegrationTests.Spdy
                 _dataReceived.Should().HaveCount(7)
                              .And.ContainInOrder(Encoding.UTF8.GetBytes("my data"));
             }
+
+            [Fact]
+            public async Task It_should_send_window_update_with_stream_id()
+            {
+                (await _windowUpdateSubscription
+                       .ReceiveAsync(CancellationTokenSource.Token)
+                       .ConfigureAwait(false))
+                    .StreamId.Should()
+                    .Be(_stream.Id);
+            }
+
+            [Fact]
+            public async Task It_should_send_window_update_with_received_payload_size()
+            {
+                (await _windowUpdateSubscription
+                       .ReceiveAsync(CancellationTokenSource.Token)
+                       .ConfigureAwait(false))
+                    .DeltaWindowSize.Should()
+                    .Be((UInt31)7);
+            }
         }
     }
 
@@ -278,7 +301,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
                                            .ConfigureAwait(false);
                 _headersSubscription = _stream.Headers.Subscribe();
-                             
+
             }
 
             protected override async Task WhenAsync(

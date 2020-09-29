@@ -149,21 +149,23 @@ namespace Port.Server.Spdy
             Data data,
             CancellationToken cancellationToken)
         {
-            using (await _sendDataGate.WaitAsync(cancellationToken)
-                                      .ConfigureAwait(false))
+            if (data.Payload.Length > 0)
             {
-                while (Interlocked.Add(ref _windowSize, -data.Payload.Length) <
-                       0)
+                using (await _sendDataGate.WaitAsync(cancellationToken)
+                                          .ConfigureAwait(false))
                 {
-                    Interlocked.Add(ref _windowSize, data.Payload.Length);
-                    await _windowSizeGate.WaitAsync(SessionCancellationToken)
-                                         .ConfigureAwait(false);
+                    while (Interlocked.Add(ref _windowSize, -data.Payload.Length) <
+                           0)
+                    {
+                        Interlocked.Add(ref _windowSize, data.Payload.Length);
+                        await _windowSizeGate.WaitAsync(SessionCancellationToken)
+                                             .ConfigureAwait(false);
+                    }
                 }
             }
 
             await SendAsync((Frame)data, cancellationToken)
                 .ConfigureAwait(false);
-            // todo: send WINDOW_UPDATE!
         }
 
         private readonly SemaphoreSlim
