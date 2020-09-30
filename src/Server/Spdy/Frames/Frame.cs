@@ -28,6 +28,10 @@ namespace Port.Server.Spdy.Frames
                 return await Data.TryReadAsync(frameReader, cancellation)
                                  .ConfigureAwait(false);
             }
+            catch when (cancellation.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception e)
             {
                 Logger.Error(e, "Error while parsing frame");
