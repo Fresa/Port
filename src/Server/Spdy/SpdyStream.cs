@@ -366,7 +366,7 @@ namespace Port.Server.Spdy
 
             // Check if we transitioned from no buffer available to having buffer at the receiving end
             if (newWindowSize > 0 &&
-                newWindowSize - delta <= 0)
+                newWindowSize <= delta)
             {
                 _windowSizeGate.Release();
             }

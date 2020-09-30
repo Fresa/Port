@@ -42,8 +42,6 @@ namespace Port.Server.IntegrationTests.TestFramework
             ITestOutputHelper testOutputHelper)
             : base(testOutputHelper)
         {
-            // Capture logs written to NLog and redirect it to the current session (if it belongs to it)
-            DisposeOnTearDown(Output.WriteTo(testOutputHelper));
             NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
@@ -71,6 +69,8 @@ namespace Port.Server.IntegrationTests.TestFramework
         protected override async Task DisposeAsync(
             bool disposing)
         {
+            await base.DisposeAsync(disposing)
+                      .ConfigureAwait(false);
             foreach (var disposable in _disposables)
             {
                 disposable.Dispose();

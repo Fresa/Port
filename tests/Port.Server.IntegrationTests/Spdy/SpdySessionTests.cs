@@ -643,4 +643,108 @@ namespace Port.Server.IntegrationTests.Spdy
             }
         }
     }
+
+    public partial class Given_an_opened_spdy_stream
+    {
+        public partial class
+            When_sending_more_data_than_the_window_allows : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = default!;
+            private Data _receivedData = default!;
+            private FlushResult _sendingResult;
+            private RstStream _rst = default!;
+
+            public When_sending_more_data_than_the_window_allows(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>();
+                _stream = Session.Open();
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(_stream.Id), cancellationToken)
+                            .ConfigureAwait(false);
+                await Server.SendAsync(
+                    new Settings(Settings.InitialWindowSize(5)),
+                    cancellationToken)
+                            .ConfigureAwait(false);
+                
+                // Need to send something after settings in order to know when settings have been set
+                Server.On<WindowUpdate>();
+                await Server.SendAsync(
+                                new Data(
+                                    _stream.Id,
+                                    Encoding.UTF8.GetBytes("dummy")),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                await _stream.ReceiveAsync(cancellationToken: cancellationToken)
+                       .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                var dataSubscription = Server.On<Data>();
+                var sendingTask = _stream.SendLastAsync(
+                                 Encoding.UTF8.GetBytes(
+                                     "This is more than 5 bytes"),
+                                 cancellationToken: cancellationToken)
+                             .ConfigureAwait(false);
+                _receivedData = await dataSubscription.ReceiveAsync(cancellationToken)
+                                      .ConfigureAwait(false);
+                var rstSubscription = Server.On<RstStream>();
+                _stream.Dispose();
+                _rst = await rstSubscription.ReceiveAsync(cancellationToken)
+                                      .ConfigureAwait(false);
+                _sendingResult = await sendingTask; 
+            }
+
+            [Fact]
+            public void It_should_have_received_the_amount_of_data_described_by_the_window_size()
+            {
+                _receivedData.Payload.Should()
+                             .HaveCount(5);
+            }
+
+            [Fact]
+            public void It_should_have_received_data_that_is_not_the_last()
+            {
+                _receivedData.IsLastFrame.Should().BeFalse();
+            }
+
+            [Fact]
+            public void It_should_have_cancelled_the_stream()
+            {
+                _rst.Status.Should()
+                    .Be(RstStream.StatusCode.Cancel);
+            }
+
+            [Fact]
+            public void It_should_have_cancelled_the_stream_using_the_stream_id()
+            {
+                _rst.StreamId.Should()
+                    .Be(_stream.Id);
+            }
+
+            [Fact]
+            public void It_should_have_cancelled_sending_the_remaining_data()
+            {
+                _sendingResult.IsCanceled.Should()
+                              .BeTrue();
+            }
+
+            [Fact]
+            public void It_should_not_have_completed_sending_data()
+            {
+                _sendingResult.IsCompleted.Should()
+                              .BeFalse();
+            }
+        }
+    }
 }
