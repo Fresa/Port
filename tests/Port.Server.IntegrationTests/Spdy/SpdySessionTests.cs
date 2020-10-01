@@ -755,6 +755,7 @@ namespace Port.Server.IntegrationTests.Spdy
         {
             private SpdyStream _stream = default!;
             private RstStream _rst = default!;
+            private WindowUpdate _windowUpdate = default!;
 
             public When_receiving_data(
                 ITestOutputHelper testOutputHelper)
@@ -779,25 +780,44 @@ namespace Port.Server.IntegrationTests.Spdy
                 CancellationToken cancellationToken)
             {
                 var rstSubscription = Server.On<RstStream>();
+                var windowUpdateSubscription = Server.On<WindowUpdate>();
                 await Server.SendAsync(Data.Last(_stream.Id, Encoding.UTF8.GetBytes("data")),
                                 cancellationToken)
                             .ConfigureAwait(false);
                 _rst = await rstSubscription.ReceiveAsync(cancellationToken)
                                      .ConfigureAwait(false);
+                _windowUpdate =
+                    await windowUpdateSubscription
+                          .ReceiveAsync(cancellationToken)
+                          .ConfigureAwait(false);
             }
 
             [Fact]
-            public void It_should_have_received_a_rst_for_the_stream()
+            public void It_should_have_sent_a_rst_for_the_stream()
             {
                 _rst.StreamId.Should()
                     .Be(_stream.Id);
             }
 
             [Fact]
-            public void It_should_have_received_a_stream_already_closed_error()
+            public void It_should_have_sent_a_stream_already_closed_error()
             {
                 _rst.Status.Should()
                     .Be(RstStream.StatusCode.StreamAlreadyClosed);
+            }
+
+            [Fact]
+            public void It_should_have_sent_a_connection_window_update()
+            {
+                _windowUpdate.StreamId.Should()
+                             .Be((uint)0);
+            }
+
+            [Fact]
+            public void It_should_have_sent_a_connection_window_update_with_the_size_of_the_received_data()
+            {
+                _windowUpdate.DeltaWindowSize.Should()
+                             .Be((uint)4);
             }
         }
     }
