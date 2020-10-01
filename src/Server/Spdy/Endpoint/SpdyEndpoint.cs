@@ -7,10 +7,12 @@ namespace Port.Server.Spdy.Endpoint
     public sealed class SpdyEndpoint : IDisposable, IEndpoint
     {
         private readonly IEndpointStateIterator _stateIterator =
-            EndpointStateIterator.StartWith(EndpointState.Closed)
-                                 .Then(EndpointState.Closed)
-                                 .Or(EndpointState.Opened, builder =>
-                                     builder.Then(EndpointState.Closed));
+            EndpointStateBuilder.StartWith(EndpointState.Closed)
+                                .Then(EndpointState.Closed)
+                                .Or(
+                                    EndpointState.Opened, builder =>
+                                        builder.Then(EndpointState.Closed))
+                                .Build();
 
         private readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 
