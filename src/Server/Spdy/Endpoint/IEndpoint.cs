@@ -1,9 +1,9 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Endpoint
 {
-    public interface IEndPoint
+    public interface IEndpoint
     {
         bool IsOpen { get; }
         bool IsClosed { get; }

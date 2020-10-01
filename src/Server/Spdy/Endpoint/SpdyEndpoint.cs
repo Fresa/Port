@@ -2,61 +2,63 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Port.Server.Spdy
+namespace Port.Server.Spdy.Endpoint
 {
-    public sealed class SpdyEndPoint : IDisposable, IEndPoint
+    public sealed class SpdyEndpoint : IDisposable, IEndpoint
     {
-        private int _state = Closed;
-        private const int Closed = 0;
-        private const int Opened = 1;
+        private readonly IEndpointStateIterator _stateIterator =
+            EndpointStateIterator.StartWith(EndpointState.Closed)
+                                 .Then(EndpointState.Closed)
+                                 .Or(EndpointState.Opened, builder =>
+                                     builder.Then(EndpointState.Closed));
 
         private readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 
         internal CancellationToken Cancellation
             => _cancellationSource.Token;
 
-        private event Action<int> StateChanged = source => { };
+        private event Action<EndpointState> StateChanged = source => { };
 
-        internal SpdyEndPoint()
+        internal SpdyEndpoint()
         {
         }
 
         internal void Open()
         {
-            if (Interlocked.CompareExchange(ref _state, Opened, Closed) == Closed)
+            if (_stateIterator.TransitionTo(EndpointState.Opened))
             {
-                StateChanged.Invoke(Opened);
+                StateChanged.Invoke(EndpointState.Opened);
             }
         }
 
-        public bool IsOpen => !IsClosed;
+        public bool IsOpen => _stateIterator.Current == EndpointState.Opened;
         public Task WaitForOpenedAsync(CancellationToken cancellationToken = default)
         {
-            return WaitForStateAsync(Opened, cancellationToken);
+            return WaitForStateAsync(EndpointState.Opened, cancellationToken);
         }
 
         internal void Close()
         {
-            if (Interlocked.CompareExchange(ref _state, Closed, Opened) == Opened)
+            if (_stateIterator.TransitionTo(EndpointState.Closed))
             {
                 _cancellationSource.Cancel(false);
-                StateChanged.Invoke(Closed);
+                StateChanged.Invoke(EndpointState.Closed);
             }
         }
 
-        public bool IsClosed => _state == Closed;
+        public bool IsClosed => _stateIterator.Current == EndpointState.Closed;
         public Task WaitForClosedAsync(CancellationToken cancellationToken = default)
         {
-            return WaitForStateAsync(Closed, cancellationToken);
+            return WaitForStateAsync(EndpointState.Closed, cancellationToken);
         }
 
-        private async Task WaitForStateAsync(int state, CancellationToken cancellationToken = default)
+        private async Task WaitForStateAsync(EndpointState state, CancellationToken cancellationToken = default)
         {
             using var signal = new SemaphoreSlim(0);
             StateChanged += OnStateChanged;
             try
             {
-                if (_state == state)
+                if (_stateIterator.Current == state)
                 {
                     return;
                 }
@@ -69,7 +71,7 @@ namespace Port.Server.Spdy
             }
 
             void OnStateChanged(
-                int changedState)
+                EndpointState changedState)
             {
                 if (changedState == state)
                 {

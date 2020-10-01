@@ -6,6 +6,7 @@ using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Collections;
+using Port.Server.Spdy.Endpoint;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
 
@@ -50,10 +51,10 @@ namespace Port.Server.Spdy
 
         public UInt31 Id { get; }
 
-        private readonly SpdyEndPoint _local = new SpdyEndPoint();
-        public IEndPoint Local => _local;
-        private readonly SpdyEndPoint _remote = new SpdyEndPoint();
-        public IEndPoint Remote => _remote;
+        private readonly SpdyEndpoint _local = new SpdyEndpoint();
+        public IEndpoint Local => _local;
+        private readonly SpdyEndpoint _remote = new SpdyEndpoint();
+        public IEndpoint Remote => _remote;
 
         private void OpenRemote()
         {

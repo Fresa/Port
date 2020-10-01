@@ -747,4 +747,58 @@ namespace Port.Server.IntegrationTests.Spdy
             }
         }
     }
+
+    public partial class Given_a_unidirectional_spdy_session
+    {
+        public partial class
+            When_receiving_data : SpdySessionTestSpecification
+        {
+            private SpdyStream _stream = default!;
+            private RstStream _rst = default!;
+
+            public When_receiving_data(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
+
+            protected override async Task GivenASessionAsync(
+                CancellationToken cancellationToken)
+            {
+                var synStreamSubscription = Server.On<SynStream>();
+                _stream = DisposeOnTearDown(
+                    Session.Open(options: SynStream.Options.Unidirectional));
+                await synStreamSubscription.ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                await Server.SendAsync(
+                                SynReply.Accept(_stream.Id), cancellationToken)
+                            .ConfigureAwait(false);
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                var rstSubscription = Server.On<RstStream>();
+                await Server.SendAsync(Data.Last(_stream.Id, Encoding.UTF8.GetBytes("data")),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                _rst = await rstSubscription.ReceiveAsync(cancellationToken)
+                                     .ConfigureAwait(false);
+            }
+
+            [Fact]
+            public void It_should_have_received_a_rst_for_the_stream()
+            {
+                _rst.StreamId.Should()
+                    .Be(_stream.Id);
+            }
+
+            [Fact]
+            public void It_should_have_received_a_stream_already_closed_error()
+            {
+                _rst.Status.Should()
+                    .Be(RstStream.StatusCode.StreamAlreadyClosed);
+            }
+        }
+    }
 }
