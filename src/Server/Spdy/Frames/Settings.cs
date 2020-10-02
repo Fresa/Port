@@ -69,7 +69,7 @@ namespace Port.Server.Spdy.Frames
             ClearSettings = 1
         }
 
-        public bool ClearSettings => Flags == Options.ClearSettings;
+        public bool ClearSettings => Flags.HasFlag(Options.ClearSettings);
 
         public IReadOnlyCollection<Setting> Values { get; }
 

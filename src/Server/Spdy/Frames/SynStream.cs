@@ -80,12 +80,12 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// The local stream is in the half-closed (Section 2.3.6) state.
         /// </summary>
-        public bool IsFin => Flags == Options.Fin;
+        public bool IsFin => Flags.HasFlag(Options.Fin);
 
         /// <summary>
         /// The remote stream is in the half-closed (Section 2.3.6) state.
         /// </summary>
-        public bool IsUnidirectional => Flags == Options.Unidirectional;
+        public bool IsUnidirectional => Flags.HasFlag(Options.Unidirectional);
 
         /// <summary>
         /// The 31-bit identifier for this stream. This stream-id will be used in frames which are part of this stream.

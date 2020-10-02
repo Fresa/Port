@@ -77,7 +77,7 @@ namespace Port.Server.Spdy.Frames
             Fin = 1
         }
 
-        public bool IsLastFrame => Flags == Options.Fin;
+        public bool IsLastFrame => Flags.HasFlag(Options.Fin);
 
         /// <summary>
         /// The 31-bit identifier for this stream.

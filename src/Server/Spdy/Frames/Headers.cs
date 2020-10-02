@@ -83,7 +83,7 @@ namespace Port.Server.Spdy.Frames
             Fin = 1
         }
 
-        public bool IsLastFrame => Flags == Options.Fin;
+        public bool IsLastFrame => Flags.HasFlag(Options.Fin);
 
         /// <summary>
         /// The stream this HEADERS block is associated with.
