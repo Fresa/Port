@@ -146,7 +146,7 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteUInt24Async(Length, cancellationToken)
                              .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                                 LastGoodStreamId.Value, cancellationToken)
+                                 LastGoodStreamId, cancellationToken)
                              .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async((uint) Status, cancellationToken)
                              .ConfigureAwait(false);

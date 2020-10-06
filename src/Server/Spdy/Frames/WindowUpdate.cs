@@ -139,10 +139,10 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteUInt24Async(Length, cancellationToken)
                              .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                                 StreamId.Value, cancellationToken)
+                                 StreamId, cancellationToken)
                              .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                                 DeltaWindowSize.Value, cancellationToken)
+                                 DeltaWindowSize, cancellationToken)
                              .ConfigureAwait(false);
         }
     }

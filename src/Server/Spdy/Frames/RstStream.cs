@@ -195,7 +195,7 @@ namespace Port.Server.Spdy.Frames
             return ReadResult.Ok(new RstStream(flags.ToEnum<Options>(), length, streamId, status));
         }
 
-        public enum StatusCode
+        public enum StatusCode : uint
         {
             ProtocolError = 1,
             InvalidStream = 2,
@@ -218,7 +218,7 @@ namespace Port.Server.Spdy.Frames
                     Length, cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                    StreamId.Value, cancellationToken)
+                    StreamId, cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     (uint)Status, cancellationToken)

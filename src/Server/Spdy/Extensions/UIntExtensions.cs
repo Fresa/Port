@@ -7,7 +7,7 @@ namespace Port.Server.Spdy.Extensions
     internal static class UIntExtensions
     {
         internal static uint SetBit(
-            this uint value,
+            this UInt31 value,
             int bitIndex,
             bool bitValue)
         {
@@ -20,7 +20,7 @@ namespace Port.Server.Spdy.Extensions
 
             if (bitValue)
             {
-                return (uint) ((int) value | (1 << bitIndex));
+                return (uint) (value | (1 << bitIndex));
             }
 
             return (uint) (value & ~(1 << bitIndex));

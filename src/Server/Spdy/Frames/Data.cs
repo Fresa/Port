@@ -77,7 +77,7 @@ namespace Port.Server.Spdy.Frames
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            var data = StreamId.Value
+            var data = StreamId
                 .SetBit(31, false);
             await frameWriter.WriteUInt32Async(data, cancellationToken)
                 .ConfigureAwait(false);

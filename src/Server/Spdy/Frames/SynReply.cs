@@ -137,7 +137,7 @@ namespace Port.Server.Spdy.Frames
                     UInt24.From((uint)length), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
-                    StreamId.Value, cancellationToken)
+                    StreamId, cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteBytesAsync(
                     compressedHeaders, cancellationToken)
