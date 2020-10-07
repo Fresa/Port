@@ -17,9 +17,12 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             _second = second;
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
-            return new ValueTask();
+            await _first.DisposeAsync()
+                        .ConfigureAwait(false);
+            await _second.DisposeAsync()
+                   .ConfigureAwait(false);
         }
 
         public async ValueTask<int> ReceiveAsync(
