@@ -102,7 +102,7 @@ namespace Port.Server.Spdy.Frames
             get => _deltaWindowSize;
             private set
             {
-                if (value.Value < 1)
+                if (value < 1)
                 {
                     throw new ArgumentOutOfRangeException(
                         nameof(DeltaWindowSize),

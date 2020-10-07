@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using Port.Server.Spdy.Frames;
 
 namespace Port.Server.Spdy
@@ -6,22 +7,33 @@ namespace Port.Server.Spdy
     public readonly struct ReadResult<T>
         where T : Frame
     {
-        private readonly bool _hasResult;
         private readonly T? _result;
         private readonly RstStream? _error;
 
-        private ReadResult(bool hasResult, [NotNullWhen(true)] T? result, [NotNullWhen(true)] RstStream? error)
+        private ReadResult(T result)
         {
-            _hasResult = hasResult;
             _result = result;
+            _error = null;
+        }
+
+        private ReadResult(RstStream error)
+        {
+            _result = null;
             _error = error;
         }
 
         public bool Out([NotNullWhen(true)] out T? result, [NotNullWhen(false)] out RstStream? error)
         {
-            result = _result;
+            if (_result == null)
+            {
+                result = null;
+                error = _error ?? throw new NullReferenceException();
+                return false;
+            }
+
+            result = _result ?? throw new NullReferenceException();
             error = _error;
-            return _hasResult;
+            return true;
         }
 
         public T Result
@@ -38,18 +50,21 @@ namespace Port.Server.Spdy
         }
 
         public static implicit operator ReadResult<Frame>(ReadResult<T> stream) =>
-            new ReadResult<Frame>(stream._hasResult, stream._result, stream._error);
+            new ReadResult<Frame>(
+                stream._result != null ? 
+                    stream._result as Frame : 
+                    stream._error ?? throw new NullReferenceException());
 
         public static ReadResult<T> Error(
             RstStream error)
         {
-            return new ReadResult<T>(false, null, error);
+            return new ReadResult<T>(error);
         }
 
         public static ReadResult<T> Ok(
             T result)
         {
-            return new ReadResult<T>(true, result, null);
+            return new ReadResult<T>(result);
         }
     }
 
@@ -62,7 +77,7 @@ namespace Port.Server.Spdy
         }
 
         public static ReadResult<Data> Ok(
-            Data result) 
+            Data result)
         {
             return ReadResult<Data>.Ok(result);
         }
