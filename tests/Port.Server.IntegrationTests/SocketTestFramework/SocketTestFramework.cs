@@ -53,11 +53,6 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         {
                             return;
                         }
-                        catch (Exception)
-                        {
-                            _cancellationTokenSource.Cancel(false);
-                            throw;
-                        }
                     }
                 });
             _backgroundTasks.Add(task);
