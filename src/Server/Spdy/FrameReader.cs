@@ -51,11 +51,10 @@ namespace Port.Server.Spdy
             return value.First();
         }
 
-        public async ValueTask<byte[]> ReadBytesAsync(int length,
+        public ValueTask<byte[]> ReadBytesAsync(int length,
             CancellationToken cancellationToken = default)
         {
-            return await ReadAsLittleEndianAsync(length, cancellationToken)
-                .ConfigureAwait(false);
+            return ReadAsLittleEndianAsync(length, cancellationToken);
         }
 
         public async ValueTask<byte> PeekByteAsync(

@@ -12,11 +12,16 @@ namespace Port.Server.IntegrationTests.Spdy
     internal sealed class FrameClient : IMessageClient<Frame>
     {
         private readonly INetworkClient _networkClient;
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+
+        private readonly CancellationTokenSource _cancellationTokenSource =
+            new CancellationTokenSource();
+
         private Task _receiverTask = Task.CompletedTask;
         private readonly Pipe _pipe = new Pipe();
         private readonly FrameReader _frameReader;
-        private readonly SemaphoreSlimGate _frameReaderGate = SemaphoreSlimGate.OneAtATime;
+
+        private readonly SemaphoreSlimGate _frameReaderGate =
+            SemaphoreSlimGate.OneAtATime;
 
         public FrameClient(
             INetworkClient networkClient)
@@ -38,14 +43,12 @@ namespace Port.Server.IntegrationTests.Spdy
                         do
                         {
                             var bytes = await _networkClient.ReceiveAsync(
-                                                                _pipe
-                                                                    .Writer
-                                                                    .GetMemory(
-                                                                        512),
-                                                                _cancellationTokenSource
-                                                                    .Token)
-                                                            .ConfigureAwait(
-                                                                false);
+                                    _pipe
+                                        .Writer
+                                        .GetMemory(512),
+                                    _cancellationTokenSource
+                                        .Token)
+                                .ConfigureAwait(false);
                             _pipe.Writer.Advance(bytes);
                             result = await _pipe
                                            .Writer.FlushAsync(
@@ -77,7 +80,7 @@ namespace Port.Server.IntegrationTests.Spdy
             CancellationToken cancellationToken = default)
         {
             using (await _frameReaderGate.WaitAsync(cancellationToken)
-                                           .ConfigureAwait(false))
+                                         .ConfigureAwait(false))
             {
                 return (await Frame.TryReadAsync(
                                        _frameReader,
@@ -99,14 +102,20 @@ namespace Port.Server.IntegrationTests.Spdy
 
             await _receiverTask.ConfigureAwait(false);
             _frameReaderGate.Dispose();
+            await _networkClient.DisposeAsync()
+                                .ConfigureAwait(false);
         }
 
         public async ValueTask SendAsync(
             Frame payload,
             CancellationToken cancellationToken = default)
         {
-            await _networkClient.SendAsync(payload, cancellationToken)
-                                .ConfigureAwait(false);
+            await _networkClient.SendAsync(payload,
+                CancellationTokenSource.CreateLinkedTokenSource(
+                                           cancellationToken,
+                                           _cancellationTokenSource.Token)
+                                       .Token)
+                .ConfigureAwait(false);
         }
     }
 }
