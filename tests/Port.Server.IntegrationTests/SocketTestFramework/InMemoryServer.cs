@@ -38,6 +38,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         public async ValueTask DisposeAsync()
         {
+            _waitingClients.Complete();
+
             while (_clients.TryDequeue(out var client))
             {
                 await client
