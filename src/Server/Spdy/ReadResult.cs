@@ -31,7 +31,7 @@ namespace Port.Server.Spdy
                 return false;
             }
 
-            result = _result ?? throw new NullReferenceException();
+            result = _result;
             error = _error;
             return true;
         }
