@@ -69,8 +69,6 @@ namespace Port.Server.IntegrationTests.TestFramework
         protected override async Task DisposeAsync(
             bool disposing)
         {
-            await base.DisposeAsync(disposing)
-                      .ConfigureAwait(false);
             foreach (var disposable in _disposables)
             {
                 disposable.Dispose();
@@ -82,6 +80,8 @@ namespace Port.Server.IntegrationTests.TestFramework
                                      .ConfigureAwait(false);
             }
 
+            await base.DisposeAsync(disposing)
+                      .ConfigureAwait(false);
             NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
         }
     }
