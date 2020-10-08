@@ -3,6 +3,8 @@
 Port is a Kubernetes port forward manager that keeps port forwarding connections persistent. 
 It comes both with a CLI and a UI.
 
+![Continuous Delivery](https://github.com/Fresa/Port/workflows/Continuous%20Delivery/badge.svg)
+
 ## Installation
 
 N/A
