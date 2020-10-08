@@ -20,6 +20,7 @@ jobs:
       with:
         dotnet-version: 3.1.301
     - name: Bump version and push tag
+      id: set-version
       uses: mathieudutour/github-tag-action@v4.5
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -29,3 +30,7 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --configuration Release --no-restore --verbosity normal
+
+    outputs:
+      version: ${{ steps.set-version.outputs.new_tag }}
+      changelog: ${{ steps.set-version.outputs.changelog }}
