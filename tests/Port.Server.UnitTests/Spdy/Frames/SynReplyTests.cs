@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
-using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
 using Test.It.With.XUnit;
@@ -72,8 +71,6 @@ namespace Port.Server.UnitTests.Spdy.Frames
             [Fact]
             public void It_should_have_written_a_binary_stream()
             {
-                var a = _serialized.ToArray()
-                                   .ToHexArrayRepresentation();
                 _serialized.ToArray()
                            .Should()
                            .Equal(Message);
