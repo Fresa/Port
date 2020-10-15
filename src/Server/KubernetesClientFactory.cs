@@ -12,10 +12,10 @@ namespace Port.Server
             _configuration = configuration;
         }
 
-        public Kubernetes Create(
+        public k8s.Kubernetes Create(
             string context)
         {
-            return new Kubernetes(
+            return new k8s.Kubernetes(
                 KubernetesClientConfiguration.BuildConfigFromConfigFile(
                     currentContext: context,
                     kubeconfigPath: _configuration.KubernetesConfigPath),

@@ -5,7 +5,7 @@ namespace Port.Server.IntegrationTests.TestFramework
     internal static class TestFrameworkExtensions
     {
         internal static KubernetesConfiguration CreateKubernetesConfiguration(
-            this Kubernetes.Test.API.Server.TestFramework testFramework)
+            this global::Kubernetes.Test.API.Server.TestFramework testFramework)
         {
             return new KubernetesConfiguration(
                 createHandlers: () => new DelegatingHandler[]

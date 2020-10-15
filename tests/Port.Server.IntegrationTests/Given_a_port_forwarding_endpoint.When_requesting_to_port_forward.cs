@@ -165,7 +165,7 @@ namespace Port.Server.IntegrationTests
                             .NetworkServerFactory);
 
                     KubernetesApiServer =
-                        Kubernetes.Test.API.Server.TestFramework.Start();
+                        global::Kubernetes.Test.API.Server.TestFramework.Start();
                     container.RegisterSingleton(
                         () => KubernetesApiServer
                             .CreateKubernetesConfiguration());
@@ -176,7 +176,7 @@ namespace Port.Server.IntegrationTests
                     get;
                 }
 
-                internal Kubernetes.Test.API.Server.TestFramework
+                internal global::Kubernetes.Test.API.Server.TestFramework
                     KubernetesApiServer
                 { get; }
 
