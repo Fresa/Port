@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using k8s;
 using Microsoft.FeatureManagement;
 using Port.Shared;
 
@@ -98,22 +99,31 @@ namespace Port.Server
 
             using var client = _clientFactory.Create(context);
 
-            var webSocket =
-                await client.WebSocketNamespacedPodPortForwardAsync(
-                        portForward.Pod, portForward.Namespace,
-                        new[] { portForward.PodPort },
-                        "v4.channel.k8s.io")
-                    .ConfigureAwait(false);
-
             var socketServer = _networkServerFactory.CreateAndStart(
                 IPAddress.Any,
                 (int)portForward.LocalPort,
                 portForward.ProtocolType);
             _disposables.Add(socketServer);
 
-            var streamForwarder = StreamForwarder
-                .Start(socketServer, webSocket);
-            _disposables.Add(streamForwarder);
+            if (await _featureManager
+                      .IsEnabledAsync(nameof(Features.PortForwardingWithSpdy))
+                      .ConfigureAwait(false))
+            {
+
+            }
+            else
+            {
+                var webSocket =
+                    await client.WebSocketNamespacedPodPortForwardAsync(
+                                    portForward.Pod, portForward.Namespace,
+                                    new[] {portForward.PodPort},
+                                    "v4.channel.k8s.io")
+                                .ConfigureAwait(false);
+
+                var streamForwarder = StreamForwarder
+                    .Start(socketServer, webSocket);
+                _disposables.Add(streamForwarder);
+            }
         }
 
         public async ValueTask DisposeAsync()
