@@ -8,22 +8,18 @@ namespace Port.Server
 
         public KubernetesClientFactory(
             KubernetesConfiguration configuration)
-        {
-            _configuration = configuration;
-        }
+            => _configuration = configuration;
 
         public k8s.Kubernetes Create(
             string context)
-        {
-            return new k8s.Kubernetes(
+            => new k8s.Kubernetes(
                 KubernetesClientConfiguration.BuildConfigFromConfigFile(
                     currentContext: context,
                     kubeconfigPath: _configuration.KubernetesConfigPath),
-                _configuration.CreateHandlers())
+                _configuration.CreateClient())
             {
                 CreateWebSocketBuilder =
                     _configuration.CreateWebSocketBuilder
             };
-        }
     }
 }

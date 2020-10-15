@@ -8,11 +8,14 @@ namespace Port.Server.IntegrationTests.TestFramework
             this global::Kubernetes.Test.API.Server.TestFramework testFramework)
         {
             return new KubernetesConfiguration(
-                createHandlers: () => new DelegatingHandler[]
-                {
-                    new LogItHttpMessageHandlerDecorator(
-                        testFramework.CreateHttpMessageHandler())
-                },
+                createClient: () => 
+                    new HttpClient(
+                        new LogItHttpMessageHandlerDecorator(
+                        testFramework.CreateHttpMessageHandler()))
+                    {
+                        BaseAddress = testFramework.BaseAddress
+                    }
+                ,
                 kubernetesConfigPath: "config",
                 createWebSocketBuilder: () => new WebSocketClientBuilder(
                     testFramework.CreateWebSocketClient()));

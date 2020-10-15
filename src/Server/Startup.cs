@@ -77,10 +77,9 @@ namespace Port.Server
                     KubernetesClientFactory>();
             _container.RegisterSingleton(
                 () => new KubernetesConfiguration(
-                    createHandlers: () => new DelegatingHandler[]
-                    {
-                        new LogItHttpMessageHandlerDecorator()
-                    }));
+                    createClient: () => 
+                        new HttpClient(new LogItHttpMessageHandlerDecorator())
+                    ));
             _container
                 .RegisterSingleton<INetworkServerFactory,
                     SocketNetworkServerFactory>();

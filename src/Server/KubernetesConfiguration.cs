@@ -9,16 +9,17 @@ namespace Port.Server
         public KubernetesConfiguration(
             string? kubernetesConfigPath = default,
             Func<WebSocketBuilder>? createWebSocketBuilder = default,
-            Func<DelegatingHandler[]>? createHandlers = default)
+            Func<HttpClient>? createClient = default)
         {
             KubernetesConfigPath = kubernetesConfigPath;
-            CreateHandlers = createHandlers ?? (() => new DelegatingHandler[0]);
-            CreateWebSocketBuilder = createWebSocketBuilder ?? (() => new WebSocketBuilder());
+            CreateClient = createClient ?? (() => new HttpClient());
+            CreateWebSocketBuilder = createWebSocketBuilder ??
+                                     (() => new WebSocketBuilder());
         }
 
         public string? KubernetesConfigPath { get; }
 
-        public Func<DelegatingHandler[]> CreateHandlers { get; }
+        public Func<HttpClient> CreateClient { get; }
 
         public Func<WebSocketBuilder> CreateWebSocketBuilder { get; }
     }
