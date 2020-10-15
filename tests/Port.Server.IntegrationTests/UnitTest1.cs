@@ -8,7 +8,6 @@ namespace Port.Server.IntegrationTests
 {
     public class UnitTest1 : TestSpecificationAsync
     {
-
         public UnitTest1(
             ITestOutputHelper testOutputHelper)
             : base(testOutputHelper)
@@ -18,22 +17,22 @@ namespace Port.Server.IntegrationTests
         [Fact(Skip = "Dependent on a real k8s cluster and services")]
         public async Task Test1()
         {
-            var factory = new KubernetesClientFactory(new KubernetesConfiguration());
-            var ks = new KubernetesService(factory, new SocketNetworkServerFactory());
+            var factory =
+                new KubernetesClientFactory(new KubernetesConfiguration());
+            var ks = new KubernetesService(
+                factory, new SocketNetworkServerFactory(), new TestFeatureManager());
             await ks.PortForwardAsync(
-                "kind-argo-demo-ci", new Shared.PortForward
-                (
-                    podPort: 2746,
-                    protocolType: ProtocolType.Tcp,
-                    @namespace: "argo",
-                    service: "argo-server-5f5c647dcb-bkcz6",
-                    pod: ""
-                )
-                { LocalPort = 2746 }).ConfigureAwait(false);
+                        "kind-argo-demo-ci", new Shared.PortForward(
+                                podPort: 2746,
+                                protocolType: ProtocolType.Tcp,
+                                @namespace: "argo",
+                                service: "argo-server-5f5c647dcb-bkcz6",
+                                pod: "")
+                            {LocalPort = 2746})
+                    .ConfigureAwait(false);
 
             await Task.Delay(int.MaxValue)
-                .ConfigureAwait(false);
+                      .ConfigureAwait(false);
         }
-
     }
 }

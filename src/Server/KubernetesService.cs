@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using k8s;
+using Microsoft.FeatureManagement;
 using Port.Shared;
 
 namespace Port.Server
@@ -15,6 +15,7 @@ namespace Port.Server
     {
         private readonly IKubernetesClientFactory _clientFactory;
         private readonly INetworkServerFactory _networkServerFactory;
+        private readonly IFeatureManager _featureManager;
 
         private readonly CancellationTokenSource _cancellationSource =
             new CancellationTokenSource();
@@ -24,10 +25,12 @@ namespace Port.Server
 
         public KubernetesService(
             IKubernetesClientFactory clientFactory,
-            INetworkServerFactory networkServerFactory)
+            INetworkServerFactory networkServerFactory,
+            IFeatureManager featureManager)
         {
             _clientFactory = clientFactory;
             _networkServerFactory = networkServerFactory;
+            _featureManager = featureManager;
         }
 
         public async Task<IEnumerable<Deployment>>

@@ -10,10 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Given_a_port_forwarding_endpoint.When_requesting_to_port_forward.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="5.10.3" />
     <PackageReference Include="KubernetesClient" Version="2.0.26" />
     <PackageReference Include="Log.It.With.NLog" Version="2.0.0" />
