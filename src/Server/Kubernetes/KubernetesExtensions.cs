@@ -21,13 +21,19 @@ namespace Port.Server.Kubernetes
             {
                 throw new ArgumentOutOfRangeException(nameof(ports), "At least one port needs to be specified");
             }
-            var uri = new Uri($"api/v1/namespaces/{@namespace}/pods/{name}/portforward?{string.Join('&', ports.Select(port => $"ports={port}"))}");
+            var uri = new Uri(kubernetes.BaseUri, $"api/v1/namespaces/{@namespace}/pods/{name}/portforward?{string.Join('&', ports.Select(port => $"ports={port}"))}");
 
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.TryAddWithoutValidation(
                 Microsoft.Net.Http.Headers.HeaderNames.Connection, "Upgrade");
             request.Headers.TryAddWithoutValidation(
                 Microsoft.Net.Http.Headers.HeaderNames.Upgrade, "SPDY/3.1");
+            if (kubernetes.Credentials != null)
+            {
+                await kubernetes.Credentials.ProcessHttpRequestAsync(
+                              request, cancellationToken)
+                          .ConfigureAwait(false);
+            }
 
             var response = await kubernetes.HttpClient.SendAsync(request, cancellationToken)
                                            .ConfigureAwait(false);
