@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Port.Shared;
@@ -13,27 +14,20 @@ namespace Port.Server.Controllers
 
         public ServiceController(
             IKubernetesService kubernetesService)
-        {
-            _kubernetesService = kubernetesService;
-        }
+            => _kubernetesService = kubernetesService;
 
         [HttpGet("{context}")]
-        public async Task<IEnumerable<Service>> GetAsync(
+        public Task<IEnumerable<Service>> GetAsync(
             string context)
-        {
-            return await _kubernetesService.ListServicesInAllNamespacesAsync(
-                context)
-                .ConfigureAwait(false);
-        }
+            => _kubernetesService
+                .ListServicesInAllNamespacesAsync(context);
 
         [HttpPost("{context}/portforward")]
-        public async Task PostAsync(
+        public Task PostAsync(
             string context,
-            Shared.PortForward portForward)
-        {
-            await _kubernetesService.PortForwardAsync(context, portForward)
-                .ConfigureAwait(false);
-        }
-
+            PortForward portForward,
+            CancellationToken cancellationToken)
+            => _kubernetesService.PortForwardAsync(
+                context, portForward, cancellationToken);
     }
 }

@@ -36,7 +36,7 @@ namespace Port.Server
 
         private readonly ILogger _logger = LogFactory.Create<StreamForwarder>();
 
-        private StreamForwarder(
+        public StreamForwarder(
             INetworkServer networkServer,
             WebSocket remoteSocket)
         {
@@ -184,7 +184,7 @@ namespace Port.Server
             // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
             if (bytesReceived == 0)
             {
-                throw new SocketException((int) SocketError.Success);
+                throw new SocketException((int)SocketError.Success);
             }
 
             _logger.Trace(

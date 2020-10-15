@@ -28,7 +28,7 @@ namespace Port.Server.IntegrationTests
                                 @namespace: "argo",
                                 service: "argo-server-5f5c647dcb-bkcz6",
                                 pod: "")
-                            {LocalPort = 2746})
+                            {LocalPort = 2746}, CancellationTokenSource.Token)
                     .ConfigureAwait(false);
 
             await Task.Delay(int.MaxValue)

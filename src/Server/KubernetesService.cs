@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using k8s;
 using Microsoft.FeatureManagement;
+using Port.Server.Kubernetes;
 using Port.Shared;
 
 namespace Port.Server
@@ -41,28 +42,24 @@ namespace Port.Server
             using var client = _clientFactory.Create(context);
             var deployments =
                 await client.ListDeploymentForAllNamespacesAsync()
-                    .ConfigureAwait(false);
+                            .ConfigureAwait(false);
             return deployments.Items.Select(
-                pod => new Deployment
-                (
+                pod => new Deployment(
                     @namespace: pod.Metadata.NamespaceProperty,
-                    name: pod.Metadata.Name
-                ));
+                    name: pod.Metadata.Name));
         }
 
-        public async Task<IEnumerable<Shared.Pod>> ListPodsInAllNamespacesAsync(
+        public async Task<IEnumerable<Pod>> ListPodsInAllNamespacesAsync(
             string context)
         {
             using var client = _clientFactory.Create(context);
             var pods = await client.ListPodForAllNamespacesAsync()
-                .ConfigureAwait(false);
+                                   .ConfigureAwait(false);
             return pods.Items.Select(
-                pod => new Shared.Pod
-                (
-                    @namespace: pod.Metadata.NamespaceProperty,
-                    name: pod.Metadata.Name,
-                    pod.Metadata.Labels
-                ));
+                pod => new Pod(
+                    pod.Metadata.NamespaceProperty,
+                    pod.Metadata.Name,
+                    pod.Metadata.Labels));
         }
 
         public async Task<IEnumerable<Service>>
@@ -71,26 +68,22 @@ namespace Port.Server
         {
             using var client = _clientFactory.Create(context);
             var services = await client.ListServiceForAllNamespacesAsync()
-                .ConfigureAwait(false);
+                                       .ConfigureAwait(false);
             return services.Items.Select(
-                service => new Service
-                (
-                    @namespace: service.Metadata.NamespaceProperty,
-                    name: service.Metadata.Name,
-                    ports: service.Spec.Ports.Select(
-                        port => new Shared.Port
-                        (
-                            number: port.Port,
-                            protocolType:
-                                Enum.Parse<ProtocolType>(port.Protocol, true)
-                        )),
-                    service.Spec.Selector
-                ));
+                service => new Service(
+                    service.Metadata.NamespaceProperty,
+                    service.Metadata.Name,
+                    service.Spec.Ports.Select(
+                        port => new Shared.Port(
+                            port.Port,
+                            Enum.Parse<ProtocolType>(port.Protocol, true))),
+                    service.Spec.Selector));
         }
 
         public async Task PortForwardAsync(
             string context,
-            Shared.PortForward portForward)
+            PortForward portForward,
+            CancellationToken cancellationToken = default)
         {
             if (!portForward.LocalPort.HasValue)
             {
@@ -101,7 +94,7 @@ namespace Port.Server
 
             var socketServer = _networkServerFactory.CreateAndStart(
                 IPAddress.Any,
-                (int)portForward.LocalPort,
+                (int) portForward.LocalPort,
                 portForward.ProtocolType);
             _disposables.Add(socketServer);
 
@@ -109,7 +102,14 @@ namespace Port.Server
                       .IsEnabledAsync(nameof(Features.PortForwardingWithSpdy))
                       .ConfigureAwait(false))
             {
-
+                var session = await client.SpdyNamespacedPodPortForwardAsync(
+                                              portForward.Pod,
+                                              portForward.Namespace,
+                                              new[] {portForward.PodPort},
+                                              cancellationToken)
+                                          .ConfigureAwait(false);
+                _disposables.Add(
+                    SpdyStreamForwarder.Start(socketServer, session));
             }
             else
             {
@@ -117,7 +117,8 @@ namespace Port.Server
                     await client.WebSocketNamespacedPodPortForwardAsync(
                                     portForward.Pod, portForward.Namespace,
                                     new[] {portForward.PodPort},
-                                    "v4.channel.k8s.io")
+                                    "v4.channel.k8s.io",
+                                    cancellationToken: cancellationToken)
                                 .ConfigureAwait(false);
 
                 var streamForwarder = StreamForwarder
@@ -131,11 +132,13 @@ namespace Port.Server
             _cancellationSource.Cancel();
 
             await Task.WhenAll(
-                    _disposables
-                        .Select(disposable => disposable.DisposeAsync())
-                        .Where(valueTask => !valueTask.IsCompletedSuccessfully)
-                        .Select(valueTask => valueTask.AsTask()))
-                .ConfigureAwait(false);
+                          _disposables
+                              .Select(disposable => disposable.DisposeAsync())
+                              .Where(
+                                  valueTask
+                                      => !valueTask.IsCompletedSuccessfully)
+                              .Select(valueTask => valueTask.AsTask()))
+                      .ConfigureAwait(false);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Port.Shared;
 
@@ -16,6 +17,7 @@ namespace Port.Server
 
         Task PortForwardAsync(
             string context,
-            Shared.PortForward portForward);
+            Shared.PortForward portForward,
+            CancellationToken cancellationToken = default);
     }
 }
