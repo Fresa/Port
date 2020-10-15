@@ -12,7 +12,7 @@ namespace Port.Server
             _configuration = configuration;
         }
 
-        public IKubernetes Create(
+        public Kubernetes Create(
             string context)
         {
             return new Kubernetes(

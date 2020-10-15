@@ -4,7 +4,7 @@ namespace Port.Server
 {
     internal interface IKubernetesClientFactory
     {
-        IKubernetes Create(
+        Kubernetes Create(
             string context);
     }
 }
