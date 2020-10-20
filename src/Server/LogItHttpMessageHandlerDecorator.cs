@@ -9,11 +9,6 @@ namespace Port.Server
     {
         private readonly ILogger _logger = LogFactory.Create<LogItHttpMessageHandlerDecorator>();
 
-        internal LogItHttpMessageHandlerDecorator()
-        {
-            
-        }
-
         internal LogItHttpMessageHandlerDecorator(HttpMessageHandler httpMessageHandler) :
             base(httpMessageHandler)
         {

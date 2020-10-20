@@ -78,7 +78,7 @@ namespace Port.Server
             _container.RegisterSingleton(
                 () => new KubernetesConfiguration(
                     createClient: () => 
-                        new HttpClient(new LogItHttpMessageHandlerDecorator())
+                        new HttpClient(new LogItHttpMessageHandlerDecorator(new HttpClientHandler()))
                     ));
             _container
                 .RegisterSingleton<INetworkServerFactory,
