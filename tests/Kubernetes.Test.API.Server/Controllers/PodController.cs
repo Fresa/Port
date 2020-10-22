@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
+using Port.Server.Spdy.AspNet;
 
 namespace Kubernetes.Test.API.Server.Controllers
 {
@@ -43,6 +44,25 @@ namespace Kubernetes.Test.API.Server.Controllers
                 await _testFramework.Pod.PortForward.WaitAsync(
                         subscription, webSocket, cancellationTokenSource.Token)
                     .ConfigureAwait(false);
+
+                return Ok();
+            }
+
+            if (HttpContext.Spdy()
+                           .IsSpdyRequest)
+            {
+                var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    _hostApplicationLifetime.ApplicationStopping);
+
+                var spdySession = await HttpContext.Spdy()
+                                                   .AcceptSpdyAsync()
+                                                   .ConfigureAwait(false);
+
+                var subscription = new PortForward(@namespace, name, ports);
+                await _testFramework.Pod.PortForward.WaitAsync(
+                                        subscription, spdySession, cancellationTokenSource.Token)
+                                    .ConfigureAwait(false);
 
                 return Ok();
             }

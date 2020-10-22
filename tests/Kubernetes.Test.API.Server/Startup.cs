@@ -21,6 +21,7 @@ namespace Kubernetes.Test.API.Server
         {
             services.AddControllers();
             services.AddMvc();
+            services.AddSpdy();
         }
 
         public void Configure(
@@ -34,8 +35,11 @@ namespace Kubernetes.Test.API.Server
             
             app.UseHttpsRedirection();
             app.UseRouting();
-            app.UseWebSockets();
 
+            app.UseMiddleware<UpgradeTestMiddleware>();
+            app.UseSpdy();
+            app.UseWebSockets();
+            
             app.UseEndpoints(
                 endpoints =>
                 {

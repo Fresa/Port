@@ -8,7 +8,7 @@ using Microsoft.Net.Http.Headers;
 
 namespace Port.Server.Spdy.AspNet
 {
-    internal sealed class SpdyMiddleware : IMiddleware
+    public sealed class SpdyMiddleware : IMiddleware
     {
         public Task InvokeAsync(
             HttpContext context,

@@ -30,7 +30,7 @@ namespace Port.Server.IntegrationTests.TestFramework
             NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
-        protected TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
+        protected virtual TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
         /// <tldr>Captures target and redirects it to the current test session.</tldr>
