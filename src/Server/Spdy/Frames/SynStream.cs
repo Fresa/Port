@@ -57,7 +57,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Flags related to this frame. 
         /// </summary>
-        private new Options Flags
+        public new Options Flags
         {
             get => (Options)base.Flags;
             set => base.Flags = (byte)value;

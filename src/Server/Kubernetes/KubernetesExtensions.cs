@@ -45,7 +45,7 @@ namespace Port.Server.Kubernetes
 
             var stream = await response.Content.ReadAsStreamAsync()
                                        .ConfigureAwait(false);
-            return new SpdySession(new StreamingNetworkClient(stream));
+            return SpdySession.CreateClient(new StreamingNetworkClient(stream));
         }
     }
 }

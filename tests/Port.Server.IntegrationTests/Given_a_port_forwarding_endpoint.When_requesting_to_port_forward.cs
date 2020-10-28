@@ -45,44 +45,43 @@ namespace Port.Server.IntegrationTests
                     bytes => { _fixture.PortForwardResponseReceived(bytes); });
 
                 _fixture.KubernetesApiServer.Pod.PortForward.OnConnected(
-                    new PortForward("test", "pod1", 2001), async (
+                    new PortForward("test", "pod1", 2001), (
                             socket,
                             cancellationToken) =>
-                        await socket.HandleClosing(
-                                cancellationToken,
-                                async () =>
-                                {
-                                    await socket.SendPortAsync(
-                                            9999, cancellationToken)
-                                        .ConfigureAwait(false);
-
-                                    ValueWebSocketReceiveResult readResult;
-                                    do
-                                    {
-                                        readResult = await _fixture
-                                            .ReceiveAsync(
-                                                socket,
-                                                cancellationToken)
+                        socket.HandleClosing(
+                            cancellationToken,
+                            async () =>
+                            {
+                                await socket.SendPortAsync(
+                                                9999, cancellationToken)
                                             .ConfigureAwait(false);
 
-                                        if (readResult.MessageType ==
-                                            WebSocketMessageType.Close)
-                                        {
-                                            return;
-                                        }
+                                ValueWebSocketReceiveResult readResult;
+                                do
+                                {
+                                    readResult = await _fixture
+                                        .ReceiveAsync(
+                                            socket,
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
 
-                                        if (await _fixture
-                                            .TrySendResponseAsync(
-                                                socket, cancellationToken)
-                                            .ConfigureAwait(false))
-                                        {
-                                            return;
-                                        }
-                                    } while (cancellationToken
-                                                 .IsCancellationRequested ==
-                                             false);
-                                })
-                            .ConfigureAwait(false));
+                                    if (readResult.MessageType ==
+                                        WebSocketMessageType.Close)
+                                    {
+                                        return;
+                                    }
+
+                                    if (await _fixture
+                                              .TrySendResponseAsync(
+                                                  socket, cancellationToken)
+                                              .ConfigureAwait(false))
+                                    {
+                                        return;
+                                    }
+                                } while (cancellationToken
+                                             .IsCancellationRequested ==
+                                         false);
+                            }));
             }
 
             protected override async Task WhenAsync(

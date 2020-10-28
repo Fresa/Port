@@ -184,6 +184,33 @@ namespace Port.Server.Spdy
 
         public SynStream.PriorityLevel Priority { get; }
 
+        internal void Accept(
+            SynStream.Options options,
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+                default)
+        {
+            var reply = SynReply.Accept(Id, headers);
+            if (options.HasFlag(SynStream.Options.Unidirectional))
+            {
+                _local.Close();
+            }
+            else
+            {
+                _local.Open();
+            }
+
+            if (options.HasFlag(SynStream.Options.Fin) || reply.IsLastFrame)
+            {
+                _local.Close();
+            }
+            else
+            {
+                _local.Open();
+            }
+
+            Send(reply);
+        }
+
         internal void Open(
             SynStream.Options options,
             IReadOnlyDictionary<string, IReadOnlyList<string>> headers)

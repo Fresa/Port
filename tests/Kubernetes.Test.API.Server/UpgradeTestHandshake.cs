@@ -9,7 +9,7 @@ using Microsoft.Net.Http.Headers;
 
 namespace Kubernetes.Test.API.Server
 {
-    internal sealed class UpgradeHandshake : IHttpUpgradeFeature,
+    internal sealed class UpgradeTestHandshake : IHttpUpgradeFeature,
         IHttpDuplexStreamFeature
     {
         private readonly HttpContext _context;
@@ -22,7 +22,7 @@ namespace Kubernetes.Test.API.Server
             HeaderNames.Upgrade
         };
 
-        public UpgradeHandshake(
+        public UpgradeTestHandshake(
             HttpContext context) => _context = context;
 
         public Task<Stream> UpgradeAsync()

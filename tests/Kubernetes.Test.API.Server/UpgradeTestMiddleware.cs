@@ -22,7 +22,7 @@ namespace Kubernetes.Test.API.Server
         {
             var middlewareCompletion = new TaskCompletionSource<bool>();
 
-            var upgradeHandshake = new UpgradeHandshake(context);
+            var upgradeHandshake = new UpgradeTestHandshake(context);
             upgradeHandshake.OnUpgraded +=
                 () => middlewareCompletion.TrySetResult(true);
             context.Features.Set<IHttpUpgradeFeature>(upgradeHandshake);

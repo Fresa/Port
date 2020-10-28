@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
@@ -19,6 +20,7 @@ namespace Port.Server.Spdy
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
+        private bool _isClient;
 
         private readonly SemaphoreSlimGate _sendingGate =
             SemaphoreSlimGate.OneAtATime;
@@ -44,8 +46,10 @@ namespace Port.Server.Spdy
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
 
-        private int _streamCounter = -1;
+        private int _lastReceivedStreamId;
+        private int _streamCounter;
         private UInt31 _lastGoodRepliedStreamId;
+        private BufferBlock<SpdyStream> _nonAcceptedStreams = new BufferBlock<SpdyStream>();
 
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
@@ -62,9 +66,13 @@ namespace Port.Server.Spdy
         private const int InitialWindowSize = 64000;
         private int _windowSize = InitialWindowSize;
 
-        internal SpdySession(
-            INetworkClient networkClient)
+        private SpdySession(
+            INetworkClient networkClient,
+            bool isClient)
         {
+            _pingId = _streamCounter = isClient ? -1 : 0;
+            _isClient = isClient;
+
             _sendingCancellationTokenSource =
                 CancellationTokenSource.CreateLinkedTokenSource(
                     SessionCancellationToken);
@@ -74,6 +82,18 @@ namespace Port.Server.Spdy
             _sendingTask = StartBackgroundTask(SendFramesAsync);
             _receivingTask = StartBackgroundTask(ReceiveFromNetworkClientAsync);
             _messageHandlerTask = StartBackgroundTask(HandleMessagesAsync);
+        }
+
+        internal static SpdySession CreateClient(
+            INetworkClient networkClient)
+        {
+            return new SpdySession(networkClient, true);
+        }
+
+        internal static SpdySession CreateServer(
+            INetworkClient networkClient)
+        {
+            return new SpdySession(networkClient, false);
         }
 
         private Task StartBackgroundTask(
@@ -180,7 +200,7 @@ namespace Port.Server.Spdy
                 }
             }
 
-            await SendAsync((Frame) data, cancellationToken)
+            await SendAsync((Frame)data, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -198,7 +218,7 @@ namespace Port.Server.Spdy
             }
             catch (OverflowException)
             {
-                _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, 
+                _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top,
                         RstStream.FlowControlError(_lastGoodRepliedStreamId));
 
                 _sessionCancellationTokenSource.Cancel(false);
@@ -211,23 +231,23 @@ namespace Port.Server.Spdy
             }
         }
 
-        private long _pingId = -1;
-
+        private long _pingId;
+        
         private void EnqueuePing()
         {
             var id = Interlocked.Add(ref _pingId, 2);
             if (id > uint.MaxValue)
             {
-                Interlocked.Exchange(ref _pingId, 1);
-                id = 1;
+                id = id.IsOdd() ? 1 : 2;
+                Interlocked.Exchange(ref _pingId, id);
             }
 
-            var ping = new Ping((uint) id);
+            var ping = new Ping((uint)id);
             _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
         }
 
         private async Task<(bool Found, SpdyStream Stream)>
-            TryGetStreamOrCloseSession(
+            TryGetStreamOrCloseSessionAsync(
                 UInt31 streamId)
         {
             if (_streams.TryGetValue(
@@ -248,15 +268,16 @@ namespace Port.Server.Spdy
             return (false, stream)!;
         }
 
-
         private async Task ReceiveFromNetworkClientAsync()
         {
             FlushResult result;
             do
             {
-                var bytes = await _networkClient.ReceiveAsync(
-                    _messageReceiver.Writer.GetMemory(),
-                    SessionCancellationToken);
+                var bytes = await _networkClient
+                                  .ReceiveAsync(
+                                      _messageReceiver.Writer.GetMemory(),
+                                      SessionCancellationToken)
+                                  .ConfigureAwait(false);
 
                 _messageReceiver.Writer.Advance(bytes);
                 result = await _messageReceiver
@@ -299,10 +320,46 @@ namespace Port.Server.Spdy
             switch (frame)
             {
                 case SynStream synStream:
-                    throw new NotImplementedException();
+                    var previousId = Interlocked.Exchange(
+                        ref _lastReceivedStreamId, synStream.StreamId);
+                    if (previousId >= synStream.StreamId || 
+                        _isClient == synStream.IsClient())
+                    {
+                        await StopNetworkSender()
+                            .ConfigureAwait(false);
+                        await SendAsync(
+                                GoAway.ProtocolError(_lastGoodRepliedStreamId),
+                                SessionCancellationToken)
+                            .ConfigureAwait(false);
+
+                        _sessionCancellationTokenSource.Cancel(false);
+                        return;
+                    }
+
+                    stream = new SpdyStream(
+                        synStream.StreamId, 
+                        synStream.Priority, 
+                        _sendingPriorityQueue);
+
+                    if (_streams.TryAdd(synStream.StreamId, stream))
+                    {
+                        await _nonAcceptedStreams
+                              .SendAsync(
+                                  stream,
+                                  SessionCancellationToken)
+                              .ConfigureAwait(false);
+                        break;
+                    }
+
+                    // Stream already exists
+                    _sendingPriorityQueue
+                        .Enqueue(
+                            SynStream.PriorityLevel.Urgent, 
+                            RstStream.ProtocolError(stream.Id));
+                    break;
                 case SynReply synReply:
                     (found, stream) =
-                        await TryGetStreamOrCloseSession(synReply.StreamId)
+                        await TryGetStreamOrCloseSessionAsync(synReply.StreamId)
                             .ConfigureAwait(false);
                     if (found == false)
                     {
@@ -313,7 +370,7 @@ namespace Port.Server.Spdy
                     break;
                 case RstStream rstStream:
                     (found, stream) =
-                        await TryGetStreamOrCloseSession(rstStream.StreamId)
+                        await TryGetStreamOrCloseSessionAsync(rstStream.StreamId)
                             .ConfigureAwait(false);
                     if (found == false)
                     {
@@ -364,7 +421,7 @@ namespace Port.Server.Spdy
                     return;
                 case Headers headers:
                     (found, stream) =
-                        await TryGetStreamOrCloseSession(headers.StreamId)
+                        await TryGetStreamOrCloseSessionAsync(headers.StreamId)
                             .ConfigureAwait(false);
                     if (found == false)
                     {
@@ -383,7 +440,7 @@ namespace Port.Server.Spdy
                     }
 
                     (found, stream) =
-                        await TryGetStreamOrCloseSession(windowUpdate.StreamId)
+                        await TryGetStreamOrCloseSessionAsync(windowUpdate.StreamId)
                             .ConfigureAwait(false);
                     if (found == false)
                     {
@@ -403,7 +460,7 @@ namespace Port.Server.Spdy
                             _sendingPriorityQueue.Enqueue(SynStream
                                     .PriorityLevel.AboveNormal,
                                 WindowUpdate.ConnectionFlowControl(
-                                    (uint) data.Payload.Length));
+                                    (uint)data.Payload.Length));
                         }
 
                         break;
@@ -426,7 +483,7 @@ namespace Port.Server.Spdy
             IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
         {
             headers ??= new Dictionary<string, IReadOnlyList<string>>();
-            var streamId = (uint) Interlocked.Add(ref _streamCounter, 2);
+            var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = new SpdyStream(
                 UInt31.From(streamId), priority, _sendingPriorityQueue);
@@ -435,6 +492,8 @@ namespace Port.Server.Spdy
             stream.Open(options, headers);
             return stream;
         }
+
+        
 
         public async ValueTask DisposeAsync()
         {
