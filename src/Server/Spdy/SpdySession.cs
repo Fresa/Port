@@ -20,7 +20,7 @@ namespace Port.Server.Spdy
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
-        private bool _isClient;
+        private readonly bool _isClient;
 
         private readonly SemaphoreSlimGate _sendingGate =
             SemaphoreSlimGate.OneAtATime;
@@ -49,7 +49,8 @@ namespace Port.Server.Spdy
         private int _lastReceivedStreamId;
         private int _streamCounter;
         private UInt31 _lastGoodRepliedStreamId;
-        private BufferBlock<SpdyStream> _nonAcceptedStreams = new BufferBlock<SpdyStream>();
+
+        private readonly BufferBlock<SynStream> _receivedStreamRequests = new BufferBlock<SynStream>();
 
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
@@ -232,7 +233,7 @@ namespace Port.Server.Spdy
         }
 
         private long _pingId;
-        
+
         private void EnqueuePing()
         {
             var id = Interlocked.Add(ref _pingId, 2);
@@ -322,7 +323,8 @@ namespace Port.Server.Spdy
                 case SynStream synStream:
                     var previousId = Interlocked.Exchange(
                         ref _lastReceivedStreamId, synStream.StreamId);
-                    if (previousId >= synStream.StreamId || 
+
+                    if (previousId >= synStream.StreamId ||
                         _isClient == synStream.IsClient())
                     {
                         await StopNetworkSender()
@@ -336,26 +338,11 @@ namespace Port.Server.Spdy
                         return;
                     }
 
-                    stream = new SpdyStream(
-                        synStream.StreamId, 
-                        synStream.Priority, 
-                        _sendingPriorityQueue);
-
-                    if (_streams.TryAdd(synStream.StreamId, stream))
-                    {
-                        await _nonAcceptedStreams
-                              .SendAsync(
-                                  stream,
-                                  SessionCancellationToken)
-                              .ConfigureAwait(false);
-                        break;
-                    }
-
-                    // Stream already exists
-                    _sendingPriorityQueue
-                        .Enqueue(
-                            SynStream.PriorityLevel.Urgent, 
-                            RstStream.ProtocolError(stream.Id));
+                    await _receivedStreamRequests
+                          .SendAsync(
+                              synStream,
+                              SessionCancellationToken)
+                          .ConfigureAwait(false);
                     break;
                 case SynReply synReply:
                     (found, stream) =
@@ -485,15 +472,46 @@ namespace Port.Server.Spdy
             headers ??= new Dictionary<string, IReadOnlyList<string>>();
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
-            var stream = new SpdyStream(
-                UInt31.From(streamId), priority, _sendingPriorityQueue);
+            var stream = SpdyStream.Open(
+                    new SynStream(options, streamId, UInt31.From(0), priority, headers),
+                _sendingPriorityQueue);
             _streams.TryAdd(stream.Id, stream);
 
-            stream.Open(options, headers);
             return stream;
         }
 
-        
+        private readonly SemaphoreSlimGate _receiveGate = SemaphoreSlimGate.OneAtATime;
+        public async Task<SpdyStream> ReceiveAsync(
+            CancellationToken cancellationToken = default)
+        {
+            using (await _receiveGate.WaitAsync(cancellationToken)
+                              .ConfigureAwait(false))
+            {
+                while (true)
+                {
+                    var synStream = await _receivedStreamRequests
+                                          .ReceiveAsync(cancellationToken)
+                                          .ConfigureAwait(false);
+
+                    if (_streams.ContainsKey(synStream.StreamId))
+                    {
+                        _sendingPriorityQueue.Enqueue(
+                            SynStream.PriorityLevel.Urgent,
+                            RstStream.ProtocolError(synStream.StreamId));
+                        continue;
+                    }
+
+                    var stream = SpdyStream.Accept(synStream, _sendingPriorityQueue);
+                    _streams.TryAdd(stream.Id, stream);
+                    // This is thread safe since this is the only place
+                    // where this property changes and we are inside
+                    // a one-at-a-time gate
+                    _lastGoodRepliedStreamId = stream.Id;
+
+                    return stream;
+                }
+            }
+        }
 
         public async ValueTask DisposeAsync()
         {
@@ -521,6 +539,7 @@ namespace Port.Server.Spdy
             }
 
             _sendDataGate.Dispose();
+            _receiveGate.Dispose();
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);
         }

@@ -14,6 +14,7 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyStream : IDisposable
     {
+        private readonly SynStream _synStream;
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
         private readonly ConcurrentQueue<Data> _receivingQueue
@@ -34,14 +35,12 @@ namespace Port.Server.Spdy
         private int _windowSize = 64000;
         private int _initialWindowSize = 64000;
 
-        internal SpdyStream(
-            UInt31 id,
-            SynStream.PriorityLevel priority,
+        private SpdyStream(
+            SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
         {
-            Id = id;
+            _synStream = synStream;
             _sendingPriorityQueue = sendingPriorityQueue;
-            Priority = priority;
 
             _streamInUse = RstStream.StreamInUse(Id);
             _protocolError = RstStream.ProtocolError(Id);
@@ -49,7 +48,7 @@ namespace Port.Server.Spdy
             _streamAlreadyClosedError = RstStream.StreamAlreadyClosed(Id);
         }
 
-        public UInt31 Id { get; }
+        public UInt31 Id => _synStream.StreamId;
 
         private readonly SpdyEndpoint _local = new SpdyEndpoint();
         public IEndpoint Local => _local;
@@ -182,15 +181,23 @@ namespace Port.Server.Spdy
             }
         }
 
-        public SynStream.PriorityLevel Priority { get; }
+        public SynStream.PriorityLevel Priority => _synStream.Priority;
 
-        internal void Accept(
-            SynStream.Options options,
+        internal static SpdyStream Accept(
+            SynStream synStream,
+            ConcurrentPriorityQueue<Frame> sendingPriorityQueue,
             IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
                 default)
         {
-            var reply = SynReply.Accept(Id, headers);
-            if (options.HasFlag(SynStream.Options.Unidirectional))
+            var stream = new SpdyStream(synStream, sendingPriorityQueue);
+            stream.Accept(headers);
+            return stream;
+        }
+
+        internal void Accept(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+            default)
+        {
+            if (_synStream.IsUnidirectional)
             {
                 _local.Close();
             }
@@ -199,7 +206,8 @@ namespace Port.Server.Spdy
                 _local.Open();
             }
 
-            if (options.HasFlag(SynStream.Options.Fin) || reply.IsLastFrame)
+            var reply = SynReply.Accept(Id, headers);
+            if (_synStream.IsFin || reply.IsLastFrame)
             {
                 _local.Close();
             }
@@ -211,20 +219,23 @@ namespace Port.Server.Spdy
             Send(reply);
         }
 
-        internal void Open(
-            SynStream.Options options,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+        internal static SpdyStream Open(
+            SynStream synStream,
+            ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
         {
-            var open = new SynStream(
-                options, Id, UInt31.From(0), Priority,
-                headers);
+            var stream = new SpdyStream(synStream, sendingPriorityQueue);
+            stream.Open();
+            return stream;
+        }
 
-            if (open.IsUnidirectional)
+        private void Open()
+        {
+            if (_synStream.IsUnidirectional)
             {
                 _remote.Close();
             }
 
-            if (open.IsFin)
+            if (_synStream.IsFin)
             {
                 _local.Close();
             }
@@ -233,7 +244,7 @@ namespace Port.Server.Spdy
                 _local.Open();
             }
 
-            Send(open);
+            Send(_synStream);
         }
 
         private void Send(
