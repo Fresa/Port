@@ -39,7 +39,7 @@ namespace Port.Server.IntegrationTests
             {
             }
 
-            protected override TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+            protected override TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
 
             protected override void Given(
                 IServiceContainer configurer)
@@ -50,9 +50,22 @@ namespace Port.Server.IntegrationTests
                     bytes => { _fixture.PortForwardResponseReceived(bytes); });
 
                 _fixture.KubernetesApiServer.Pod.PortForward.OnConnected(
-                    new PortForward("test", "pod1", 2001), (
-                            SpdySession socket,
-                            CancellationToken cancellationToken) => Task.Delay(3000, cancellationToken));
+                    new PortForward("test", "pod1", 2001), async (
+                            SpdySession session,
+                            CancellationToken cancellationToken) =>
+                    {
+                        var stream = await session
+                                           .ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+                        //do
+                        //{
+                            
+                        //} while (cancellationToken
+                        //             .IsCancellationRequested ==
+                        //         false);
+                        await Task.Delay(3000, cancellationToken)
+                                  .ConfigureAwait(false);
+                    });
             }
 
             protected override async Task WhenAsync(

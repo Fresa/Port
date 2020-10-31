@@ -9,13 +9,11 @@ using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
+using Port.Server.Spdy.Helpers;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
-    /// <summary>
-    /// Client implementation
-    /// </summary>
     public class SpdySession : IAsyncDisposable
     {
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
@@ -80,9 +78,9 @@ namespace Port.Server.Spdy
 
             _networkClient = networkClient;
 
-            _sendingTask = StartBackgroundTask(SendFramesAsync);
-            _receivingTask = StartBackgroundTask(ReceiveFromNetworkClientAsync);
-            _messageHandlerTask = StartBackgroundTask(HandleMessagesAsync);
+            _sendingTask = StartBackgroundTaskAsync(SendFramesAsync);
+            _receivingTask = StartBackgroundTaskAsync(ReceiveFromNetworkClientAsync);
+            _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync);
         }
 
         internal static SpdySession CreateClient(
@@ -97,7 +95,7 @@ namespace Port.Server.Spdy
             return new SpdySession(networkClient, false);
         }
 
-        private Task StartBackgroundTask(
+        private Task StartBackgroundTaskAsync(
             Func<Task> action)
         {
             // ReSharper disable once MethodSupportsCancellation
@@ -117,7 +115,7 @@ namespace Port.Server.Spdy
                     catch (Exception ex)
                     {
                         _logger.Fatal(ex, "Unknown error, closing down");
-                        await StopNetworkSender()
+                        await StopNetworkSenderAsync()
                             .ConfigureAwait(false);
                         try
                         {
@@ -159,10 +157,10 @@ namespace Port.Server.Spdy
             }
         }
 
-        private async Task StopNetworkSender()
+        private Task StopNetworkSenderAsync()
         {
             _sendingCancellationTokenSource.Cancel();
-            await _sendingTask.ConfigureAwait(false);
+            return _sendingTask;
         }
 
         private async Task SendAsync(
@@ -189,12 +187,13 @@ namespace Port.Server.Spdy
                 using (await _sendDataGate.WaitAsync(cancellationToken)
                                           .ConfigureAwait(false))
                 {
+                    using var windowSizeIncreased = _windowSizeIncreased.Subscribe();
                     while (Interlocked.Add(
                                ref _windowSize, -data.Payload.Length) <
                            0)
                     {
                         Interlocked.Add(ref _windowSize, data.Payload.Length);
-                        await _windowSizeGate
+                        await windowSizeIncreased
                               .WaitAsync(SessionCancellationToken)
                               .ConfigureAwait(false);
                     }
@@ -205,8 +204,8 @@ namespace Port.Server.Spdy
                 .ConfigureAwait(false);
         }
 
-        private readonly SemaphoreSlim
-            _windowSizeGate = new SemaphoreSlim(1, 1);
+        private readonly Signaler
+            _windowSizeIncreased = new Signaler();
 
         private void TryIncreaseWindowSizeOrCloseSession(
             int delta)
@@ -228,7 +227,7 @@ namespace Port.Server.Spdy
 
             if (newWindowSize > 0)
             {
-                _windowSizeGate.Release();
+                _windowSizeIncreased.Signal();
             }
         }
 
@@ -258,7 +257,7 @@ namespace Port.Server.Spdy
                 return (true, stream);
             }
 
-            await StopNetworkSender()
+            await StopNetworkSenderAsync()
                 .ConfigureAwait(false);
             await SendAsync(
                     GoAway.ProtocolError(_lastGoodRepliedStreamId),
@@ -271,7 +270,7 @@ namespace Port.Server.Spdy
 
         private async Task ReceiveFromNetworkClientAsync()
         {
-            FlushResult result;
+            var result = new FlushResult();
             do
             {
                 var bytes = await _networkClient
@@ -279,7 +278,10 @@ namespace Port.Server.Spdy
                                       _messageReceiver.Writer.GetMemory(),
                                       SessionCancellationToken)
                                   .ConfigureAwait(false);
-
+                if (bytes == 0)
+                {
+                    continue;
+                }
                 _messageReceiver.Writer.Advance(bytes);
                 result = await _messageReceiver
                                .Writer.FlushAsync(SessionCancellationToken)
@@ -327,7 +329,7 @@ namespace Port.Server.Spdy
                     if (previousId >= synStream.StreamId ||
                         _isClient == synStream.IsClient())
                     {
-                        await StopNetworkSender()
+                        await StopNetworkSenderAsync()
                             .ConfigureAwait(false);
                         await SendAsync(
                                 GoAway.ProtocolError(_lastGoodRepliedStreamId),
@@ -540,6 +542,7 @@ namespace Port.Server.Spdy
 
             _sendDataGate.Dispose();
             _receiveGate.Dispose();
+            _windowSizeIncreased.Dispose();
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);
         }

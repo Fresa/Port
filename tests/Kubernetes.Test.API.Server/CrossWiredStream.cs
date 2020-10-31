@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.IO;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -7,75 +9,90 @@ namespace Kubernetes.Test.API.Server
 {
     internal sealed class CrossWiredStream : Stream
     {
-        private readonly Stream _read;
-        private readonly Stream _write;
+        private readonly Pipe _read;
+        private readonly Pipe _write;
 
         public CrossWiredStream()
-            : this(new MemoryStream(), new MemoryStream())
+            : this(new Pipe(), new Pipe())
         {
-
         }
+
         private CrossWiredStream(
-            Stream read,
-            Stream write)
+            Pipe read,
+            Pipe write)
         {
             _read = read;
             _write = write;
         }
 
         internal Stream CreateReverseStream()
-        {
-            return new CrossWiredStream(_write, _read);
-        }
+            => new CrossWiredStream(_write, _read);
+
+
+        public override bool CanTimeout => false;
 
         public override void Flush()
         {
-            _write.Flush();
+            throw new NotImplementedException();
         }
+
+        public override Task FlushAsync(
+            CancellationToken cancellationToken)
+            => _write.Writer.FlushAsync(cancellationToken)
+                     .AsTask();
 
         public override int Read(
             byte[] buffer,
             int offset,
             int count)
-            => _read.Read(buffer, offset, count);
+            => throw new NotImplementedException();
+
+        public override void Close()
+        {
+            _read.Reader.Complete();
+            _write.Writer.Complete();
+        }
+
+        public override async ValueTask WriteAsync(
+            ReadOnlyMemory<byte> buffer,
+            CancellationToken cancellationToken = new CancellationToken())
+            => await _write.Writer.WriteAsync(buffer, cancellationToken)
+                           .ConfigureAwait(false);
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            var result = await _read.Reader.ReadAsync(cancellationToken)
+                                    .ConfigureAwait(false);
+            foreach (var resultBuffer in result.Buffer)
+            {
+                resultBuffer.CopyTo(buffer);
+            }
+
+            _read.Reader.AdvanceTo(
+                result.Buffer.GetPosition(result.Buffer.Length));
+            return (int) result.Buffer.Length;
+        }
 
         public override long Seek(
             long offset,
             SeekOrigin origin)
-            => throw new NotSupportedException();
+            => throw new NotImplementedException();
 
         public override void SetLength(
             long value)
-            => throw new NotSupportedException();
+        {
+            throw new NotImplementedException();
+        }
 
         public override void Write(
             byte[] buffer,
             int offset,
             int count)
         {
-            _write.Write(buffer, offset, count);
+            throw new NotImplementedException();
         }
-
-        public override Task WriteAsync(
-            byte[] buffer,
-            int offset,
-            int count,
-            CancellationToken cancellationToken) => _write.WriteAsync(
-            buffer, offset, count, cancellationToken);
-
-        public override void WriteByte(
-            byte value)
-        {
-            _write.WriteByte(value);
-        }
-
-        public override IAsyncResult BeginWrite(
-            byte[] buffer,
-            int offset,
-            int count,
-            AsyncCallback callback,
-            object state) => _write.BeginWrite(
-            buffer, offset, count, callback, state);
 
         public override bool CanRead => true;
         public override bool CanSeek => false;
