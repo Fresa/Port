@@ -194,16 +194,16 @@ namespace Port.Server.Spdy
             return stream;
         }
 
-        internal void Accept(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+        private void Accept(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
             default)
         {
             if (_synStream.IsUnidirectional)
             {
-                _local.Close();
+                _remote.Close();
             }
             else
             {
-                _local.Open();
+                _remote.Open();
             }
 
             var reply = SynReply.Accept(Id, headers);
@@ -216,6 +216,7 @@ namespace Port.Server.Spdy
                 _local.Open();
             }
 
+            _controlFramesReceived.TryAdd(typeof(SynReply), reply);
             Send(reply);
         }
 
