@@ -315,6 +315,11 @@ namespace Port.Server.Spdy
                 var left = data.Length;
                 while (left > 0)
                 {
+                    if (Local.IsClosed)
+                    {
+                        return new FlushResult(true, false);
+                    }
+                    
                     var windowSize = _windowSize;
                     var length = windowSize > left ? left : windowSize;
 
@@ -344,10 +349,6 @@ namespace Port.Server.Spdy
                         ? Data.Last(Id, payload)
                         : new Data(Id, payload);
 
-                    if (Local.IsClosed)
-                    {
-                        return new FlushResult(true, false);
-                    }
                     Send(frame);
 
                     index += length;
