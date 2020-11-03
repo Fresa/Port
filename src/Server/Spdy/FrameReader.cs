@@ -137,8 +137,10 @@ namespace Port.Server.Spdy
             }
             var sequence = await GetAsync(length, cancellationToken)
                 .ConfigureAwait(false);
+            var bytes = sequence.ToArray();
             _reader.AdvanceTo(sequence.GetPosition(0));
-            return sequence.ToArray();
+            
+            return bytes;
         }
 
         private async ValueTask<ReadOnlySequence<byte>> GetAsync(
