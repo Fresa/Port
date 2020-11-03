@@ -78,9 +78,9 @@ namespace Port.Server.Spdy
 
             _networkClient = networkClient;
 
-            _sendingTask = StartBackgroundTaskAsync(SendFramesAsync);
-            _receivingTask = StartBackgroundTaskAsync(ReceiveFromNetworkClientAsync);
-            _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync);
+            _sendingTask = StartBackgroundTaskAsync(SendFramesAsync, _sendingCancellationTokenSource);
+            _receivingTask = StartBackgroundTaskAsync(ReceiveFromNetworkClientAsync, _sessionCancellationTokenSource);
+            _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync, _sessionCancellationTokenSource);
         }
 
         internal static SpdySession CreateClient(
@@ -96,7 +96,8 @@ namespace Port.Server.Spdy
         }
 
         private Task StartBackgroundTaskAsync(
-            Func<Task> action)
+            Func<Task> action,
+            CancellationTokenSource cancellationTokenSource)
         {
             // ReSharper disable once MethodSupportsCancellation
             // Will gracefully handle cancellation
@@ -108,7 +109,7 @@ namespace Port.Server.Spdy
                         await action()
                             .ConfigureAwait(false);
                     }
-                    catch when (_sessionCancellationTokenSource
+                    catch when (cancellationTokenSource
                         .IsCancellationRequested)
                     {
                     }
@@ -137,7 +138,7 @@ namespace Port.Server.Spdy
 
         private async Task SendFramesAsync()
         {
-            while (_sessionCancellationTokenSource
+            while (_sendingCancellationTokenSource
                 .IsCancellationRequested == false)
             {
                 var frame = await _sendingPriorityQueue
@@ -270,17 +271,21 @@ namespace Port.Server.Spdy
 
         private async Task ReceiveFromNetworkClientAsync()
         {
-            var result = new FlushResult();
+            FlushResult result;
             do
             {
                 var bytes = await _networkClient
                                   .ReceiveAsync(
-                                      _messageReceiver.Writer.GetMemory(),
+                                      _messageReceiver.Writer.GetMemory(65536),
                                       SessionCancellationToken)
                                   .ConfigureAwait(false);
+
+                // End of the stream! 
+                // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                 if (bytes == 0)
                 {
-                    continue;
+                    _logger.Info("Got 0 bytes from the connected network client, stopping to receiving more data");
+                    return;
                 }
                 _messageReceiver.Writer.Advance(bytes);
                 result = await _messageReceiver
