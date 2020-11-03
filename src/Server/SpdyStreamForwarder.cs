@@ -164,7 +164,7 @@ namespace Port.Server
 
                     _logger.Trace(
                         "Sending {bytes} bytes to remote socket",
-                        bytesReceived + 1);
+                        bytesReceived);
 
                     sendResult = await spdyStream
                                        .SendAsync(

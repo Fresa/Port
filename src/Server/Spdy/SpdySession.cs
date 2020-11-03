@@ -276,7 +276,7 @@ namespace Port.Server.Spdy
             {
                 var bytes = await _networkClient
                                   .ReceiveAsync(
-                                      _messageReceiver.Writer.GetMemory(65536),
+                                      _messageReceiver.Writer.GetMemory(),
                                       SessionCancellationToken)
                                   .ConfigureAwait(false);
 
@@ -284,7 +284,7 @@ namespace Port.Server.Spdy
                 // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                 if (bytes == 0)
                 {
-                    _logger.Info("Got 0 bytes from the connected network client, stopping to receiving more data");
+                    _logger.Info("Got 0 bytes, stopping receiving more from the network client");
                     return;
                 }
                 _messageReceiver.Writer.Advance(bytes);

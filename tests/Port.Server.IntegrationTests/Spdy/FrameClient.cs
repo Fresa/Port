@@ -45,7 +45,7 @@ namespace Port.Server.IntegrationTests.Spdy
                             var bytes = await _networkClient.ReceiveAsync(
                                     _pipe
                                         .Writer
-                                        .GetMemory(512),
+                                        .GetMemory(),
                                     _cancellationTokenSource
                                         .Token)
                                 .ConfigureAwait(false);
