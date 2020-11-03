@@ -12,12 +12,13 @@
     <PackageReference Include="Log.It" Version="3.0.3" />
     <PackageReference Include="Log.It.With.NLog" Version="2.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="3.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.9" />
     <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" Version="2.2.0" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="4.9.2" />
     <PackageReference Include="SimpleInjector" Version="5.0.2" />
     <PackageReference Include="SimpleInjector.Integration.AspNetCore" Version="5.0.0" />
     <PackageReference Include="SimpleInjector.Integration.AspNetCore.Mvc" Version="5.0.0" />
+    <PackageReference Include="System.IO.Pipelines" Version="4.7.3" />
   </ItemGroup>
 
   <ItemGroup>
