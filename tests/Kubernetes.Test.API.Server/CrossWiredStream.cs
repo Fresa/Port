@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
@@ -56,8 +55,15 @@ namespace Kubernetes.Test.API.Server
         public override async ValueTask WriteAsync(
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = new CancellationToken())
-            => await _write.Writer.WriteAsync(buffer, cancellationToken)
-                           .ConfigureAwait(false);
+        {
+            var result = await _write.Writer.WriteAsync(buffer, cancellationToken)
+                        .ConfigureAwait(false);
+
+            if (result.IsCanceled || result.IsCompleted)
+            {
+                throw new OperationCanceledException();
+            }
+        }
 
         public override async ValueTask<int> ReadAsync(
             Memory<byte> buffer,
@@ -65,6 +71,13 @@ namespace Kubernetes.Test.API.Server
         {
             var result = await _read.Reader.ReadAsync(cancellationToken)
                                     .ConfigureAwait(false);
+            
+            if (result.Buffer.Length == 0 &&
+                result.IsCanceled || result.IsCompleted)
+            {
+                throw new OperationCanceledException();
+            }
+
             foreach (var resultBuffer in result.Buffer)
             {
                 resultBuffer.CopyTo(buffer);
