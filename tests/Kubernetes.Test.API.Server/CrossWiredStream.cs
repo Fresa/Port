@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
@@ -72,14 +73,15 @@ namespace Kubernetes.Test.API.Server
                 return 0;
             }
 
-            foreach (var resultBuffer in result.Buffer)
-            {
-                resultBuffer.CopyTo(buffer);
-            }
+            var length = result.Buffer.Length > buffer.Length
+                ? buffer.Length
+                : (int) result.Buffer.Length;
 
-            _read.Reader.AdvanceTo(
-                result.Buffer.GetPosition(result.Buffer.Length));
-            return (int) result.Buffer.Length;
+            result.Buffer.Slice(0, length)
+                  .CopyTo(buffer.Span);
+
+            _read.Reader.AdvanceTo(result.Buffer.GetPosition(length));
+            return length;
         }
 
         public override long Seek(

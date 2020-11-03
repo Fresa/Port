@@ -42,7 +42,6 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                 .Slice(0, length)
                 .CopyTo(
                     buffer
-                        .Slice(0, length)
                         .Span);
 
             var position = result.Buffer.GetPosition(length);
