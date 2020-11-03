@@ -56,13 +56,8 @@ namespace Kubernetes.Test.API.Server
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = new CancellationToken())
         {
-            var result = await _write.Writer.WriteAsync(buffer, cancellationToken)
+            await _write.Writer.WriteAsync(buffer, cancellationToken)
                         .ConfigureAwait(false);
-
-            if (result.IsCanceled || result.IsCompleted)
-            {
-                throw new OperationCanceledException();
-            }
         }
 
         public override async ValueTask<int> ReadAsync(
@@ -71,11 +66,10 @@ namespace Kubernetes.Test.API.Server
         {
             var result = await _read.Reader.ReadAsync(cancellationToken)
                                     .ConfigureAwait(false);
-            
-            if (result.Buffer.Length == 0 &&
-                result.IsCanceled || result.IsCompleted)
+
+            if (result.Buffer.Length == 0)
             {
-                throw new OperationCanceledException();
+                return 0;
             }
 
             foreach (var resultBuffer in result.Buffer)
