@@ -137,64 +137,100 @@ namespace Port.Server
             SpdyStream spdyStream,
             CancellationToken cancellationToken)
         {
-            using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
-            var memory = memoryOwner.Memory;
-            FlushResult sendResult;
-            do
+            try
             {
-                _logger.Trace("Receiving from local socket");
-                var bytesReceived = await localSocket
-                                          .ReceiveAsync(
-                                              memory,
-                                              cancellationToken)
-                                          .ConfigureAwait(false);
-
-                // End of the stream! 
-                // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
-                if (bytesReceived == 0)
+                using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
+                var memory = memoryOwner.Memory;
+                FlushResult sendResult;
+                do
                 {
-                    await spdyStream.SendLastAsync(
-                                        new ReadOnlyMemory<byte>(),
-                                        cancellationToken: cancellationToken)
-                                    .ConfigureAwait(false);
-                    return;
-                }
+                    _logger.Trace("Receiving from local socket");
+                    var bytesReceived = await localSocket
+                                              .ReceiveAsync(
+                                                  memory,
+                                                  cancellationToken)
+                                              .ConfigureAwait(false);
 
-                _logger.Trace(
-                    "Sending {bytes} bytes to remote socket",
-                    bytesReceived + 1);
+                    // End of the stream! 
+                    // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
+                    if (bytesReceived == 0)
+                    {
+                        await spdyStream.SendLastAsync(
+                                            new ReadOnlyMemory<byte>(),
+                                            cancellationToken: cancellationToken)
+                                        .ConfigureAwait(false);
+                        return;
+                    }
 
-                sendResult = await spdyStream
-                                   .SendAsync(
-                                       memory.Slice(0, bytesReceived),
-                                       cancellationToken: cancellationToken)
-                                   .ConfigureAwait(false);
+                    _logger.Trace(
+                        "Sending {bytes} bytes to remote socket",
+                        bytesReceived + 1);
 
-            } while (sendResult.HasMore());
+                    sendResult = await spdyStream
+                                       .SendAsync(
+                                           memory.Slice(0, bytesReceived),
+                                           cancellationToken: cancellationToken)
+                                       .ConfigureAwait(false);
+
+                } while (sendResult.HasMore());
+            }
+            catch when (_cancellationTokenSource
+                .IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger.Fatal(ex, "Unknown error while sending and receiving data, closing down");
+#pragma warning disable 4014
+                //Cancel and exit fast
+                //This will most likely change when we need to report
+                //back that the forwarding terminated or that we
+                //should retry
+                _cancellationTokenSource.Cancel(false);
+#pragma warning restore 4014
+            }
         }
 
-        private static async Task StartReceivingAsync(
+        private async Task StartReceivingAsync(
             INetworkClient localSocket,
             SpdyStream spdyStream,
             CancellationToken cancellationToken)
         {
-            ReadResult content;
-            do
+            try
             {
-                content = await spdyStream
-                                .ReceiveAsync(
-                                    cancellationToken: cancellationToken)
-                                .ConfigureAwait(false);
-
-                foreach (var sequence in content.Buffer)
+                ReadResult content;
+                do
                 {
-                    await localSocket
-                          .SendAsync(
-                              sequence,
-                              cancellationToken)
-                          .ConfigureAwait(false);
-                }
-            } while (content.HasMoreData());
+                    content = await spdyStream
+                                    .ReceiveAsync(
+                                        cancellationToken: cancellationToken)
+                                    .ConfigureAwait(false);
+
+                    foreach (var sequence in content.Buffer)
+                    {
+                        await localSocket
+                              .SendAsync(
+                                  sequence,
+                                  cancellationToken)
+                              .ConfigureAwait(false);
+                    }
+                } while (content.HasMoreData());
+            }
+            catch when (_cancellationTokenSource
+                .IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger.Fatal(ex, "Unknown error while sending and receiving data, closing down");
+#pragma warning disable 4014
+                //Cancel and exit fast
+                //This will most likely change when we need to report
+                //back that the forwarding terminated or that we
+                //should retry
+                _cancellationTokenSource.Cancel(false);
+#pragma warning restore 4014
+            }
         }
 
         public async ValueTask DisposeAsync()
