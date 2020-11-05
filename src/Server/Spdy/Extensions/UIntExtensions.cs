@@ -41,5 +41,11 @@ namespace Port.Server.Spdy.Extensions
             return UInt31.From(await value
                 .ConfigureAwait(false) & 0x7FFFFFFF);
         }
+
+        internal static bool IsOdd(
+            this uint value)
+        {
+            return value % 2 != 0;
+        }
     }
 }

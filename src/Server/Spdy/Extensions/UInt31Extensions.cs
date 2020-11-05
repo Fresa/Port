@@ -7,7 +7,7 @@ namespace Port.Server.Spdy.Extensions
         internal static bool IsOdd(
             this UInt31 value)
         {
-            return value % 2 != 0;
+            return value.Value.IsOdd();
         }
     }
 }

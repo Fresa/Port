@@ -284,7 +284,7 @@ namespace Port.Server.Spdy
                 // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                 if (bytes == 0)
                 {
-                    _logger.Info("Got 0 bytes, stopping receiving more from the network client");
+                    _logger.Info("Got 0 bytes, stopping receiving more data from the network client");
                     return;
                 }
                 _messageReceiver.Writer.Advance(bytes);
@@ -399,8 +399,8 @@ namespace Port.Server.Spdy
 
                     break;
                 case Ping ping:
-                    // If a client receives an odd numbered PING which it did not initiate, it must ignore the PING.
-                    if (ping.Id % 2 != 0)
+                    // If a server receives an even numbered PING which it did not initiate, it must ignore the PING. If a client receives an odd numbered PING which it did not initiate, it must ignore the PING.
+                    if (_isClient == ping.IsOdd())
                     {
                         break;
                     }
@@ -413,6 +413,7 @@ namespace Port.Server.Spdy
                     _sessionCancellationTokenSource.Cancel(false);
                     Interlocked.Exchange(
                         ref _streamCounter, goAway.LastGoodStreamId);
+                    _logger.Info("Received GoAway {@goAway}, stopping the session", goAway);
                     return;
                 case Headers headers:
                     (found, stream) =
@@ -462,6 +463,7 @@ namespace Port.Server.Spdy
                     }
 
                     // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
+                    _logger.Error("Received data for an unknown stream with id {id}, sending INVALID_STREAM", data.StreamId);
                     _sendingPriorityQueue.Enqueue(
                         SynStream.PriorityLevel.High,
                         RstStream.InvalidStream(data.StreamId));
