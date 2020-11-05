@@ -23,7 +23,7 @@ namespace Port.Server.Spdy
         private readonly SemaphoreSlimGate _sendingGate =
             SemaphoreSlimGate.OneAtATime;
 
-        private readonly Pipe _messageReceiver = new Pipe();
+        private readonly Pipe _messageReceiver = new Pipe(new PipeOptions(useSynchronizationContext: false));
 
         private readonly CancellationTokenSource
             _sendingCancellationTokenSource;
@@ -319,6 +319,7 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false)).Out(
                 out var frame, out var error) == false)
             {
+                _logger.Error(error, "Sending stream error");
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.High, error);
                 return;
             }
