@@ -48,7 +48,7 @@ namespace Port.Server.Spdy
         private int _streamCounter;
         private UInt31 _lastGoodRepliedStreamId;
 
-        private readonly BufferBlock<SynStream> _receivedStreamRequests = new BufferBlock<SynStream>();
+        private readonly BufferBlock<SpdyStream> _receivedStreamRequests = new BufferBlock<SpdyStream>();
 
         private readonly ConcurrentDictionary<UInt31, SpdyStream> _streams =
             new ConcurrentDictionary<UInt31, SpdyStream>();
@@ -346,11 +346,23 @@ namespace Port.Server.Spdy
                         return;
                     }
 
+                    if (_streams.ContainsKey(synStream.StreamId))
+                    {
+                        _sendingPriorityQueue.Enqueue(
+                            SynStream.PriorityLevel.Urgent,
+                            RstStream.ProtocolError(synStream.StreamId));
+                        return;
+                    }
+
+                    stream = SpdyStream.Accept(synStream, _sendingPriorityQueue);
+                    _streams.TryAdd(stream.Id, stream);
+
                     await _receivedStreamRequests
                           .SendAsync(
-                              synStream,
+                              stream,
                               SessionCancellationToken)
                           .ConfigureAwait(false);
+
                     break;
                 case SynReply synReply:
                     (found, stream) =
@@ -499,20 +511,10 @@ namespace Port.Server.Spdy
             {
                 while (true)
                 {
-                    var synStream = await _receivedStreamRequests
+                    var stream = await _receivedStreamRequests
                                           .ReceiveAsync(cancellationToken)
                                           .ConfigureAwait(false);
 
-                    if (_streams.ContainsKey(synStream.StreamId))
-                    {
-                        _sendingPriorityQueue.Enqueue(
-                            SynStream.PriorityLevel.Urgent,
-                            RstStream.ProtocolError(synStream.StreamId));
-                        continue;
-                    }
-
-                    var stream = SpdyStream.Accept(synStream, _sendingPriorityQueue);
-                    _streams.TryAdd(stream.Id, stream);
                     // This is thread safe since this is the only place
                     // where this property changes and we are inside
                     // a one-at-a-time gate
