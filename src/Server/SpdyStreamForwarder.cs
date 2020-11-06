@@ -237,6 +237,9 @@ namespace Port.Server
         {
             _cancellationTokenSource.Cancel(false);
 
+            await Task.WhenAll(_backgroundTasks)
+                      .ConfigureAwait(false);
+
             try
             {
                 await _networkServer.DisposeAsync()
@@ -256,9 +259,6 @@ namespace Port.Server
             {
                 // Ignore unhandled exceptions during shutdown 
             }
-
-            await Task.WhenAll(_backgroundTasks)
-                      .ConfigureAwait(false);
 
             _cancellationTokenSource.Dispose();
         }
