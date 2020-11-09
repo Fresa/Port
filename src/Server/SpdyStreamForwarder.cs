@@ -58,7 +58,7 @@ namespace Port.Server
 
         private async Task StartReceivingLocalClientsAsync()
         {
-            while (_cancellationTokenSource.IsCancellationRequested ==
+            while (CancellationToken.IsCancellationRequested ==
                    false)
             {
                 try
@@ -70,7 +70,7 @@ namespace Port.Server
                     _logger.Trace("Local socket connected");
                     _backgroundTasks.Add(StartPortForwardingAsync(client));
                 }
-                catch when (_cancellationTokenSource
+                catch when (CancellationToken
                     .IsCancellationRequested)
                 {
                     return;
@@ -94,6 +94,11 @@ namespace Port.Server
         {
             await using (client.ConfigureAwait(false))
             {
+                using var cancellationTokenSource =
+                    CancellationTokenSource.CreateLinkedTokenSource(
+                        CancellationToken);
+                var cancellationToken = cancellationTokenSource.Token;
+
                 using var stream = _spdySession.Open();
                 try
                 {
@@ -102,19 +107,20 @@ namespace Port.Server
                     _backgroundTasks.Add(StartSendingAsync(
                         client,
                         stream,
-                        CancellationToken));
+                        cancellationToken));
                     _backgroundTasks.Add(
                         StartReceivingAsync(
                             client,
                             stream,
-                            CancellationToken));
+                            cancellationToken));
 
-                    await stream.Local.WaitForClosedAsync(CancellationToken)
+                    await stream.Local.WaitForClosedAsync(cancellationToken)
                                 .ConfigureAwait(false);
-                    await stream.Remote.WaitForClosedAsync(CancellationToken)
+                    await stream.Remote.WaitForClosedAsync(cancellationToken)
                                 .ConfigureAwait(false);
+                    cancellationTokenSource.Cancel();
                 }
-                catch when (_cancellationTokenSource
+                catch when (cancellationToken
                     .IsCancellationRequested)
                 {
                 }
@@ -174,7 +180,7 @@ namespace Port.Server
 
                 } while (sendResult.HasMore());
             }
-            catch when (_cancellationTokenSource
+            catch when (cancellationToken
                 .IsCancellationRequested)
             {
             }
@@ -216,7 +222,7 @@ namespace Port.Server
                     }
                 } while (content.HasMoreData());
             }
-            catch when (_cancellationTokenSource
+            catch when (cancellationToken
                 .IsCancellationRequested)
             {
             }
@@ -237,8 +243,15 @@ namespace Port.Server
         {
             _cancellationTokenSource.Cancel(false);
 
-            await Task.WhenAll(_backgroundTasks)
-                      .ConfigureAwait(false);
+            try
+            {
+                await Task.WhenAll(_backgroundTasks)
+                          .ConfigureAwait(false);
+
+            }
+            catch (OperationCanceledException)
+            {
+            }
 
             try
             {
