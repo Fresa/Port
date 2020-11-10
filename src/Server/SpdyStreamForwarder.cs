@@ -156,7 +156,8 @@ namespace Port.Server
                                                   memory,
                                                   cancellationToken)
                                               .ConfigureAwait(false);
-
+                    _logger.Trace("Received {bytes} bytes from local socket", 
+                        bytesReceived);
                     // End of the stream! 
                     // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                     if (bytesReceived == 0)
@@ -212,13 +213,19 @@ namespace Port.Server
                                         cancellationToken: cancellationToken)
                                     .ConfigureAwait(false);
 
+                    _logger.Trace("Received {bytes} bytes from remote socket", 
+                        content.Buffer.Length);
+
                     foreach (var sequence in content.Buffer)
                     {
+                        _logger.Trace("Sending {bytes} bytes to local socket", 
+                            sequence.Length);
                         await localSocket
                               .SendAsync(
                                   sequence,
                                   cancellationToken)
                               .ConfigureAwait(false);
+                        _logger.Trace("Sending complete");
                     }
                 } while (content.HasMoreData());
             }

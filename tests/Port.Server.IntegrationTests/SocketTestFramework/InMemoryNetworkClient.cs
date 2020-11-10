@@ -37,15 +37,14 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                 ? buffer.Length
                 : (int) result.Buffer.Length;
 
-            result
+            var data = result
                 .Buffer
-                .Slice(0, length)
-                .CopyTo(
-                    buffer
-                        .Span);
+                .Slice(0, length);
+            data.CopyTo(
+                buffer
+                    .Span);
 
-            var position = result.Buffer.GetPosition(length);
-            _pipe.Reader.AdvanceTo(position);
+            _pipe.Reader.AdvanceTo(data.End, result.Buffer.End);
             return length;
         }
     }

@@ -70,6 +70,7 @@ namespace Kubernetes.Test.API.Server
 
             if (result.Buffer.Length == 0)
             {
+                _read.Reader.AdvanceTo(result.Buffer.End);
                 return 0;
             }
 
@@ -77,10 +78,10 @@ namespace Kubernetes.Test.API.Server
                 ? buffer.Length
                 : (int) result.Buffer.Length;
 
-            result.Buffer.Slice(0, length)
-                  .CopyTo(buffer.Span);
+            var data = result.Buffer.Slice(0, length);
+            data.CopyTo(buffer.Span);
 
-            _read.Reader.AdvanceTo(result.Buffer.GetPosition(length));
+            _read.Reader.AdvanceTo(data.End, result.Buffer.End);
             return length;
         }
 
