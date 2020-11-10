@@ -16,7 +16,7 @@ namespace Port.Server.Spdy.Extensions
                 this Frame frame,
                 [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var pipe = new Pipe();
+            var pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
             var writeTask = Task.Run(async
                 () =>
             {
@@ -55,6 +55,8 @@ namespace Port.Server.Spdy.Extensions
                 pipe.Reader.AdvanceTo(result.Buffer.GetPosition(result.Buffer.Length));
             } while (result.IsCompleted == false && result.IsCanceled == false);
 
+            await pipe.Reader.CompleteAsync()
+                      .ConfigureAwait(false);
             await writeTask.ConfigureAwait(false);
         }
     }

@@ -21,12 +21,9 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             CancellationToken cancellationToken = default)
             where T : notnull
         {
-            var first = new InMemoryNetworkClient();
-            var second = new InMemoryNetworkClient();
             var requestClient =
-                new CrossWiredMemoryNetworkClient(first, second);
-            var responseClient =
-                new CrossWiredMemoryNetworkClient(second, first);
+                new CrossWiredInMemoryNetworkClient();
+            var responseClient = requestClient.CreateReverseClient();
 
             var requestMessageClient =
                 messageClientFactory.Create(requestClient);

@@ -223,7 +223,7 @@ namespace Port.Server.IntegrationTests
                 }
 
                 private readonly SemaphoreSlim _responseReceived =
-                    new SemaphoreSlim(0, 1);
+                    new SemaphoreSlim(0);
 
 
                 internal async Task WaitForResponseAsync(

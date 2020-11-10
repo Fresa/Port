@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions;
 using Microsoft.AspNetCore.TestHost;
@@ -36,10 +37,10 @@ namespace Kubernetes.Test.API.Server
             _host = _hostBuilder.ConfigureServices(
                                     collection => collection.AddSingleton(this))
                                 .Build();
+            var startSignaler = new ManualResetEventSlim();
             _host.StartAsync()
-                 .ConfigureAwait(false)
-                 .GetAwaiter()
-                 .GetResult();
+                 .ContinueWith(task => startSignaler.Set());
+            startSignaler.Wait();
         }
 
         public static TestFramework Start(
