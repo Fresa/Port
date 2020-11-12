@@ -31,7 +31,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             _writer = writer;
         }
 
-        internal INetworkClient CreateReverseClient()
+        internal INetworkClient CreateReversed()
         {
             return new CrossWiredInMemoryNetworkClient(_writer, _reader);
         }

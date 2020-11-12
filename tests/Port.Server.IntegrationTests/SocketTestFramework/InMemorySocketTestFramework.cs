@@ -23,7 +23,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         {
             var requestClient =
                 new CrossWiredInMemoryNetworkClient();
-            var responseClient = requestClient.CreateReverseClient();
+            var responseClient = requestClient.CreateReversed();
 
             var requestMessageClient =
                 messageClientFactory.Create(requestClient);
