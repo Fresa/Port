@@ -470,8 +470,17 @@ namespace Port.Server.Spdy
                 }
                 catch when (token.IsCancellationRequested)
                 {
-                    return new System.IO.Pipelines.ReadResult(
-                        ReadOnlySequence<byte>.Empty, true, false);
+                    // There is a race condition between the remote closed signaler
+                    // and the frame available semaphore which sometimes causes the 
+                    // frame available semaphore to cancel when it is setting up the 
+                    // awaitable task due to it's bail fast strategy.
+                    // Give the receiver a chance to retrieve any data that has still
+                    // not been consumed before cancelling.
+                    if (_receivingQueue.IsEmpty)
+                    {
+                        return new System.IO.Pipelines.ReadResult(
+                            ReadOnlySequence<byte>.Empty, true, false);
+                    }
                 }
             } while (true);
         }
