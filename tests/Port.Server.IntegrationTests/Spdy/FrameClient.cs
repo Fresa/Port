@@ -17,7 +17,7 @@ namespace Port.Server.IntegrationTests.Spdy
             new CancellationTokenSource();
 
         private Task _receiverTask = Task.CompletedTask;
-        private readonly Pipe _pipe = new Pipe();
+        private readonly Pipe _pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
         private readonly FrameReader _frameReader;
 
         private readonly SemaphoreSlimGate _frameReaderGate =

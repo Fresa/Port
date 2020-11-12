@@ -13,7 +13,9 @@ namespace Kubernetes.Test.API.Server
         private readonly Pipe _write;
 
         public CrossWiredStream()
-            : this(new Pipe(), new Pipe())
+            : this(
+                new Pipe(new PipeOptions(useSynchronizationContext: false)), 
+                new Pipe(new PipeOptions(useSynchronizationContext: false)))
         {
         }
 

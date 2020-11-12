@@ -22,8 +22,8 @@ namespace Port.Server
         private readonly ILogger _logger =
             LogFactory.Create<WebSocketStreamer>();
 
-        private readonly Pipe _receivingPipe = new Pipe();
-        private readonly Pipe _sendingPipe = new Pipe();
+        private readonly Pipe _receivingPipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
+        private readonly Pipe _sendingPipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
 
         private readonly List<Task> _backgroundJobs = new List<Task>();
 
