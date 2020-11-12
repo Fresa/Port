@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Endpoint;
 using Port.Server.Spdy.Frames;
@@ -14,6 +15,7 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyStream : IDisposable
     {
+        private ILogger _logger = LogFactory.Create<SpdyStream>();
         private readonly SynStream _synStream;
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
@@ -58,14 +60,22 @@ namespace Port.Server.Spdy
         private void OpenRemote()
         {
             _remote.Open();
+            _logger.Trace("Remote opened");
         }
         private void CloseRemote()
         {
             _remote.Close();
+            _logger.Trace("Remote closed");
+        }
+        private void OpenLocal()
+        {
+            _local.Open();
+            _logger.Trace("Local opened");
         }
         private void CloseLocal()
         {
             _local.Close();
+            _logger.Trace("Local closed");
         }
 
         internal void Receive(
@@ -156,6 +166,7 @@ namespace Port.Server.Spdy
                     _receivingQueue.Enqueue(data);
                     _frameAvailable.Release();
 
+                    _logger.Trace("{length} bytes data received", data.Payload.Length);
                     if (data.IsLastFrame)
                     {
                         CloseRemote();
@@ -199,21 +210,21 @@ namespace Port.Server.Spdy
         {
             if (_synStream.IsUnidirectional)
             {
-                _remote.Close();
+                CloseRemote();
             }
             else
             {
-                _remote.Open();
+                OpenRemote();
             }
 
             var reply = SynReply.Accept(Id, headers);
             if (_synStream.IsFin || reply.IsLastFrame)
             {
-                _local.Close();
+                CloseLocal();
             }
             else
             {
-                _local.Open();
+                OpenLocal();
             }
 
             _controlFramesReceived.TryAdd(typeof(SynReply), reply);
@@ -233,16 +244,16 @@ namespace Port.Server.Spdy
         {
             if (_synStream.IsUnidirectional)
             {
-                _remote.Close();
+                CloseRemote();
             }
 
             if (_synStream.IsFin)
             {
-                _local.Close();
+                CloseLocal();
             }
             else
             {
-                _local.Open();
+                OpenLocal();
             }
 
             Send(_synStream);
@@ -422,10 +433,12 @@ namespace Port.Server.Spdy
                 cancellationToken,
                 _remote.Cancellation
             };
+            
             if (timeout != default)
             {
                 tokens.Add(new CancellationTokenSource(timeout).Token);
             }
+            
             var token = CancellationTokenSource
                         .CreateLinkedTokenSource(tokens.ToArray())
                         .Token;
@@ -434,10 +447,15 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
+                    _logger.Trace(
+                        "Received data frame with payload length of {length} bytes",
+                        frame.Payload.Length);
+                    
                     if (frame.Payload.Length > 0)
                     {
                         Send(new WindowUpdate(Id, (uint)frame.Payload.Length));
                     }
+
                     return new System.IO.Pipelines.ReadResult(
                         new ReadOnlySequence<byte>(frame.Payload), false,
                         frame.IsLastFrame);
@@ -445,8 +463,10 @@ namespace Port.Server.Spdy
 
                 try
                 {
+                    _logger.Trace("Waiting for an available frame");
                     await _frameAvailable.WaitAsync(token)
                                          .ConfigureAwait(false);
+                    _logger.Trace("Available frame signaled");
                 }
                 catch when (token.IsCancellationRequested)
                 {

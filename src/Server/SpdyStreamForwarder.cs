@@ -178,6 +178,7 @@ namespace Port.Server
                                            memory.Slice(0, bytesReceived),
                                            cancellationToken: cancellationToken)
                                        .ConfigureAwait(false);
+                    _logger.Trace("Sending to remote socket complete");
 
                 } while (sendResult.HasMore());
             }
@@ -208,6 +209,7 @@ namespace Port.Server
                 ReadResult content;
                 do
                 {
+                    _logger.Trace("Receiving from remote socket");
                     content = await spdyStream
                                     .ReceiveAsync(
                                         cancellationToken: cancellationToken)
@@ -225,7 +227,7 @@ namespace Port.Server
                                   sequence,
                                   cancellationToken)
                               .ConfigureAwait(false);
-                        _logger.Trace("Sending complete");
+                        _logger.Trace("Sending to local socket complete");
                     }
                 } while (content.HasMoreData());
             }
