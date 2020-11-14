@@ -529,6 +529,14 @@ namespace Port.Server.Spdy
         {
             var isClosed = _sessionCancellationTokenSource
                 .IsCancellationRequested;
+            if (isClosed == false)
+            {
+                await SendAsync(
+                        GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
+                        SessionCancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             try
             {
                 _sessionCancellationTokenSource.Cancel(false);
@@ -541,14 +549,6 @@ namespace Port.Server.Spdy
             await Task.WhenAll(
                           _receivingTask, _sendingTask, _messageHandlerTask)
                       .ConfigureAwait(false);
-
-            if (isClosed == false)
-            {
-                await SendAsync(
-                        GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
-                        CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
 
             _sendDataGate.Dispose();
             _receiveGate.Dispose();

@@ -292,6 +292,7 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
+                Server.On<GoAway>();
                 var synStreamSubscription = Server.On<SynStream>(cancellationToken);
                 _rstStreamSubscription = Server.On<RstStream>(cancellationToken);
                 _stream = DisposeOnTearDown(
@@ -364,6 +365,7 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
+                Server.On<GoAway>();
                 var synStreamSubscription = Server.On<SynStream>(cancellationToken);
                 _rstStreamSubscription = Server.On<RstStream>(cancellationToken);
                 _stream = DisposeOnTearDown(
@@ -504,6 +506,7 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
+                Server.On<GoAway>();
                 var synStreamSubscription = Server.On<SynStream>(cancellationToken);
                 _pingSubscription = Server.On<Ping>(cancellationToken);
                 _stream = DisposeOnTearDown(
@@ -528,7 +531,8 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _pingReceived = await _pingSubscription.ReceiveAsync(cancellationToken);
+                _pingReceived = await _pingSubscription.ReceiveAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             [Fact]
@@ -556,6 +560,7 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
+                Server.On<GoAway>();
                 var synStreamSubscription = Server.On<SynStream>(cancellationToken);
                 _stream = DisposeOnTearDown(
                     Session.Open());
@@ -613,16 +618,16 @@ namespace Port.Server.IntegrationTests.Spdy
             {
             }
 
-            protected override async Task GivenASessionAsync(
+            protected override Task GivenASessionAsync(
                 CancellationToken cancellationToken)
             {
+                Server.On<GoAway>();
                 _settingsSubscription = Session.Settings.Subscribe();
-                await Server.SendAsync(
-                                new Settings(
-                                        Settings.MaxConcurrentStreams(100),
-                                        Settings.UploadBandwidth(1000)),
-                                cancellationToken)
-                            .ConfigureAwait(false);
+                return Server.SendAsync(
+                    new Settings(
+                        Settings.MaxConcurrentStreams(100),
+                        Settings.UploadBandwidth(1000)),
+                    cancellationToken);
             }
 
             protected override async Task WhenAsync(
@@ -664,6 +669,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 CancellationToken cancellationToken)
             {
                 var synStreamSubscription = Server.On<SynStream>();
+                Server.On<GoAway>();
                 _stream = Session.Open();
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
                                            .ConfigureAwait(false);
@@ -767,6 +773,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 CancellationToken cancellationToken)
             {
                 var synStreamSubscription = Server.On<SynStream>();
+                Server.On<GoAway>();
                 _stream = DisposeOnTearDown(
                     Session.Open(options: SynStream.Options.Unidirectional));
                 await synStreamSubscription.ReceiveAsync(cancellationToken)
@@ -841,6 +848,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 CancellationToken cancellationToken)
             {
                 var synStreamSubscription = Server.On<SynStream>();
+                Server.On<GoAway>();
                 _stream = DisposeOnTearDown(
                     Session.Open(options: SynStream.Options.Unidirectional | SynStream.Options.Fin));
                 await synStreamSubscription.ReceiveAsync(cancellationToken)

@@ -12,7 +12,6 @@ namespace Port.Server.IntegrationTests.Spdy
         protected SpdySessionTestSpecification(ITestOutputHelper testOutputHelper)
             : base(testOutputHelper)
         {
-            DisposeAsyncOnTearDown(Server);
         }
 
         protected SpdyTestServer Server { get; } = new SpdyTestServer();
@@ -27,6 +26,7 @@ namespace Port.Server.IntegrationTests.Spdy
             Session = DisposeAsyncOnTearDown(await Server
                                                    .ConnectAsync(cancellationToken)
                                                    .ConfigureAwait(false));
+            DisposeAsyncOnTearDown(Server);
             await GivenASessionAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
