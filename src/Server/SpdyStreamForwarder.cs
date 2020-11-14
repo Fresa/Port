@@ -104,21 +104,24 @@ namespace Port.Server
                 {
                     using var _ = _logger.LogicalThread.With(
                         "local-socket-id", Guid.NewGuid());
-                    _backgroundTasks.Add(StartSendingAsync(
+                    var sendingTask = StartSendingAsync(
                         client,
                         stream,
-                        cancellationToken));
-                    _backgroundTasks.Add(
-                        StartReceivingAsync(
-                            client,
-                            stream,
-                            cancellationToken));
+                        cancellationToken);
+                    _backgroundTasks.Add(sendingTask);
+                    var receivingTask = StartReceivingAsync(
+                        client,
+                        stream,
+                        CancellationToken.None);
+                    _backgroundTasks.Add(receivingTask);
 
                     await stream.Local.WaitForClosedAsync(cancellationToken)
                                 .ConfigureAwait(false);
                     await stream.Remote.WaitForClosedAsync(cancellationToken)
                                 .ConfigureAwait(false);
-                    cancellationTokenSource.Cancel();
+                    cancellationTokenSource.Cancel(false);
+                    await Task.WhenAll(sendingTask, receivingTask)
+                              .ConfigureAwait(false);
                 }
                 catch when (cancellationToken
                     .IsCancellationRequested)
@@ -217,6 +220,11 @@ namespace Port.Server
 
                     _logger.Trace("Received {bytes} bytes from remote socket", 
                         content.Buffer.Length);
+
+                    if (content.Buffer.IsEmpty)
+                    {
+                        continue;
+                    }
 
                     foreach (var sequence in content.Buffer)
                     {
