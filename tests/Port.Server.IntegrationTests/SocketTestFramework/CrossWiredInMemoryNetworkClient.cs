@@ -12,11 +12,15 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         private readonly Pipe _reader;
         private readonly Pipe _writer;
 
-        private ILogger _logger = LogFactory.Create<CrossWiredInMemoryNetworkClient>();
+        private readonly ILogger _logger = 
+            LogFactory.Create<CrossWiredInMemoryNetworkClient>();
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
-            return new ValueTask();
+            await _reader.Reader.CompleteAsync()
+                         .ConfigureAwait(false);
+            await _writer.Writer.CompleteAsync()
+                         .ConfigureAwait(false);
         }
 
         public CrossWiredInMemoryNetworkClient() : this(
