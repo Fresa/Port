@@ -152,7 +152,7 @@ namespace Port.Server.IntegrationTests
                                 response) => total + response));
             }
 
-            internal sealed class Fixture : IAsyncDisposable
+            private sealed class Fixture : IAsyncDisposable
             {
                 public Fixture(
                     IServiceContainer container)
@@ -218,9 +218,9 @@ namespace Port.Server.IntegrationTests
                 private readonly IMemoryOwner<byte> _memoryOwner =
                     MemoryPool<byte>.Shared.Rent(65536);
 
-                internal Memory<byte> Memory => _memoryOwner.Memory;
+                private Memory<byte> Memory => _memoryOwner.Memory;
 
-                internal List<byte> WebSocketMessageReceived =
+                internal readonly List<byte> WebSocketMessageReceived =
                     new List<byte>();
 
                 internal string PortForwardResponse { get; private set; } = ""; 
@@ -234,7 +234,7 @@ namespace Port.Server.IntegrationTests
                 }
 
                 private readonly SemaphoreSlim _responseReceived =
-                    new SemaphoreSlim(0, 1);
+                    new SemaphoreSlim(0);
 
 
                 internal async Task WaitForResponseAsync(
@@ -258,31 +258,31 @@ namespace Port.Server.IntegrationTests
                     WebSocket webSocket,
                     CancellationToken cancellationToken)
                 {
-                    if (WebSocketMessageReceived.Count >
-                        Request.Length)
+                    if (WebSocketMessageReceived.Count <= Request.Length)
                     {
-                        foreach (var response in FragmentedResponses)
-                        {
-                            // Set channel
-                            Memory.Span[0] =
-                                WebSocketMessageReceived[0];
-                            Encoding.ASCII.GetBytes(response)
-                                .CopyTo(Memory.Slice(1));
-                            await webSocket.SendAsync(
-                                    Memory.Slice(
-                                        0,
-                                        response.Length +
-                                        1),
-                                    WebSocketMessageType.Binary,
-                                    true,
-                                    cancellationToken)
-                                .ConfigureAwait(false);
-                        }
-
-                        return true;
+                        return false;
                     }
 
-                    return false;
+                    foreach (var response in FragmentedResponses)
+                    {
+                        // Set channel
+                        Memory.Span[0] =
+                            WebSocketMessageReceived[0];
+                        Encoding.ASCII.GetBytes(response)
+                                .CopyTo(Memory.Slice(1));
+                        await webSocket.SendAsync(
+                                           Memory.Slice(
+                                               0,
+                                               response.Length +
+                                               1),
+                                           WebSocketMessageType.Binary,
+                                           true,
+                                           cancellationToken)
+                                       .ConfigureAwait(false);
+                    }
+
+                    return true;
+
                 }
 
                 internal async Task<ValueWebSocketReceiveResult> ReceiveAsync(
