@@ -132,11 +132,22 @@ namespace Port.Server
                 }
                 finally
                 {
-                    //Cancel and exit fast
+                    // todo:
+                    // Hack!
+                    // There is a race condition when the spdy stream is 
+                    // reported as fully closed but the last data might not
+                    // have been fully sent to the client. By stalling for 
+                    // a while we let the remote receiving background worker
+                    // do it's job for a little while longer.
+                    // Ideally we should let this process work until it's done
+                    // sending all data, but we cannot let the process run
+                    // potentially forever, the application might be in a stopping
+                    // state, and at some point we have to let go.
+                    
                     //This will most likely change when we need to report
                     //back that the forwarding terminated or that we
                     //should retry
-                    _cancellationTokenSource.Cancel(false);
+                    _cancellationTokenSource.CancelAfter(1000);
 
                     // Wait for the tasks to complete otherwise
                     // we risk to dispose the stream and the local
@@ -165,7 +176,7 @@ namespace Port.Server
                                                   memory,
                                                   cancellationToken)
                                               .ConfigureAwait(false);
-                    _logger.Trace("Received {bytes} bytes from local socket", 
+                    _logger.Trace("Received {bytes} bytes from local socket",
                         bytesReceived);
                     // End of the stream! 
                     // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
@@ -224,7 +235,7 @@ namespace Port.Server
                                         cancellationToken: cancellationToken)
                                     .ConfigureAwait(false);
 
-                    _logger.Trace("Received {bytes} bytes from remote socket", 
+                    _logger.Trace("Received {bytes} bytes from remote socket",
                         content.Buffer.Length);
 
                     if (content.Buffer.IsEmpty)
@@ -234,7 +245,7 @@ namespace Port.Server
 
                     foreach (var sequence in content.Buffer)
                     {
-                        _logger.Trace("Sending {bytes} bytes to local socket", 
+                        _logger.Trace("Sending {bytes} bytes to local socket",
                             sequence.Length);
                         await localSocket
                               .SendAsync(
