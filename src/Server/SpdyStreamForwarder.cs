@@ -92,6 +92,8 @@ namespace Port.Server
 
         private async Task StartPortForwardingAsync(INetworkClient client)
         {
+            using var _ = _logger.LogicalThread.With(
+                "local-socket-id", Guid.NewGuid());
             await using (client.ConfigureAwait(false))
             {
                 using var cancellationTokenSource =
@@ -100,28 +102,23 @@ namespace Port.Server
                 var cancellationToken = cancellationTokenSource.Token;
 
                 using var stream = _spdySession.Open();
+                var sendingTask = Task.CompletedTask;
+                var receivingTask = Task.CompletedTask;
                 try
                 {
-                    using var _ = _logger.LogicalThread.With(
-                        "local-socket-id", Guid.NewGuid());
-                    var sendingTask = StartSendingAsync(
+                    sendingTask = StartSendingAsync(
                         client,
                         stream,
                         cancellationToken);
-                    _backgroundTasks.Add(sendingTask);
-                    var receivingTask = StartReceivingAsync(
+                    receivingTask = StartReceivingAsync(
                         client,
                         stream,
-                        CancellationToken.None);
-                    _backgroundTasks.Add(receivingTask);
+                        cancellationToken);
 
                     await stream.Local.WaitForClosedAsync(cancellationToken)
                                 .ConfigureAwait(false);
                     await stream.Remote.WaitForClosedAsync(cancellationToken)
                                 .ConfigureAwait(false);
-                    cancellationTokenSource.Cancel(false);
-                    await Task.WhenAll(sendingTask, receivingTask)
-                              .ConfigureAwait(false);
                 }
                 catch when (cancellationToken
                     .IsCancellationRequested)
@@ -129,14 +126,23 @@ namespace Port.Server
                 }
                 catch (Exception ex)
                 {
-                    _logger.Fatal(ex, "Unknown error while sending and receiving data, closing down");
-#pragma warning disable 4014
+                    _logger.Fatal(
+                        ex,
+                        "Unknown error while sending and receiving data, closing down");
+                }
+                finally
+                {
                     //Cancel and exit fast
                     //This will most likely change when we need to report
                     //back that the forwarding terminated or that we
                     //should retry
                     _cancellationTokenSource.Cancel(false);
-#pragma warning restore 4014
+
+                    // Wait for the tasks to complete otherwise
+                    // we risk to dispose the stream and the local
+                    // socket client while being in used
+                    await Task.WhenAll(sendingTask, receivingTask)
+                              .ConfigureAwait(false);
                 }
             }
         }
