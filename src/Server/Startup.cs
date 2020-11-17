@@ -6,10 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.FeatureManagement;
-using NLog;
-using NLog.Extensions.Logging;
 using Port.Server.Observability;
 using SimpleInjector;
 
@@ -28,6 +25,7 @@ namespace Port.Server
             IConfiguration configuration)
         {
             Configuration = configuration;
+            NLogBuilderExtensions.ConfigureNLogOnce(configuration);
         }
 
         public IConfiguration Configuration { get; }
@@ -54,16 +52,6 @@ namespace Port.Server
                 });
 
             services.AddFeatureManagement();
-
-            services.AddLogging(
-                builder =>
-                {
-                    builder.ClearProviders();
-                    builder.AddNLog(Configuration);
-                    var nLogConfig = new NLogLoggingConfiguration(
-                        Configuration.GetSection("NLog"));
-                    LogManager.Configuration = nLogConfig;
-                });
 
             InitializeContainer();
         }
@@ -92,8 +80,7 @@ namespace Port.Server
         {
             app.UseSimpleInjector(_container);
             hostApplicationLifetime.ApplicationStopped.Register(
-                async () => await _container.DisposeAsync()
-                    .ConfigureAwait(false));
+                () => _container.DisposeAsync());
 
             if (env.IsDevelopment())
             {
