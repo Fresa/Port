@@ -23,11 +23,12 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             var task = Task.Run(
                 async () =>
                 {
-                    await using var _ = client.ConfigureAwait(false);
-                    while (_cancellationTokenSource.IsCancellationRequested ==
-                           false)
+                    try
                     {
-                        try
+                        await using var _ = client.ConfigureAwait(false);
+                        while (_cancellationTokenSource
+                                   .IsCancellationRequested ==
+                               false)
                         {
                             var receivedMessage = await client
                                 .ReceiveAsync(
@@ -48,11 +49,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                                     _cancellationTokenSource.Token)
                                 .ConfigureAwait(false);
                         }
-                        catch when (_cancellationTokenSource
-                            .IsCancellationRequested)
-                        {
-                            return;
-                        }
+                    }
+                    catch when (_cancellationTokenSource
+                        .IsCancellationRequested)
+                    {
                     }
                 });
             _backgroundTasks.Add(task);
@@ -104,12 +104,10 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             Func<TRequestMessage, CancellationToken, Task> subscription)
         {
             _subscriptions.Add(
-                typeof(TRequestMessage),
-                async (
+                typeof(TRequestMessage), (
                     message,
-                    cancellationToken) => await subscription.Invoke(
-                        (TRequestMessage) message, cancellationToken)
-                    .ConfigureAwait(false));
+                    cancellationToken) => subscription.Invoke(
+                    (TRequestMessage) message, cancellationToken));
             return this;
         }
 
@@ -119,14 +117,12 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             where TRequestMessage : IRespond<TResponseMessage>
         {
             _subscriptions.Add(
-                typeof(TRequestMessage),
-                async (
+                typeof(TRequestMessage), (
                         message,
                         cancellationToken) =>
-                    await subscription.Invoke(
-                                          (TRequestMessage) message,
-                                          cancellationToken)
-                                      .ConfigureAwait(false));
+                    subscription.Invoke(
+                        (TRequestMessage) message,
+                        cancellationToken));
             return this;
         }
 
