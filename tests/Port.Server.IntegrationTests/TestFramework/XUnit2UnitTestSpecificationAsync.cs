@@ -69,6 +69,11 @@ namespace Port.Server.IntegrationTests.TestFramework
         protected override async Task DisposeAsync(
             bool disposing)
         {
+            if (!disposing)
+            {
+                return;
+            }
+
             foreach (var disposable in _disposables)
             {
                 disposable.Dispose();
