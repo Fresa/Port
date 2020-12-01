@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Log.It.With.NLog;
+using Microsoft.Extensions.Configuration;
+using Port.Server.Observability;
 using Test.It.While.Hosting.Your.Web.Application;
 using Test.It.With.XUnit;
 using Xunit;
@@ -22,12 +23,21 @@ namespace Port.Server.IntegrationTests.TestFramework
         private readonly List<IAsyncDisposable> _asyncDisposables =
             new List<IAsyncDisposable>();
 
+        static XUnit2ServiceSpecificationAsync()
+        {
+            LogFactoryExtensions.InitializeOnce();
+            NLogBuilderExtensions.ConfigureNLogOnce(new ConfigurationBuilder()
+                             .SetBasePath(Directory.GetCurrentDirectory())
+                             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                             .Build());
+            NLogCapturingTargetExtensions.RegisterOutputOnce();
+        }
+
         protected XUnit2ServiceSpecificationAsync(
             ITestOutputHelper testOutputHelper)
         {
             // Capture logs written to NLog and redirect it to the current session (if it belongs to it)
             DisposeOnTearDown(Output.WriteTo(testOutputHelper));
-            NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
         protected virtual TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
@@ -90,8 +100,6 @@ namespace Port.Server.IntegrationTests.TestFramework
                 await asyncDisposable.DisposeAsync()
                     .ConfigureAwait(false);
             }
-
-            NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
         }
     }
 }

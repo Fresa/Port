@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Log.It;
-using Log.It.With.NLog;
 using Microsoft.Extensions.Configuration;
-using NLog;
-using NLog.Extensions.Logging;
 using Port.Server.Observability;
 using Test.It.With.XUnit;
 using Xunit.Abstractions;
@@ -24,14 +21,12 @@ namespace Port.Server.IntegrationTests.TestFramework
 
         static XUnit2UnitTestSpecificationAsync()
         {
-            LogFactoryExtensions.InitializeOnce(
-                new NLogFactory(new LogicalThreadContext()));
-            var config = new ConfigurationBuilder()
-                         .SetBasePath(System.IO.Directory.GetCurrentDirectory())
-                         .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                         .Build();
-            LogManager.Configuration = new NLogLoggingConfiguration(
-                config.GetSection("NLog"));
+            LogFactoryExtensions.InitializeOnce();
+            NLogBuilderExtensions.ConfigureNLogOnce(new ConfigurationBuilder()
+                                                    .SetBasePath(Directory.GetCurrentDirectory())
+                                                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                                                    .Build());
+            NLogCapturingTargetExtensions.RegisterOutputOnce();
         }
 
         protected XUnit2UnitTestSpecificationAsync()
@@ -42,7 +37,6 @@ namespace Port.Server.IntegrationTests.TestFramework
             ITestOutputHelper testOutputHelper)
             : base(testOutputHelper)
         {
-            NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
         protected override CancellationTokenSource CancellationTokenSource
@@ -87,7 +81,6 @@ namespace Port.Server.IntegrationTests.TestFramework
 
             await base.DisposeAsync(disposing)
                       .ConfigureAwait(false);
-            NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
         }
     }
 }

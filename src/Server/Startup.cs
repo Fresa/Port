@@ -18,7 +18,7 @@ namespace Port.Server
 
         static Startup()
         {
-            LogFactoryExtensions.InitializeOnce(new NLogFactory(new LogicalThreadContext()));
+            LogFactoryExtensions.InitializeOnce();
         }
 
         public Startup(

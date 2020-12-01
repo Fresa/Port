@@ -1,23 +1,25 @@
 using Log.It;
+using Log.It.With.NLog;
 
 namespace Port.Server.Observability
 {
     internal static class LogFactoryExtensions
     {
-        private static readonly object Lock = new object();
+        private static readonly ExclusiveLock Lock = new ExclusiveLock();
 
-        public static void InitializeOnce(
-            ILogFactory logFactory)
+        public static void InitializeOnce()
         {
-            lock (Lock)
+            if (!Lock.TryAcquire())
             {
-                if (LogFactory.HasFactory)
-                {
-                    return;
-                }
-
-                LogFactory.Initialize(logFactory);
+                return;
             }
+
+            if (LogFactory.HasFactory)
+            {
+                return;
+            }
+
+            LogFactory.Initialize(new NLogFactory(new LogicalThreadContext()));
         }
     }
 }

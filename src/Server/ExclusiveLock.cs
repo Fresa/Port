@@ -21,5 +21,11 @@ namespace Port.Server
                     Interlocked.Exchange(ref _acquired, 0);
                 });
         }
+
+        internal bool TryAcquire()
+        {
+            TryAcquire(out var acquired);
+            return acquired;
+        }
     }
 }

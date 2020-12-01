@@ -509,19 +509,16 @@ namespace Port.Server.Spdy
             using (await _receiveGate.WaitAsync(cancellationToken)
                               .ConfigureAwait(false))
             {
-                while (true)
-                {
-                    var stream = await _receivedStreamRequests
-                                          .ReceiveAsync(cancellationToken)
-                                          .ConfigureAwait(false);
+                var stream = await _receivedStreamRequests
+                                      .ReceiveAsync(cancellationToken)
+                                      .ConfigureAwait(false);
 
-                    // This is thread safe since this is the only place
-                    // where this property changes and we are inside
-                    // a one-at-a-time gate
-                    _lastGoodRepliedStreamId = stream.Id;
+                // This is thread safe since this is the only place
+                // where this property changes and we are inside
+                // a one-at-a-time gate
+                _lastGoodRepliedStreamId = stream.Id;
 
-                    return stream;
-                }
+                return stream;
             }
         }
 
