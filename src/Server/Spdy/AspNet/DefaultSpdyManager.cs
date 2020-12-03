@@ -8,7 +8,7 @@ namespace Port.Server.Spdy.AspNet
     internal sealed class DefaultSpdyManager : ISpdyManager
     {
         private static readonly Func<IFeatureCollection, ISpdyFeature?>
-            NullWebSocketFeature = featureCollection => null;
+            NullSpdyFeature = featureCollection => null;
 
         private FeatureReferences<FeatureInterfaces> _features;
 
@@ -20,7 +20,7 @@ namespace Port.Server.Spdy.AspNet
             [NotNullWhen(true)] out ISpdyFeature? feature)
         {
             feature = _features.Fetch(
-                ref _features.Cache.Spdy, NullWebSocketFeature);
+                ref _features.Cache.Spdy, NullSpdyFeature);
             return feature != null;
         }
 
@@ -39,7 +39,6 @@ namespace Port.Server.Spdy.AspNet
 
         private struct FeatureInterfaces
         {
-            public IHttpRequestFeature Request;
             public ISpdyFeature? Spdy;
         }
     }

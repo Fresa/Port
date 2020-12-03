@@ -27,6 +27,8 @@ namespace Port.Server
         {
             await _stream.WriteAsync(buffer, cancellationToken)
                          .ConfigureAwait(false);
+            await _stream.FlushAsync(cancellationToken)
+                         .ConfigureAwait(false);
             return buffer.Length;
         }
     }

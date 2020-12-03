@@ -175,7 +175,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// An indicator for why the stream is being terminated.
         /// </summary>
-        public StatusCode Status { get; set; }
+        public StatusCode Status { get; }
 
         internal static async ValueTask<ReadResult<RstStream>> TryReadAsync(
             byte flags,

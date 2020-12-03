@@ -122,7 +122,7 @@ namespace Port.Server.Spdy
             var sequence = await GetAsync(length, cancellationToken)
                 .ConfigureAwait(false);
             var bytes = sequence.ToArray();
-            _reader.AdvanceTo(sequence.GetPosition(length));
+            _reader.AdvanceTo(sequence.End);
             
             return bytes;
         }
@@ -137,8 +137,10 @@ namespace Port.Server.Spdy
             }
             var sequence = await GetAsync(length, cancellationToken)
                 .ConfigureAwait(false);
-            _reader.AdvanceTo(sequence.GetPosition(0));
-            return sequence.ToArray();
+            var bytes = sequence.ToArray();
+            _reader.AdvanceTo(sequence.Start, sequence.End);
+
+            return bytes;
         }
 
         private async ValueTask<ReadOnlySequence<byte>> GetAsync(
@@ -155,9 +157,14 @@ namespace Port.Server.Spdy
             {
                 result = await _reader.ReadAsync(cancellationToken)
                     .ConfigureAwait(false);
-            } while (result.Buffer.Length < length &&
-                     result.IsCanceled == false &&
-                     result.IsCompleted == false);
+
+                if (result.Buffer.Length >= length)
+                {
+                    break;
+                }
+
+                _reader.AdvanceTo(result.Buffer.Start, result.Buffer.End);
+            } while (result.HasMoreData());
 
             if (result.Buffer.Length < length)
             {

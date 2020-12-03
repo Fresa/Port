@@ -35,17 +35,15 @@ namespace Port.Server.Spdy.Frames
             catch (Exception e)
             {
                 Logger.Error(e, "Error while parsing frame");
-                return ReadResult<Frame>.Error(RstStream.ProtocolError(UInt31.From(0)));
+                return ReadResult<Frame>.Error(
+                    RstStream.ProtocolError(UInt31.From(0)));
             }
         }
 
-        internal async ValueTask WriteAsync(
+        internal ValueTask WriteAsync(
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
-        {
-            await WriteFrameAsync(frameWriter, cancellationToken)
-                .ConfigureAwait(false);
-        }
+            => WriteFrameAsync(frameWriter, cancellationToken);
 
         protected abstract ValueTask WriteFrameAsync(
             IFrameWriter frameWriter,

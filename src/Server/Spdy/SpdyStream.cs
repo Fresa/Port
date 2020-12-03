@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Endpoint;
 using Port.Server.Spdy.Frames;
@@ -14,6 +15,8 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyStream : IDisposable
     {
+        private ILogger _logger = LogFactory.Create<SpdyStream>();
+        private readonly SynStream _synStream;
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
         private readonly ConcurrentQueue<Data> _receivingQueue
@@ -34,14 +37,12 @@ namespace Port.Server.Spdy
         private int _windowSize = 64000;
         private int _initialWindowSize = 64000;
 
-        internal SpdyStream(
-            UInt31 id,
-            SynStream.PriorityLevel priority,
+        private SpdyStream(
+            SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
         {
-            Id = id;
+            _synStream = synStream;
             _sendingPriorityQueue = sendingPriorityQueue;
-            Priority = priority;
 
             _streamInUse = RstStream.StreamInUse(Id);
             _protocolError = RstStream.ProtocolError(Id);
@@ -49,7 +50,7 @@ namespace Port.Server.Spdy
             _streamAlreadyClosedError = RstStream.StreamAlreadyClosed(Id);
         }
 
-        public UInt31 Id { get; }
+        public UInt31 Id => _synStream.StreamId;
 
         private readonly SpdyEndpoint _local = new SpdyEndpoint();
         public IEndpoint Local => _local;
@@ -59,14 +60,22 @@ namespace Port.Server.Spdy
         private void OpenRemote()
         {
             _remote.Open();
+            _logger.Trace("Remote opened");
         }
         private void CloseRemote()
         {
             _remote.Close();
+            _logger.Trace("Remote closed");
+        }
+        private void OpenLocal()
+        {
+            _local.Open();
+            _logger.Trace("Local opened");
         }
         private void CloseLocal()
         {
             _local.Close();
+            _logger.Trace("Local closed");
         }
 
         internal void Receive(
@@ -157,6 +166,7 @@ namespace Port.Server.Spdy
                     _receivingQueue.Enqueue(data);
                     _frameAvailable.Release();
 
+                    _logger.Trace("{length} bytes data received", data.Payload.Length);
                     if (data.IsLastFrame)
                     {
                         CloseRemote();
@@ -182,31 +192,71 @@ namespace Port.Server.Spdy
             }
         }
 
-        public SynStream.PriorityLevel Priority { get; }
+        public SynStream.PriorityLevel Priority => _synStream.Priority;
 
-        internal void Open(
-            SynStream.Options options,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+        internal static SpdyStream Accept(
+            SynStream synStream,
+            ConcurrentPriorityQueue<Frame> sendingPriorityQueue,
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+                default)
         {
-            var open = new SynStream(
-                options, Id, UInt31.From(0), Priority,
-                headers);
+            var stream = new SpdyStream(synStream, sendingPriorityQueue);
+            stream.Accept(headers);
+            return stream;
+        }
 
-            if (open.IsUnidirectional)
+        private void Accept(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+            default)
+        {
+            if (_synStream.IsUnidirectional)
             {
-                _remote.Close();
-            }
-
-            if (open.IsFin)
-            {
-                _local.Close();
+                CloseRemote();
             }
             else
             {
-                _local.Open();
+                OpenRemote();
             }
 
-            Send(open);
+            var reply = SynReply.Accept(Id, headers);
+            if (_synStream.IsFin || reply.IsLastFrame)
+            {
+                CloseLocal();
+            }
+            else
+            {
+                OpenLocal();
+            }
+
+            _controlFramesReceived.TryAdd(typeof(SynReply), reply);
+            Send(reply);
+        }
+
+        internal static SpdyStream Open(
+            SynStream synStream,
+            ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
+        {
+            var stream = new SpdyStream(synStream, sendingPriorityQueue);
+            stream.Open();
+            return stream;
+        }
+
+        private void Open()
+        {
+            if (_synStream.IsUnidirectional)
+            {
+                CloseRemote();
+            }
+
+            if (_synStream.IsFin)
+            {
+                CloseLocal();
+            }
+            else
+            {
+                OpenLocal();
+            }
+
+            Send(_synStream);
         }
 
         private void Send(
@@ -276,6 +326,11 @@ namespace Port.Server.Spdy
                 var left = data.Length;
                 while (left > 0)
                 {
+                    if (Local.IsClosed)
+                    {
+                        return new FlushResult(true, false);
+                    }
+                    
                     var windowSize = _windowSize;
                     var length = windowSize > left ? left : windowSize;
 
@@ -305,10 +360,6 @@ namespace Port.Server.Spdy
                         ? Data.Last(Id, payload)
                         : new Data(Id, payload);
 
-                    if (Local.IsClosed)
-                    {
-                        return new FlushResult(true, false);
-                    }
                     Send(frame);
 
                     index += length;
@@ -382,10 +433,12 @@ namespace Port.Server.Spdy
                 cancellationToken,
                 _remote.Cancellation
             };
+            
             if (timeout != default)
             {
                 tokens.Add(new CancellationTokenSource(timeout).Token);
             }
+            
             var token = CancellationTokenSource
                         .CreateLinkedTokenSource(tokens.ToArray())
                         .Token;
@@ -394,10 +447,15 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
+                    _logger.Trace(
+                        "Received data frame with payload length of {length} bytes",
+                        frame.Payload.Length);
+                    
                     if (frame.Payload.Length > 0)
                     {
                         Send(new WindowUpdate(Id, (uint)frame.Payload.Length));
                     }
+
                     return new System.IO.Pipelines.ReadResult(
                         new ReadOnlySequence<byte>(frame.Payload), false,
                         frame.IsLastFrame);
@@ -405,13 +463,24 @@ namespace Port.Server.Spdy
 
                 try
                 {
+                    _logger.Trace("Waiting for an available frame");
                     await _frameAvailable.WaitAsync(token)
                                          .ConfigureAwait(false);
+                    _logger.Trace("Available frame signaled");
                 }
                 catch when (token.IsCancellationRequested)
                 {
-                    return new System.IO.Pipelines.ReadResult(
-                        ReadOnlySequence<byte>.Empty, true, false);
+                    // There is a race condition between the remote closed signaler
+                    // and the frame available semaphore which sometimes causes the 
+                    // frame available semaphore to cancel when it is setting up the 
+                    // awaitable task due to it's bail fast strategy.
+                    // Give the receiver a chance to retrieve any data that has still
+                    // not been consumed before cancelling.
+                    if (_receivingQueue.IsEmpty)
+                    {
+                        return new System.IO.Pipelines.ReadResult(
+                            ReadOnlySequence<byte>.Empty, true, false);
+                    }
                 }
             } while (true);
         }

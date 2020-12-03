@@ -31,8 +31,10 @@ namespace Port.Server.IntegrationTests.Spdy
                                               ProtocolType.Tcp,
                                               cancellationToken)
                                           .ConfigureAwait(false);
-        
-            return new SpdySession(await _server.WaitForConnectedClientAsync(cancellationToken));
+
+            return SpdySession.CreateClient(
+                await _server.WaitForConnectedClientAsync(cancellationToken)
+                             .ConfigureAwait(false));
         }
 
         internal async Task SendAsync(

@@ -23,22 +23,20 @@ namespace Port.Server
             return new ValueTask();
         }
 
-        public async ValueTask<int> SendAsync(
+        public ValueTask<int> SendAsync(
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
-            return await _socket
-                .SendAsync(buffer, SocketFlags.None, cancellationToken)
-                .ConfigureAwait(false);
+            return _socket
+                .SendAsync(buffer, SocketFlags.None, cancellationToken);
         }
 
-        public async ValueTask<int> ReceiveAsync(
+        public ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
-            return await _socket
-                .ReceiveAsync(buffer, SocketFlags.None, cancellationToken)
-                .ConfigureAwait(false);
+            return _socket
+                .ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
         }
     }
 }

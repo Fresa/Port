@@ -17,7 +17,7 @@ namespace Port.Server.IntegrationTests.Spdy
             new CancellationTokenSource();
 
         private Task _receiverTask = Task.CompletedTask;
-        private readonly Pipe _pipe = new Pipe();
+        private readonly Pipe _pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
         private readonly FrameReader _frameReader;
 
         private readonly SemaphoreSlimGate _frameReaderGate =
@@ -45,7 +45,7 @@ namespace Port.Server.IntegrationTests.Spdy
                             var bytes = await _networkClient.ReceiveAsync(
                                     _pipe
                                         .Writer
-                                        .GetMemory(512),
+                                        .GetMemory(),
                                     _cancellationTokenSource
                                         .Token)
                                 .ConfigureAwait(false);

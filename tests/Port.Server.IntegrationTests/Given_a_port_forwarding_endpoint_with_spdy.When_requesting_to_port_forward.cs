@@ -6,23 +6,23 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Sockets;
-using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using k8s;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
-using Port.Server.IntegrationTests.k8s;
+using Microsoft.FeatureManagement;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
+using Port.Server.Spdy;
 using Test.It;
 using Xunit;
 using Xunit.Abstractions;
+using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server.IntegrationTests
 {
-    public partial class Given_a_port_forwarding_endpoint
+    public partial class Given_a_port_forwarding_endpoint_with_spdy
     {
         public partial class
             When_requesting_to_port_forward : XUnit2ServiceSpecificationAsync<
@@ -37,51 +37,43 @@ namespace Port.Server.IntegrationTests
             {
             }
 
+            protected override TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
+
             protected override void Given(
                 IServiceContainer configurer)
             {
+                configurer.RegisterSingleton<IFeatureManager>(() => new TestFeatureManager((nameof(Features.PortForwardingWithSpdy), true)));
                 _fixture = DisposeAsyncOnTearDown(new Fixture(configurer));
                 _fixture.PortForwardingSocket.On<byte[]>(
                     bytes => { _fixture.PortForwardResponseReceived(bytes); });
 
                 _fixture.KubernetesApiServer.Pod.PortForward.OnConnected(
-                    new PortForward("test", "pod1", 2001), (
-                            socket,
-                            cancellationToken) =>
-                        socket.HandleClosing(
-                            cancellationToken,
-                            async () =>
+                    new PortForward("test", "pod1", 2001), async (
+                        session,
+                        cancellationToken) =>
+                    {
+                        using var stream = await session
+                                           .ReceiveAsync(cancellationToken)
+                                           .ConfigureAwait(false);
+
+                        ReadResult result;
+                        do
+                        {
+                            result = await _fixture.ReceiveAsync(
+                                                       stream, cancellationToken)
+                                                   .ConfigureAwait(false);
+                            if (await _fixture
+                                      .TrySendResponseAsync(
+                                          stream, cancellationToken)
+                                      .ConfigureAwait(false))
                             {
-                                await socket.SendPortAsync(
-                                                9999, cancellationToken)
-                                            .ConfigureAwait(false);
-
-                                ValueWebSocketReceiveResult readResult;
-                                do
-                                {
-                                    readResult = await _fixture
-                                        .ReceiveAsync(
-                                            socket,
-                                            cancellationToken)
-                                        .ConfigureAwait(false);
-
-                                    if (readResult.MessageType ==
-                                        WebSocketMessageType.Close)
-                                    {
-                                        return;
-                                    }
-
-                                    if (await _fixture
-                                              .TrySendResponseAsync(
-                                                  socket, cancellationToken)
-                                              .ConfigureAwait(false))
-                                    {
-                                        return;
-                                    }
-                                } while (cancellationToken
-                                             .IsCancellationRequested ==
-                                         false);
-                            }));
+                                return;
+                            }
+                        } while (cancellationToken
+                                     .IsCancellationRequested ==
+                                 false &&
+                                 result.HasMoreData());
+                    });
             }
 
             protected override async Task WhenAsync(
@@ -120,14 +112,11 @@ namespace Port.Server.IntegrationTests
                     "k8s api server should receive the request message sent")]
             public void TestReceiveRequestMessage()
             {
-                _fixture.WebSocketMessageReceived.Should()
-                    .HaveCount(_fixture.Request.Length + 1);
-                _fixture.WebSocketMessageReceived[0]
-                    .Should()
-                    .Be((byte)ChannelIndex.StdIn);
+                _fixture.MessageReceived.Should()
+                    .HaveCount(_fixture.Request.Length);
                 Encoding.ASCII.GetString(
-                        _fixture.WebSocketMessageReceived.GetRange(
-                                1, _fixture.Request.Length)
+                        _fixture.MessageReceived.GetRange(
+                                0, _fixture.Request.Length)
                             .ToArray())
                     .Should()
                     .Be(_fixture.Request);
@@ -152,7 +141,7 @@ namespace Port.Server.IntegrationTests
                                 response) => total + response));
             }
 
-            private sealed class Fixture : IAsyncDisposable
+            internal sealed class Fixture : IAsyncDisposable
             {
                 public Fixture(
                     IServiceContainer container)
@@ -188,7 +177,7 @@ namespace Port.Server.IntegrationTests
 "Accept-Language: en-us\r\n" +
 "Accept-Encoding: gzip, deflate\r\n" +
 "Connection: Keep-Alive\r\n" +
-"\r\n" + 
+"\r\n" +
 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n" +
 "<string xmlns = \"http://clearforest.com/\">string</string>";
 
@@ -220,10 +209,10 @@ namespace Port.Server.IntegrationTests
 
                 private Memory<byte> Memory => _memoryOwner.Memory;
 
-                internal readonly List<byte> WebSocketMessageReceived =
+                internal readonly List<byte> MessageReceived =
                     new List<byte>();
 
-                internal string PortForwardResponse { get; private set; } = ""; 
+                internal string PortForwardResponse { get; private set; } = "";
 
                 internal void PortForwardResponseReceived(
                     byte[] buffer)
@@ -240,7 +229,7 @@ namespace Port.Server.IntegrationTests
                 internal async Task WaitForResponseAsync(
                     CancellationToken cancellationToken)
                 {
-                    var timeout = TimeSpan.FromSeconds(5);
+                    var timeout = TimeSpan.FromSeconds(25);
                     while (PortForwardResponse.Length < FragmentedResponses.Sum(response => response.Length))
                     {
                         if (await _responseReceived.WaitAsync(
@@ -255,48 +244,39 @@ namespace Port.Server.IntegrationTests
                 }
 
                 internal async ValueTask<bool> TrySendResponseAsync(
-                    WebSocket webSocket,
+                    SpdyStream stream,
                     CancellationToken cancellationToken)
                 {
-                    if (WebSocketMessageReceived.Count <= Request.Length)
+                    if (MessageReceived.Count ==
+                        Request.Length)
                     {
-                        return false;
+                        foreach (var response in FragmentedResponses)
+                        {
+                            Encoding.ASCII.GetBytes(response)
+                                .CopyTo(Memory);
+                            await stream.SendAsync(
+                                    Memory.Slice(0, response.Length),
+                                    cancellationToken: cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+
+                        return true;
                     }
 
-                    foreach (var response in FragmentedResponses)
-                    {
-                        // Set channel
-                        Memory.Span[0] =
-                            WebSocketMessageReceived[0];
-                        Encoding.ASCII.GetBytes(response)
-                                .CopyTo(Memory.Slice(1));
-                        await webSocket.SendAsync(
-                                           Memory.Slice(
-                                               0,
-                                               response.Length +
-                                               1),
-                                           WebSocketMessageType.Binary,
-                                           true,
-                                           cancellationToken)
-                                       .ConfigureAwait(false);
-                    }
-
-                    return true;
-
+                    return false;
                 }
 
-                internal async Task<ValueWebSocketReceiveResult> ReceiveAsync(
-                    WebSocket socket,
+                internal async Task<ReadResult> ReceiveAsync(
+                    SpdyStream stream,
                     CancellationToken cancellationToken)
                 {
-                    var readResult = await socket
+                    var readResult = await stream
                         .ReceiveAsync(
-                            Memory,
-                            cancellationToken)
+                            cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
-                    WebSocketMessageReceived
+                    MessageReceived
                         .AddRange(
-                            Memory.Slice(0, readResult.Count)
+                            readResult.Buffer.Slice(0, readResult.Buffer.Length)
                                 .ToArray());
                     return readResult;
                 }

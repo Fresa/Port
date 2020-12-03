@@ -8,7 +8,7 @@ using Microsoft.Net.Http.Headers;
 
 namespace Port.Server.Spdy.AspNet
 {
-    internal sealed class SpdyMiddleware : IMiddleware
+    public sealed class SpdyMiddleware : IMiddleware
     {
         public Task InvokeAsync(
             HttpContext context,
@@ -97,8 +97,7 @@ namespace Port.Server.Spdy.AspNet
                 var transport = await _upgradeFeature.UpgradeAsync()
                     .ConfigureAwait(false); // Sets status code to 101
 
-                // todo: need a server session
-                return new SpdySession(new StreamingNetworkClient(transport));
+                return SpdySession.CreateServer(new StreamingNetworkClient(transport));
             }
 
             private static bool CheckSupportedSpdyRequest(

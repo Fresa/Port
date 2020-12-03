@@ -269,7 +269,9 @@ namespace Port.Server
         public async ValueTask DisposeAsync()
         {
             _cancellationTokenSource.Cancel(false);
-            _cancellationTokenSource.Dispose();
+
+            await Task.WhenAll(_backgroundTasks)
+                      .ConfigureAwait(false);
 
             try
             {
@@ -292,8 +294,7 @@ namespace Port.Server
             }
 
             _webSocketGate.Dispose();
-            await Task.WhenAll(_backgroundTasks)
-                .ConfigureAwait(false);
+            _cancellationTokenSource.Dispose();
         }
     }
 }

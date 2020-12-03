@@ -16,13 +16,13 @@ namespace Port.Server.Spdy.Endpoint
 
         private readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 
-        internal CancellationToken Cancellation
-            => _cancellationSource.Token;
+        internal CancellationToken Cancellation { get; }
 
         private event Action<EndpointState> StateChanged = source => { };
 
         internal SpdyEndpoint()
         {
+            Cancellation = _cancellationSource.Token;
         }
 
         internal void Open()

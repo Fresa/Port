@@ -1,8 +1,7 @@
-﻿using System.Threading.Tasks;
-using Log.It;
-using Log.It.With.NLog;
+﻿using System.IO;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using NLog.Extensions.Logging;
+using Port.Server.Observability;
 using Test.It.With.XUnit;
 using Xunit.Abstractions;
 
@@ -12,18 +11,16 @@ namespace Port.Server.IntegrationTests.TestFramework
     {
         static TestSpecificationAsync()
         {
-            var config = new ConfigurationBuilder()
-                .SetBasePath(System.IO.Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .Build();
-
-            NLog.LogManager.Configuration = new NLogLoggingConfiguration(config.GetSection("NLog"));
-            LogFactory.Initialize(new NLogFactory(new LogicalThreadContext()));
+            LogFactoryExtensions.InitializeOnce();
+            NLogBuilderExtensions.ConfigureNLogOnce(new ConfigurationBuilder()
+                                                    .SetBasePath(Directory.GetCurrentDirectory())
+                                                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                                                    .Build());
+            NLogCapturingTargetExtensions.RegisterOutputOnce();
         }
 
         public TestSpecificationAsync(ITestOutputHelper testOutputHelper) : base(testOutputHelper)
         {
-            NLogCapturingTarget.Subscribe += TestOutputHelper.WriteLine;
         }
 
         protected virtual Task TearDownAsync()
@@ -33,7 +30,6 @@ namespace Port.Server.IntegrationTests.TestFramework
 
         protected sealed override async Task DisposeAsync(bool disposing)
         {
-            NLogCapturingTarget.Subscribe -= TestOutputHelper.WriteLine;
             await TearDownAsync()
                 .ConfigureAwait(false);
             await base.DisposeAsync(disposing)
