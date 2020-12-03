@@ -34,8 +34,8 @@ namespace Port.Server
         // is dependent on that the HttpClientHandler is set in order to set
         // client certificates. Remove if we decide not to use websockets
         {
-            HttpClientHandler = new HttpClientHandler();
-            kubernetesClientConfiguration.AddCertificates(HttpClientHandler);
+            HttpClientHandler =
+                kubernetesClientConfiguration.CreateDefaultHttpClientHandler();
         }
     }
 }

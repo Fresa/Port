@@ -35,8 +35,16 @@ namespace Port.Server.Kubernetes
                           .ConfigureAwait(false);
             }
 
-            var response = await kubernetes.HttpClient.SendAsync(request, cancellationToken)
-                                           .ConfigureAwait(false);
+            var response =
+                await kubernetes
+                      .HttpClient.SendAsync(
+                          request,
+                          // This prevents the http client to buffer the response
+                          HttpCompletionOption
+                              .ResponseHeadersRead,
+                          cancellationToken)
+                      .ConfigureAwait(false);
+
             if (response.StatusCode != HttpStatusCode.SwitchingProtocols)
             {
                 throw new InvalidOperationException(
