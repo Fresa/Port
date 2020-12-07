@@ -324,6 +324,7 @@ namespace Port.Server.Spdy
                 return;
             }
 
+            _logger.Trace("Received {frameType}", frame.GetType());
             bool found;
             SpdyStream? stream;
             switch (frame)

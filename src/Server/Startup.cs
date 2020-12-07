@@ -65,10 +65,10 @@ namespace Port.Server
                     KubernetesClientFactory>();
             _container.RegisterSingleton(
                 () => new KubernetesConfiguration(
-                    createClient: () => 
+                    createClient: handler => 
                         new HttpClient(
                             new LogItHttpMessageHandlerDecorator(
-                                new HttpClientHandler()))
+                                handler))
                     ));
             _container
                 .RegisterSingleton<INetworkServerFactory,

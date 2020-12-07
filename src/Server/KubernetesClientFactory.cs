@@ -13,15 +13,18 @@ namespace Port.Server
 
         public k8s.Kubernetes Create(
             string context)
-            => new KubernetesClient(
+        {
+            var config =
                 KubernetesClientConfiguration.BuildConfigFromConfigFile(
                     currentContext: context,
-                    kubeconfigPath: _configuration.KubernetesConfigPath),
-                _configuration.CreateClient())
+                    kubeconfigPath: _configuration.KubernetesConfigPath);
+            return new KubernetesClient(
+                config,
+                _configuration.CreateClient(config.CreateDefaultHttpClientHandler()))
             {
-                CreateWebSocketBuilder =
-                    _configuration.CreateWebSocketBuilder
+                CreateWebSocketBuilder = _configuration.CreateWebSocketBuilder
             };
+        }
     }
 
     internal sealed class KubernetesClient : k8s.Kubernetes
