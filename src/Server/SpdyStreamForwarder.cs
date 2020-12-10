@@ -287,26 +287,6 @@ namespace Port.Server
             {
             }
 
-            try
-            {
-                await _networkServer.DisposeAsync()
-                                    .ConfigureAwait(false);
-            }
-            catch
-            {
-                // Ignore unhandled exceptions during shutdown 
-            }
-
-            try
-            {
-                await _spdySession.DisposeAsync()
-                                  .ConfigureAwait(false);
-            }
-            catch
-            {
-                // Ignore unhandled exceptions during shutdown 
-            }
-
             _cancellationTokenSource.Dispose();
         }
     }
