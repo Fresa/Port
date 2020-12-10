@@ -86,6 +86,7 @@ namespace Port.Server.Spdy
                 switch (frame)
                 {
                     case RstStream _:
+                        CloseLocal();
                         return;
                     case WindowUpdate _:
                         break;
