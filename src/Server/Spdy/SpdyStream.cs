@@ -30,9 +30,9 @@ namespace Port.Server.Spdy
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
-        private readonly ObservableConcurrentDictionary<string, IReadOnlyList<string>> _headers = new ObservableConcurrentDictionary<string, IReadOnlyList<string>>();
+        private readonly ObservableConcurrentDictionary<string, string[]> _headers = new ObservableConcurrentDictionary<string, string[]>();
 
-        public IObservableReadOnlyDictionary<string, IReadOnlyList<string>> Headers => _headers;
+        public IObservableReadOnlyDictionary<string, string[]> Headers => _headers;
 
         private int _windowSize = 64000;
         private int _initialWindowSize = 64000;
@@ -179,7 +179,7 @@ namespace Port.Server.Spdy
         }
 
         private void SetHeaders(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+            IReadOnlyDictionary<string, string[]> headers)
         {
             foreach (var (key, values) in headers)
             {
@@ -198,7 +198,7 @@ namespace Port.Server.Spdy
         internal static SpdyStream Accept(
             SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+            NameValueHeaderBlock? headers =
                 default)
         {
             var stream = new SpdyStream(synStream, sendingPriorityQueue);
@@ -206,7 +206,7 @@ namespace Port.Server.Spdy
             return stream;
         }
 
-        private void Accept(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+        private void Accept(NameValueHeaderBlock? headers =
             default)
         {
             if (_synStream.IsUnidirectional)
@@ -377,7 +377,7 @@ namespace Port.Server.Spdy
         }
 
         public Task SendHeadersAsync(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers,
+            NameValueHeaderBlock headers,
             Headers.Options options = Frames.Headers.Options.None,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)

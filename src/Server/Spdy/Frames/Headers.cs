@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
@@ -34,10 +35,12 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public class Headers : Control
     {
+        private static readonly ILogger Logger = LogFactory.Create<Headers>();
+        
         private Headers(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> values)
+            NameValueHeaderBlock values)
             : base(Type)
         {
             Flags = flags;
@@ -47,7 +50,7 @@ namespace Port.Server.Spdy.Frames
 
         public Headers(
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> values)
+            NameValueHeaderBlock values)
             : this(
                 Options.None,
                 streamId,
@@ -57,7 +60,7 @@ namespace Port.Server.Spdy.Frames
 
         public static Headers Last(
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> values)
+            NameValueHeaderBlock values)
         {
             return new Headers(Options.Fin, streamId, values);
         }
@@ -90,29 +93,10 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         public UInt31 StreamId { get; }
 
-        private IReadOnlyDictionary<string, IReadOnlyList<string>> _values = new Dictionary<string, IReadOnlyList<string>>();
         /// <summary>
         /// A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, IReadOnlyList<string>> Values
-        {
-            get => _values;
-            private set
-            {
-                if (value.ContainsKey(""))
-                {
-                    throw new InvalidOperationException("A key cannot be empty");
-                }
-
-                if (value.Values.Any(
-                    strings => strings.Any(value => value.Length == 0)))
-                {
-                    throw new InvalidOperationException("A value cannot be empty");
-                }
-
-                _values = value;
-            }
-        }
+        public IReadOnlyDictionary<string, string[]> Values { get; }
 
         internal static async ValueTask<ReadResult<Headers>> TryReadAsync(
             byte flags,
@@ -126,21 +110,26 @@ namespace Port.Server.Spdy.Frames
                     .ConfigureAwait(false);
             // An unsigned 24 bit value representing the number of bytes after the length field. The minimum length of the length field is 4 (when the number of name value pairs is 0).
             var headerLength = (int) length.Value - 4;
-            IReadOnlyDictionary<string, IReadOnlyList<string>> values = new Dictionary<string, IReadOnlyList<string>>();
+            var headers = new NameValueHeaderBlock();
             if (headerLength > 0)
             {
-                values =
-                    await
-                        (await frameReader
-                               .ReadBytesAsync(headerLength, cancellation)
-                               .ConfigureAwait(false))
-                        .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                        .ToFrameReader()
-                        .ReadNameValuePairsAsync(cancellation)
-                        .ConfigureAwait(false);
+                try
+                {
+                    headers =
+                        await
+                            frameReader
+                                .ReadNameValuePairsAsync(headerLength, cancellation)
+                                .ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    Logger.Error(exception, "Error while parsing header");
+                    return ReadResult<Headers>.Error(
+                        RstStream.ProtocolError(streamId));
+                }
             }
 
-            return ReadResult.Ok(new Headers(flags.ToEnum<Options>(), streamId, values));
+            return ReadResult.Ok(new Headers(flags.ToEnum<Options>(), streamId, headers));
         }
 
         protected override async ValueTask WriteControlFrameAsync(

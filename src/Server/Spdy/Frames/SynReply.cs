@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
@@ -32,26 +33,28 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public sealed class SynReply : Control
     {
+        private static readonly ILogger Logger = LogFactory.Create<SynReply>();
+        
         private SynReply(
             Options flags,
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null) : base(Type)
+            NameValueHeaderBlock? headers = null) : base(Type)
         {
             Flags = flags;
             StreamId = streamId;
-            Headers = headers ?? new Dictionary<string, IReadOnlyList<string>>();
+            Headers = headers ?? new NameValueHeaderBlock();
         }
 
         public static SynReply AcceptAndClose(
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
+            NameValueHeaderBlock? headers = null)
         {
             return new SynReply(Options.Fin, streamId, headers);
         }
 
         public static SynReply Accept(
             UInt31 streamId,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
+            NameValueHeaderBlock? headers = null)
         {
             return new SynReply(Options.None, streamId, headers);
         }
@@ -87,7 +90,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; }
+        public IReadOnlyDictionary<string, string[]> Headers { get; }
 
         internal static async ValueTask<ReadResult<SynReply>> TryReadAsync(
             byte flags,
@@ -101,18 +104,23 @@ namespace Port.Server.Spdy.Frames
                     .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_REPLY frames, this is 4 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 4;
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers = new Dictionary<string, IReadOnlyList<string>>();
+            var headers = new NameValueHeaderBlock();
             if (headerLength > 0)
             {
-                headers =
-                    await
-                        (await frameReader
-                               .ReadBytesAsync(headerLength, cancellation)
-                               .ConfigureAwait(false))
-                        .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                        .ToFrameReader()
-                        .ReadNameValuePairsAsync(cancellation)
-                        .ConfigureAwait(false);
+                try
+                {
+                    headers =
+                        await
+                            frameReader
+                                .ReadNameValuePairsAsync(headerLength, cancellation)
+                                .ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    Logger.Error(exception, "Error while parsing header");
+                    return ReadResult<SynReply>.Error(
+                        RstStream.ProtocolError(streamId));
+                }
             }
 
             return ReadResult.Ok(new SynReply(flags.ToEnum<Options>(), streamId, headers));

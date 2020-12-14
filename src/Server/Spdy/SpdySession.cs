@@ -377,6 +377,8 @@ namespace Port.Server.Spdy
                     stream.Receive(frame);
                     break;
                 case RstStream rstStream:
+                    _logger.Info("Received RstStream {@rstStream}", rstStream);
+
                     (found, stream) =
                         await TryGetStreamOrCloseSessionAsync(rstStream.StreamId)
                             .ConfigureAwait(false);
@@ -490,9 +492,9 @@ namespace Port.Server.Spdy
         public SpdyStream Open(
             SynStream.PriorityLevel priority = SynStream.PriorityLevel.Normal,
             SynStream.Options options = SynStream.Options.None,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
+            NameValueHeaderBlock? headers = null)
         {
-            headers ??= new Dictionary<string, IReadOnlyList<string>>();
+            headers ??= new NameValueHeaderBlock();
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = SpdyStream.Open(

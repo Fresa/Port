@@ -6,7 +6,6 @@ using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
-using Test.It.With.XUnit;
 using Xunit;
 
 namespace Port.Server.UnitTests.Spdy.Frames
@@ -19,7 +18,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             0x7B, 0x00, 0x00, 0x02, 0x1E
         };
 
-        public class When_writing : XUnit2SpecificationAsync
+        public class When_writing : XUnit2UnitTestSpecificationAsync
         {
             private WindowUpdate _frame;
             private readonly MemoryStream _serialized = new MemoryStream();
@@ -51,7 +50,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             }
         }
 
-        public class When_reading : XUnit2SpecificationAsync
+        public class When_reading : XUnit2UnitTestSpecificationAsync
         {
             private readonly MemoryStream _serialized =
                 new MemoryStream(Message);

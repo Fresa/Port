@@ -19,7 +19,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             0x7B, 0x00, 0x00, 0x00, 0x05
         };
 
-        public class When_writing : XUnit2SpecificationAsync
+        public class When_writing : XUnit2UnitTestSpecificationAsync
         {
             private RstStream _frame;
             private readonly MemoryStream _serialized = new MemoryStream();
@@ -46,7 +46,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             }
         }
 
-        public class When_reading : XUnit2SpecificationAsync
+        public class When_reading : XUnit2UnitTestSpecificationAsync
         {
             private RstStream _message;
 

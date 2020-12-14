@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
@@ -11,7 +12,7 @@ namespace Port.Server.Spdy
     internal class FrameWriter : IFrameWriter, IAsyncDisposable
     {
         private readonly Stream _buffer;
-
+        private ILogger _logger = LogFactory.Create<FrameWriter>();
         public FrameWriter(
             Stream buffer)
         {
@@ -121,7 +122,8 @@ namespace Port.Server.Spdy
             {
                 return;
             }
-
+            
+            _logger.Debug("Writing: {@value}", value);
             await _buffer.WriteAsync(value.AsMemory(), cancellationToken)
                 .ConfigureAwait(false);
         }

@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
@@ -37,12 +39,14 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public sealed class SynStream : Control
     {
+        private static readonly ILogger Logger = LogFactory.Create<SynStream>();
+
         public SynStream(
             Options flags,
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+            NameValueHeaderBlock headers)
             : base(Type)
         {
             Flags = flags;
@@ -107,7 +111,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; }
+        public IReadOnlyDictionary<string, string[]> Headers { get; }
 
         internal static async ValueTask<ReadResult<SynStream>> TryReadAsync(
             byte flags,
@@ -132,18 +136,23 @@ namespace Port.Server.Spdy.Frames
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 10;
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers = new Dictionary<string, IReadOnlyList<string>>();
+            var headers = new NameValueHeaderBlock();
             if (headerLength > 0)
             {
-                headers =
-                    await
-                        (await frameReader
-                               .ReadBytesAsync(headerLength, cancellation)
-                               .ConfigureAwait(false))
-                        .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                        .ToFrameReader()
-                        .ReadNameValuePairsAsync(cancellation)
-                        .ConfigureAwait(false);
+                try
+                {
+                    headers =
+                        await
+                            frameReader
+                            .ReadNameValuePairsAsync(headerLength, cancellation)
+                            .ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    Logger.Error(exception, "Error while parsing header");
+                    return ReadResult<SynStream>.Error(
+                        RstStream.ProtocolError(streamId));
+                }
             }
 
             return ReadResult.Ok(new SynStream(
@@ -176,11 +185,13 @@ namespace Port.Server.Spdy.Frames
 
             var compressedHeaders = headerStream.ToArray()
                 .ZlibCompress(SpdyConstants.HeadersDictionary);
-
+            var logger = LogFactory.Create<SynStream>();
             var length = compressedHeaders.Length + 10;
+
+            logger.Info($"length: {length}");
             await frameWriter.WriteUInt24Async(
-                    UInt24.From((uint)length), cancellationToken)
-                .ConfigureAwait(false);
+                                 UInt24.From((uint)length), cancellationToken)
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     StreamId, cancellationToken)
                 .ConfigureAwait(false);
@@ -190,10 +201,51 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteByteAsync((byte)((byte)Priority << 5), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteByteAsync(0, cancellationToken)
-                .ConfigureAwait(false);
+                             .ConfigureAwait(false);
             await frameWriter.WriteBytesAsync(
-                    compressedHeaders, cancellationToken)
-                .ConfigureAwait(false);
+                                 compressedHeaders, cancellationToken)
+                             .ConfigureAwait(false);
+        }
+    }
+
+    public sealed class NameValueHeaderBlock : ReadOnlyDictionary<string, string[]>
+    {
+        public NameValueHeaderBlock(
+            params (string Name, string[] Values)[] headers)
+            : base(headers.ToDictionary(header => header.Name, pair => pair.Values))
+        {
+            foreach (var (name, values) in headers)
+            {
+                if (string.IsNullOrEmpty(name))
+                {
+                    throw new ArgumentException($"Header name '{name}' cannot be empty");
+                }
+
+                if (name.Any(char.IsUpper))
+                {
+                    throw new ArgumentException($"Header name '{name}' must be lower case");
+                }
+
+                foreach (var value in values)
+                {
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        throw new ArgumentException($"Header value '{value}' cannot be empty");
+                    }
+
+                    if (value.StartsWith(SpdyConstants.Nul))
+                    {
+                        throw new ArgumentException(
+                            $"Header value '{value}' cannot start with NUL ('{SpdyConstants.Nul}')");
+                    }
+
+                    if (value.EndsWith(SpdyConstants.Nul))
+                    {
+                        throw new ArgumentException(
+                            $"Header value '{value}' cannot end with NUL ('{SpdyConstants.Nul}')");
+                    }
+                }
+            }
         }
     }
 }

@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +6,6 @@ using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
-using Test.It.With.XUnit;
 using Xunit;
 
 namespace Port.Server.UnitTests.Spdy.Frames
@@ -16,21 +14,20 @@ namespace Port.Server.UnitTests.Spdy.Frames
     {
         private static readonly byte[] Message =
         {
-            0x80, 0x03, 0x00, 0x08, 0x01, 0x00, 0x00, 0x72, 0x00, 0x00, 0x00,
-            0x7B, 0x38, 0xAC, 0xE3, 0xC6, 0xA7, 0xC2, 0x03, 0xE5, 0x0E, 0x50,
-            0x12, 0xF7, 0x80, 0x94, 0x07, 0x2C, 0x25, 0xA9, 0x60, 0x9A, 0x2B,
-            0x14, 0x94, 0x01, 0x1C, 0xA1, 0x19, 0x20, 0xCC, 0x37, 0xBF, 0x2A,
-            0x33, 0x27, 0x27, 0x51, 0xDF, 0x54, 0xCF, 0x40, 0x41, 0xC3, 0x37,
-            0x31, 0x39, 0x33, 0xAF, 0x24, 0xBF, 0x38, 0xC3, 0x1A, 0x1C, 0x41,
-            0x39, 0xC0, 0x70, 0x4D, 0x56, 0xF0, 0x0F, 0x56, 0x88, 0x50, 0x30,
-            0x34, 0xD0, 0xB3, 0xB4, 0x56, 0x28, 0x2A, 0xB3, 0x52, 0x30, 0x35,
-            0xD0, 0x33, 0xD0, 0x54, 0x70, 0x4F, 0x4D, 0xCE, 0xCE, 0x57, 0xD0,
-            0x57, 0x00, 0x26, 0x4E, 0x70, 0x22, 0x55, 0x70, 0x03, 0x16, 0x43,
-            0x69, 0xF9, 0x15, 0x40, 0x21, 0x90, 0x02, 0x00, 0x55, 0x4F, 0x1F,
-            0x61
+            0x80, 0x03, 0x00, 0x08, 0x01, 0x00, 0x00, 0x69, 0x00, 0x00, 0x00,
+            0x7B, 0x78, 0xBB, 0xE3, 0xC6, 0xA7, 0xC2, 0x03, 0xE5, 0x0E, 0xA4,
+            0xF2, 0x80, 0xA5, 0x24, 0x15, 0x4C, 0xA3, 0x66, 0x80, 0x30, 0xDF,
+            0xFC, 0xAA, 0xCC, 0x9C, 0x9C, 0x44, 0x7D, 0x53, 0x3D, 0x03, 0x05,
+            0x0D, 0xDF, 0xC4, 0xE4, 0xCC, 0xBC, 0x92, 0xFC, 0xE2, 0x0C, 0x6B,
+            0x70, 0x04, 0xE5, 0x00, 0xC3, 0x35, 0x59, 0xC1, 0x3F, 0x58, 0x21,
+            0x42, 0xC1, 0xD0, 0x40, 0xCF, 0xD2, 0x5A, 0xA1, 0xA8, 0xCC, 0x4A,
+            0xC1, 0xD4, 0x40, 0xCF, 0x40, 0x53, 0xC1, 0x3D, 0x35, 0x39, 0x3B,
+            0x5F, 0x41, 0x5F, 0x01, 0x98, 0x38, 0xC1, 0x89, 0x54, 0xC1, 0x0D,
+            0x58, 0x0C, 0xA5, 0xE5, 0x57, 0x00, 0x85, 0x40, 0x0A, 0x00, 0x7C,
+            0x2F, 0x1F, 0xC1
         };
 
-        public class When_writing : XUnit2SpecificationAsync
+        public class When_writing : XUnit2UnitTestSpecificationAsync
         {
             private Headers _frame;
             private readonly MemoryStream _serialized = new MemoryStream();
@@ -40,16 +37,10 @@ namespace Port.Server.UnitTests.Spdy.Frames
             {
                 _frame = Headers.Last(
                     UInt31.From(123),
-                    new Dictionary<string, IReadOnlyList<string>>
-                    {
-                        {
-                            "Host", new []{"test"}
-                        },
-                        {
-                            "User-Agent",
-                            new []{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"}
-                        }
-                    });
+                    new NameValueHeaderBlock(
+                            ("host", new []{"test"}),
+                            ("user-agent",
+                            new []{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"})));
                 return Task.CompletedTask;
             }
 
@@ -71,7 +62,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             }
         }
 
-        public class When_reading : XUnit2SpecificationAsync
+        public class When_reading : XUnit2UnitTestSpecificationAsync
         {
             private readonly MemoryStream _serialized =
                 new MemoryStream(Message);
@@ -108,12 +99,10 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 _message.Values.Should()
                         .HaveCount(2)
                         .And
-                        .ContainEquivalentOf(
-                            new KeyValuePair<string, string[]>("Host", new[] { "test" }))
-                        .And.ContainEquivalentOf(
-                            new KeyValuePair<string, string[]>(
-                                "User-Agent",
-                                new[] { "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0" }));
+                        .BeEquivalentTo(new NameValueHeaderBlock(
+                            ("host", new []{"test"}),
+                            ("user-agent",
+                                new[] { "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0" })));
             }
         }
     }

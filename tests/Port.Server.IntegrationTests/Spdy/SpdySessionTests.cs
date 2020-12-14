@@ -43,10 +43,9 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                Session.Open(
-                    SynStream.PriorityLevel.High,
-                    headers: new Dictionary<string, IReadOnlyList<string>>
-                        {{"header1", new[] {"value1"}}});
+                Session.Open(SynStream.PriorityLevel.High,
+                    headers: new NameValueHeaderBlock(
+                        ("header1", new[] { "value1" })));
                 _synStream = await _synStreamSubscription
                                    .ReceiveAsync(cancellationToken)
                                    .ConfigureAwait(false);
@@ -163,7 +162,9 @@ namespace Port.Server.IntegrationTests.Spdy
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                await _stream.SendHeadersAsync(new Dictionary<string, IReadOnlyList<string>> { { "header1", new[] { "value1", "value2" } } }, cancellationToken: cancellationToken)
+                await _stream.SendHeadersAsync(new NameValueHeaderBlock(
+                                     ("header1", new[] { "value1", "value2" })),
+                                 cancellationToken: cancellationToken)
                        .ConfigureAwait(false);
                 _headersSent = await _headersSubscription
                                    .ReceiveAsync(cancellationToken)
@@ -175,9 +176,8 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 _headersSent.Values.Should()
                             .HaveCount(1)
-                            .And.AllBeEquivalentTo(new
-                                KeyValuePair<string, string[]>(
-                                    "header1", new[] { "value1", "value2" }));
+                            .And.BeEquivalentTo(new NameValueHeaderBlock(
+                                    ("header1", new[] { "value1", "value2" })));
             }
 
             [Fact]
@@ -222,8 +222,7 @@ namespace Port.Server.IntegrationTests.Spdy
                                            .ConfigureAwait(false);
                 await Server.SendAsync(
                                 SynReply.Accept(
-                                    _stream.Id,
-                                    new Dictionary<string, IReadOnlyList<string>>()),
+                                    _stream.Id),
                                 cancellationToken)
                             .ConfigureAwait(false);
                 await Server.SendAsync(
@@ -426,7 +425,7 @@ namespace Port.Server.IntegrationTests.Spdy
             When_receiving_headers : SpdySessionTestSpecification
         {
             private SpdyStream _stream = null!;
-            private ISourceBlock<(string, IReadOnlyList<string>)> _headersSubscription = default!;
+            private ISourceBlock<(string, string[])> _headersSubscription = default!;
 
             public When_receiving_headers(
                 ITestOutputHelper testOutputHelper)
@@ -453,19 +452,17 @@ namespace Port.Server.IntegrationTests.Spdy
                 await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
-                                    new Dictionary<string, IReadOnlyList<string>>{
-                                    {
-                                        "header1", new []{"Value1"}
-                                    }}),
+                                    new NameValueHeaderBlock(
+                                        ("header1", new[] { "Value1" })
+                                    )),
                                 cancellationToken)
                             .ConfigureAwait(false);
                 await Server.SendAsync(
                                 new Headers(
                                     _stream.Id,
-                                    new Dictionary<string, IReadOnlyList<string>>{
-                                    {
-                                        "header2", new []{"Value2"}
-                                    }}),
+                                    new NameValueHeaderBlock(
+                                        ("header2", new[] { "Value2" })
+                                    )),
                                 cancellationToken)
                             .ConfigureAwait(false);
 
@@ -479,11 +476,9 @@ namespace Port.Server.IntegrationTests.Spdy
                 _stream.Headers.ToList().Should()
                        .HaveCount(2)
                        .And.ContainEquivalentOf(
-                           new KeyValuePair<string, string[]>(
-                               "header1", new[] { "Value1" }))
+                           new KeyValuePair<string, string[]>("header1", new[] { "Value1" }))
                        .And.ContainEquivalentOf(
-                           new KeyValuePair<string, string[]>(
-                               "header2", new[] { "Value2" }));
+                           new KeyValuePair<string, string[]>("header2", new[] { "Value2" }));
             }
         }
     }
@@ -516,10 +511,9 @@ namespace Port.Server.IntegrationTests.Spdy
                 await Server.SendAsync(
                                 SynReply.Accept(
                                     _stream.Id,
-                                    new Dictionary<string, IReadOnlyList<string>>{
-                                    {
-                                        "header1", new []{"Value1"}
-                                    }}),
+                                    new NameValueHeaderBlock(
+                                        ("header1", new[] { "Value1" })
+                                    )),
                                 cancellationToken)
                             .ConfigureAwait(false);
                 await Server.SendAsync(
@@ -680,7 +674,7 @@ namespace Port.Server.IntegrationTests.Spdy
                     new Settings(Settings.InitialWindowSize(5)),
                     cancellationToken)
                             .ConfigureAwait(false);
-                
+
                 // Need to send something after settings in order to know when settings have been set
                 Server.On<WindowUpdate>();
                 await Server.SendAsync(
@@ -708,7 +702,7 @@ namespace Port.Server.IntegrationTests.Spdy
                 _stream.Dispose();
                 _rst = await rstSubscription.ReceiveAsync(cancellationToken)
                                       .ConfigureAwait(false);
-                _sendingResult = await sendingTask; 
+                _sendingResult = await sendingTask;
             }
 
             [Fact]
