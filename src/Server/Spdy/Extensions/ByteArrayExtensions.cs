@@ -29,7 +29,7 @@ namespace Port.Server.Spdy.Extensions
 
             var result = zStream.InitializeDeflate(
                 CompressionLevel.Default,
-                11);
+                zStream.WindowBits);
             if (result < 0)
             {
                 throw new InvalidOperationException(
@@ -92,8 +92,8 @@ namespace Port.Server.Spdy.Extensions
                 AvailableBytesIn = input.Length,
                 OutputBuffer = buffer
             };
-
-            var result = zStream.InitializeInflate(11);
+            
+            var result = zStream.InitializeInflate(zStream.WindowBits);
             if (result < 0)
             {
                 throw new InvalidOperationException(
