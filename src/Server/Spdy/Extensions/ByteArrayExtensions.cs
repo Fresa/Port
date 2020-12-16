@@ -3,6 +3,8 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
 using Ionic.Zlib;
+using Log.It;
+using CompressionLevel = Ionic.Zlib.CompressionLevel;
 
 namespace Port.Server.Spdy.Extensions
 {
@@ -45,19 +47,17 @@ namespace Port.Server.Spdy.Extensions
 
             try
             {
-                var flush = FlushType.None;
                 while (true)
                 {
-                    if (zStream.TotalBytesIn == input.Length)
-                    {
-                        flush = FlushType.Finish;
-                    }
-
                     zStream.NextOut = 0;
                     zStream.AvailableBytesOut = buffer.Length;
-                    result = zStream.Deflate(flush);
+                    result = zStream.Deflate(
+                        zStream.TotalBytesIn == input.Length
+                            ? FlushType.Finish
+                            : FlushType.None);
                     stream.Write(
-                        buffer, 0, buffer.Length - zStream.AvailableBytesOut);
+                        buffer, 0,
+                        buffer.Length - zStream.AvailableBytesOut);
 
                     switch (result)
                     {
@@ -92,8 +92,8 @@ namespace Port.Server.Spdy.Extensions
                 AvailableBytesIn = input.Length,
                 OutputBuffer = buffer
             };
-            
-            var result = zStream.InitializeInflate(zStream.WindowBits);
+
+            var result = zStream.InitializeInflate();
             if (result < 0)
             {
                 throw new InvalidOperationException(
@@ -106,9 +106,13 @@ namespace Port.Server.Spdy.Extensions
                 {
                     zStream.NextOut = 0;
                     zStream.AvailableBytesOut = buffer.Length;
-                    result = zStream.Inflate(FlushType.None);
+                    result = zStream.Inflate(
+                        zStream.TotalBytesIn == input.Length
+                            ? FlushType.Finish
+                            : FlushType.Full);
                     stream.Write(
-                        buffer, 0, buffer.Length - zStream.AvailableBytesOut);
+                        buffer, 0,
+                        buffer.Length - zStream.AvailableBytesOut);
 
                     switch (result)
                     {
