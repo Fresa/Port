@@ -9,6 +9,7 @@ using System.Threading.Tasks.Dataflow;
 using FluentAssertions;
 using Port.Server.IntegrationTests.Spdy.Extensions;
 using Port.Server.Spdy;
+using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
 using Xunit;

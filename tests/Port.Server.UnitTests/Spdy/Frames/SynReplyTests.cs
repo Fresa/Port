@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
+using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;

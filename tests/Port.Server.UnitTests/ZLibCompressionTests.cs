@@ -1,4 +1,7 @@
+using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Extensions;
@@ -55,7 +58,7 @@ namespace Port.Server.UnitTests
         };
         #endregion
 
-        public class When_compressing_http_headers_with_custom_dictionary : XUnit2Specification
+        public class When_compressing_http_headers_with_custom_dictionary : XUnit2UnitTestSpecificationAsync
         {
             private byte[] _compressedBytes;
 
@@ -64,9 +67,11 @@ namespace Port.Server.UnitTests
             {
             }
 
-            protected override void When()
+            protected override Task WhenAsync(
+                CancellationToken cancellationToken)
             {
                 _compressedBytes = UncompressedBytes.ZlibCompress(SpdyConstants.HeadersDictionary);
+                return Task.CompletedTask;
             }
 
             [Fact]

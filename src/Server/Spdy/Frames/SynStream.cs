@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
+using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
@@ -185,10 +184,8 @@ namespace Port.Server.Spdy.Frames
 
             var compressedHeaders = headerStream.ToArray()
                 .ZlibCompress(SpdyConstants.HeadersDictionary);
-            var logger = LogFactory.Create<SynStream>();
             var length = compressedHeaders.Length + 10;
 
-            logger.Info($"length: {length}");
             await frameWriter.WriteUInt24Async(
                                  UInt24.From((uint)length), cancellationToken)
                              .ConfigureAwait(false);
@@ -205,47 +202,6 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteBytesAsync(
                                  compressedHeaders, cancellationToken)
                              .ConfigureAwait(false);
-        }
-    }
-
-    public sealed class NameValueHeaderBlock : ReadOnlyDictionary<string, string[]>
-    {
-        public NameValueHeaderBlock(
-            params (string Name, string[] Values)[] headers)
-            : base(headers.ToDictionary(header => header.Name, pair => pair.Values))
-        {
-            foreach (var (name, values) in headers)
-            {
-                if (string.IsNullOrEmpty(name))
-                {
-                    throw new ArgumentException($"Header name '{name}' cannot be empty");
-                }
-
-                if (name.Any(char.IsUpper))
-                {
-                    throw new ArgumentException($"Header name '{name}' must be lower case");
-                }
-
-                foreach (var value in values)
-                {
-                    if (string.IsNullOrEmpty(value))
-                    {
-                        throw new ArgumentException($"Header value '{value}' cannot be empty");
-                    }
-
-                    if (value.StartsWith(SpdyConstants.Nul))
-                    {
-                        throw new ArgumentException(
-                            $"Header value '{value}' cannot start with NUL ('{SpdyConstants.Nul}')");
-                    }
-
-                    if (value.EndsWith(SpdyConstants.Nul))
-                    {
-                        throw new ArgumentException(
-                            $"Header value '{value}' cannot end with NUL ('{SpdyConstants.Nul}')");
-                    }
-                }
-            }
         }
     }
 }
