@@ -1,9 +1,8 @@
-﻿using System.Collections.Generic;
-using System.Text;
+﻿using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Collections;
-using Port.Server.Spdy.Frames;
+using Port.Server.Spdy.Zlib;
 
 namespace Port.Server.Spdy.Extensions
 {
@@ -37,14 +36,16 @@ namespace Port.Server.Spdy.Extensions
                 int length,
                 CancellationToken cancellationToken)
         {
-            return await
-                (await frameReader
-                       .ReadBytesAsync(length, cancellationToken)
-                       .ConfigureAwait(false))
-                .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                .ToFrameReader()
-                .ReadNameValuePairsAsync(cancellationToken)
-                .ConfigureAwait(false);
+            var reader = new ZlibReader(
+                frameReader,
+                SpdyConstants.HeadersDictionary,
+                length);
+            await using (reader
+                .ConfigureAwait(false))
+            {
+                return await reader.ReadNameValuePairsAsync(cancellationToken)
+                                   .ConfigureAwait(false);
+            }
         }
     }
 }
