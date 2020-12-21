@@ -36,8 +36,6 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public class Headers : Control
     {
-        private static readonly ILogger Logger = LogFactory.Create<Headers>();
-        
         private Headers(
             Options flags,
             UInt31 streamId,
@@ -124,9 +122,8 @@ namespace Port.Server.Spdy.Frames
                 }
                 catch (Exception exception)
                 {
-                    Logger.Error(exception, "Error while parsing header");
                     return ReadResult<Headers>.Error(
-                        RstStream.ProtocolError(streamId));
+                        RstStream.ProtocolError(streamId, exception));
                 }
             }
 

@@ -38,8 +38,6 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public sealed class SynStream : Control
     {
-        private static readonly ILogger Logger = LogFactory.Create<SynStream>();
-
         public SynStream(
             Options flags,
             UInt31 streamId,
@@ -148,9 +146,8 @@ namespace Port.Server.Spdy.Frames
                 }
                 catch (Exception exception)
                 {
-                    Logger.Error(exception, "Error while parsing header");
                     return ReadResult<SynStream>.Error(
-                        RstStream.ProtocolError(streamId));
+                        RstStream.ProtocolError(streamId, exception));
                 }
             }
 

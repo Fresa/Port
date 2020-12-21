@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Log.It;
 using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy.Frames
 {
     public abstract class Frame
     {
-        private static readonly ILogger Logger = LogFactory.Create<Frame>();
-
         internal static async ValueTask<ReadResult<Frame>> TryReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)
@@ -32,11 +29,10 @@ namespace Port.Server.Spdy.Frames
             {
                 throw;
             }
-            catch (Exception e)
+            catch (Exception exception)
             {
-                Logger.Error(e, "Error while parsing frame");
                 return ReadResult<Frame>.Error(
-                    RstStream.ProtocolError(UInt31.From(0)));
+                    RstStream.ProtocolError(UInt31.From(0), exception));
             }
         }
 

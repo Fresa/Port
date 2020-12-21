@@ -34,8 +34,6 @@ namespace Port.Server.Spdy.Frames
     /// </summary>
     public sealed class SynReply : Control
     {
-        private static readonly ILogger Logger = LogFactory.Create<SynReply>();
-        
         private SynReply(
             Options flags,
             UInt31 streamId,
@@ -118,9 +116,8 @@ namespace Port.Server.Spdy.Frames
                 }
                 catch (Exception exception)
                 {
-                    Logger.Error(exception, "Error while parsing header");
                     return ReadResult<SynReply>.Error(
-                        RstStream.ProtocolError(streamId));
+                        RstStream.ProtocolError(streamId, exception));
                 }
             }
 
