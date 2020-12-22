@@ -10,6 +10,7 @@
     <PackageReference Include="FluentAssertions" Version="5.10.3" />
     <PackageReference Include="Ionic.Zlib.Core" Version="1.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.7.1" />
+    <PackageReference Include="Moq" Version="4.15.2" />
     <PackageReference Include="Test.It" Version="3.0.3" />
     <PackageReference Include="Test.It.With.XUnit" Version="3.0.2" />
     <PackageReference Include="xunit" Version="2.4.1" />

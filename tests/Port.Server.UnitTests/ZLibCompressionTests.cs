@@ -1,10 +1,14 @@
+using System;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Moq;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Extensions;
+using Port.Server.Spdy.Zlib;
 using Test.It.With.XUnit;
 using Xunit;
 using Xunit.Abstractions;
@@ -81,18 +85,41 @@ namespace Port.Server.UnitTests
             }
         }
 
-        public class When_decompressing_http_headers_with_custom_dictionary : XUnit2Specification
+        public class When_decompressing_http_headers_with_custom_dictionary : XUnit2UnitTestSpecificationAsync
         {
             private byte[] _decompressedBytes;
+            private ZlibReader _reader;
 
             public When_decompressing_http_headers_with_custom_dictionary(
                 ITestOutputHelper output) : base(output)
             {
             }
 
-            protected override void When()
+            protected override Task GivenAsync(
+                CancellationToken cancellationToken)
             {
-                _decompressedBytes = CompressedBytes.ZlibDecompress(SpdyConstants.HeadersDictionary);
+                var frameReader = new Mock<IFrameReader>();
+                frameReader.Setup(
+                               reader => reader.ReadBytesAsync(
+                                   CompressedBytes.Length,
+                                   It.IsAny<CancellationToken>()))
+                           .Returns(new ValueTask<byte[]>(CompressedBytes));
+
+                _reader = new ZlibReader(
+                    frameReader.Object, SpdyConstants.HeadersDictionary,
+                    CompressedBytes.Length);
+                
+                return Task.CompletedTask;
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                _decompressedBytes =
+                    await _reader.ReadBytesAsync(
+                                     UncompressedBytes.Length,
+                                     cancellationToken)
+                                 .ConfigureAwait(false);
             }
 
             [Fact]
