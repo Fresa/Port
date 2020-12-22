@@ -54,7 +54,7 @@ namespace Port.Server.Spdy.Extensions
                     result = zStream.Deflate(
                         zStream.TotalBytesIn == input.Length
                             ? FlushType.Finish
-                            : FlushType.None);
+                            : FlushType.Full);
                     stream.Write(
                         buffer, 0,
                         buffer.Length - zStream.AvailableBytesOut);
