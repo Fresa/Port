@@ -69,7 +69,7 @@ namespace Port.Server.IntegrationTests
                       .ConfigureAwait(false);
         }
 
-        [Fact]
+        [Fact(Skip = "Dependent on a real k8s cluster and services")]
         public async Task TestWithSpdySession()
         {
             var podPort = 80;
