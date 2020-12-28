@@ -7,6 +7,7 @@ using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
+using Port.Server.Spdy.Zlib;
 
 namespace Port.Server.Spdy.Frames
 {
@@ -128,16 +129,22 @@ namespace Port.Server.Spdy.Frames
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            await using var headerStream = new MemoryStream(1024);
-            await using var headerWriter = new FrameWriter(headerStream);
+            var headerStream = new MemoryStream(1024);
+            await using (headerStream
+                .ConfigureAwait(false))
             {
-                await headerWriter.WriteNameValuePairs(
-                        Headers, cancellationToken)
-                    .ConfigureAwait(false);
+                var headerWriter = new ZlibWriter(
+                    headerStream, SpdyConstants.HeadersDictionary);
+                await using (headerWriter
+                    .ConfigureAwait(false))
+                {
+                    await headerWriter.WriteNameValuePairs(
+                                          Headers, cancellationToken)
+                                      .ConfigureAwait(false);
+                }
             }
 
-            var compressedHeaders = headerStream.ToArray()
-                .ZlibCompress(SpdyConstants.HeadersDictionary);
+            var compressedHeaders = headerStream.ToArray();
             var length = compressedHeaders.Length + 4;
             await frameWriter.WriteUInt24Async(
                     UInt24.From((uint)length), cancellationToken)

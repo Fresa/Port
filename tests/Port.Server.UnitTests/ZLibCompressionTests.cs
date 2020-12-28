@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,11 +69,24 @@ namespace Port.Server.UnitTests
             {
             }
 
-            protected override Task WhenAsync(
+            protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _compressedBytes = UncompressedBytes.ZlibCompress(SpdyConstants.HeadersDictionary);
-                return Task.CompletedTask;
+                var memory = new MemoryStream();
+                await using (memory.ConfigureAwait(false))
+                {
+                    var zlibWriter = new ZlibWriter(
+                        memory, SpdyConstants.HeadersDictionary);
+                    await using (zlibWriter.ConfigureAwait(false))
+                    {
+                        await zlibWriter.WriteBytesAsync(
+                                            UncompressedBytes,
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
+                    }
+                }
+
+                _compressedBytes = memory.ToArray();
             }
 
             [Fact]

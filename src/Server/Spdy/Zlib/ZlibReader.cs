@@ -216,7 +216,7 @@ namespace Port.Server.Spdy.Zlib
 
                         var start = _zlibCodec.NextOut;
                         result = _zlibCodec.Inflate(
-                            left == 0 ? FlushType.Finish : FlushType.Full);
+                            left == 0 ? FlushType.Finish : FlushType.Sync);
                         var end = _zlibCodec.NextOut;
                         var length = _zlibCodec.NextOut - start;
                         
