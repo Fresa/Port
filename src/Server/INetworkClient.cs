@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Port.Server
 {
-    internal interface INetworkClient : IAsyncDisposable
+    public interface INetworkClient : IAsyncDisposable
     {
         ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

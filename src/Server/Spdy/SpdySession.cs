@@ -83,13 +83,13 @@ namespace Port.Server.Spdy
             _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync, _sessionCancellationTokenSource);
         }
 
-        internal static SpdySession CreateClient(
+        public static SpdySession CreateClient(
             INetworkClient networkClient)
         {
             return new SpdySession(networkClient, true);
         }
 
-        internal static SpdySession CreateServer(
+        public static SpdySession CreateServer(
             INetworkClient networkClient)
         {
             return new SpdySession(networkClient, false);

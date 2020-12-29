@@ -15,7 +15,7 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyStream : IDisposable
     {
-        private ILogger _logger = LogFactory.Create<SpdyStream>();
+        private readonly ILogger _logger = LogFactory.Create<SpdyStream>();
         private readonly SynStream _synStream;
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
@@ -376,7 +376,7 @@ namespace Port.Server.Spdy
             return new FlushResult(false, true);
         }
 
-        public Task SendHeadersAsync(
+        public Task<FlushResult> SendHeadersAsync(
             NameValueHeaderBlock headers,
             Headers.Options options = Frames.Headers.Options.None,
             TimeSpan timeout = default,
@@ -397,7 +397,7 @@ namespace Port.Server.Spdy
                 Send(new Headers(Id, headers));
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(new FlushResult(false, true));
         }
 
         private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(0);
