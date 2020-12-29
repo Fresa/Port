@@ -54,7 +54,7 @@ namespace Port.Server.Spdy
         public ValueTask<byte[]> ReadBytesAsync(int length,
             CancellationToken cancellationToken = default)
         {
-            return ReadAsLittleEndianAsync(length, cancellationToken);
+            return ReadAsync(length, cancellationToken);
         }
 
         public async ValueTask<byte> PeekByteAsync(
@@ -79,22 +79,8 @@ namespace Port.Server.Spdy
         {
             var length = await ReadInt32Async(cancellationToken)
                 .ConfigureAwait(false);
-            return await ReadAsLittleEndianAsync(length, cancellationToken)
+            return await ReadAsync(length, cancellationToken)
                 .ConfigureAwait(false);
-        }
-
-        private async ValueTask<byte[]> ReadAsLittleEndianAsync(
-            int length,
-            CancellationToken cancellationToken = default)
-        {
-            var bytes = await ReadAsync(length, cancellationToken)
-                .ConfigureAwait(false);
-            if (BitConverter.IsLittleEndian == false)
-            {
-                Array.Reverse(bytes);
-            }
-
-            return bytes;
         }
 
         private async ValueTask<byte[]> ReadAsBigEndianAsync(
@@ -111,22 +97,6 @@ namespace Port.Server.Spdy
             return bytes;
         }
 
-        private async ValueTask<byte[]> ReadAsync(
-            int length,
-            CancellationToken cancellationToken = default)
-        {
-            if (length == 0)
-            {
-                return Array.Empty<byte>();
-            }
-            var sequence = await GetAsync(length, cancellationToken)
-                .ConfigureAwait(false);
-            var bytes = sequence.ToArray();
-            _reader.AdvanceTo(sequence.End);
-            
-            return bytes;
-        }
-
         private async ValueTask<byte[]> PeakAsync(
             int length,
             CancellationToken cancellationToken = default)
@@ -135,36 +105,8 @@ namespace Port.Server.Spdy
             {
                 return Array.Empty<byte>();
             }
-            var sequence = await GetAsync(length, cancellationToken)
-                .ConfigureAwait(false);
-            var bytes = sequence.ToArray();
-            _reader.AdvanceTo(sequence.Start, sequence.End);
-
-            return bytes;
-        }
-
-        private async ValueTask<ReadOnlySequence<byte>> GetAsync(
-            int length,
-            CancellationToken cancellationToken = default)
-        {
-            if (length <= 0)
-            {
-                return ReadOnlySequence<byte>.Empty;
-            }
-
-            System.IO.Pipelines.ReadResult result;
-            do
-            {
-                result = await _reader.ReadAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (result.Buffer.Length >= length)
-                {
-                    break;
-                }
-
-                _reader.AdvanceTo(result.Buffer.Start, result.Buffer.End);
-            } while (result.HasMoreData());
+            var result = await _reader.ReadAsync(cancellationToken)
+                                      .ConfigureAwait(false);
 
             if (result.Buffer.Length < length)
             {
@@ -172,7 +114,44 @@ namespace Port.Server.Spdy
                     $"Expected {length} bytes, got {result.Buffer.Length}");
             }
 
-            return result.Buffer.Slice(0, length);
+            var sequence = result.Buffer.Slice(0, length);
+            var bytes = sequence.ToArray();
+            _reader.AdvanceTo(sequence.Start, sequence.End);
+
+            return bytes;
+        }
+
+        private async ValueTask<byte[]> ReadAsync(
+            int length,
+            CancellationToken cancellationToken = default)
+        {
+            if (length <= 0)
+            {
+                return Array.Empty<byte>();
+            }
+
+            var bufferWriter = new ArrayBufferWriter<byte>(length);
+            
+            System.IO.Pipelines.ReadResult result;
+            do
+            {
+                result = await _reader.ReadAsync(cancellationToken)
+                                      .ConfigureAwait(false);
+                var buffer = result.Buffer.Slice(
+                    0, Math.Min(bufferWriter.FreeCapacity, result.Buffer.Length));
+                buffer.CopyTo(bufferWriter.GetSpan());
+                bufferWriter.Advance((int)buffer.Length);
+
+                _reader.AdvanceTo(buffer.End);
+            } while (result.HasMoreData() && bufferWriter.WrittenCount < length);
+
+            if (bufferWriter.WrittenCount < length)
+            {
+                throw new InvalidOperationException(
+                    $"Expected {length} bytes, got {bufferWriter.WrittenCount}");
+            }
+
+            return bufferWriter.WrittenMemory.ToArray();
         }
     }
 }

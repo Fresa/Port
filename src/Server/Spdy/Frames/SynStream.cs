@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Log.It;
+using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
+using Port.Server.Spdy.Zlib;
 
 namespace Port.Server.Spdy.Frames
 {
@@ -42,7 +44,7 @@ namespace Port.Server.Spdy.Frames
             UInt31 streamId,
             UInt31 associatedToStreamId,
             PriorityLevel priority,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+            NameValueHeaderBlock headers)
             : base(Type)
         {
             Flags = flags;
@@ -107,7 +109,7 @@ namespace Port.Server.Spdy.Frames
         /// <summary>
         /// Name/Value Header Block: A set of name/value pairs carried as part of the SYN_STREAM. see Name/Value Header Block (Section 2.6.10).
         /// </summary>
-        public IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; }
+        public IReadOnlyDictionary<string, string[]> Headers { get; }
 
         internal static async ValueTask<ReadResult<SynStream>> TryReadAsync(
             byte flags,
@@ -132,18 +134,22 @@ namespace Port.Server.Spdy.Frames
                 .ConfigureAwait(false);
             // The length is the number of bytes which follow the length field in the frame. For SYN_STREAM frames, this is 10 bytes plus the length of the compressed Name/Value block.
             var headerLength = (int)length.Value - 10;
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers = new Dictionary<string, IReadOnlyList<string>>();
+            var headers = new NameValueHeaderBlock();
             if (headerLength > 0)
             {
-                headers =
-                    await
-                        (await frameReader
-                               .ReadBytesAsync(headerLength, cancellation)
-                               .ConfigureAwait(false))
-                        .ZlibDecompress(SpdyConstants.HeadersDictionary)
-                        .ToFrameReader()
-                        .ReadNameValuePairsAsync(cancellation)
-                        .ConfigureAwait(false);
+                try
+                {
+                    headers =
+                        await
+                            frameReader
+                            .ReadNameValuePairsAsync(headerLength, cancellation)
+                            .ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    return ReadResult<SynStream>.Error(
+                        RstStream.ProtocolError(streamId, exception));
+                }
             }
 
             return ReadResult.Ok(new SynStream(
@@ -166,21 +172,27 @@ namespace Port.Server.Spdy.Frames
             IFrameWriter frameWriter,
             CancellationToken cancellationToken = default)
         {
-            await using var headerStream = new MemoryStream(1024);
-            await using var headerWriter = new FrameWriter(headerStream);
+            var headerStream = new MemoryStream(1024);
+            await using (headerStream
+                .ConfigureAwait(false))
             {
-                await headerWriter.WriteNameValuePairs(
-                        Headers, cancellationToken)
-                    .ConfigureAwait(false);
+                var headerWriter = new ZlibWriter(
+                    headerStream, SpdyConstants.HeadersDictionary);
+                await using (headerWriter
+                    .ConfigureAwait(false))
+                {
+                    await headerWriter.WriteNameValuePairs(
+                                          Headers, cancellationToken)
+                                      .ConfigureAwait(false);
+                }
             }
 
-            var compressedHeaders = headerStream.ToArray()
-                .ZlibCompress(SpdyConstants.HeadersDictionary);
-
+            var compressedHeaders = headerStream.ToArray();
             var length = compressedHeaders.Length + 10;
+
             await frameWriter.WriteUInt24Async(
-                    UInt24.From((uint)length), cancellationToken)
-                .ConfigureAwait(false);
+                                 UInt24.From((uint)length), cancellationToken)
+                             .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     StreamId, cancellationToken)
                 .ConfigureAwait(false);
@@ -190,10 +202,10 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteByteAsync((byte)((byte)Priority << 5), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteByteAsync(0, cancellationToken)
-                .ConfigureAwait(false);
+                             .ConfigureAwait(false);
             await frameWriter.WriteBytesAsync(
-                    compressedHeaders, cancellationToken)
-                .ConfigureAwait(false);
+                                 compressedHeaders, cancellationToken)
+                             .ConfigureAwait(false);
         }
     }
 }

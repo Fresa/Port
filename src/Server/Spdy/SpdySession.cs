@@ -83,13 +83,13 @@ namespace Port.Server.Spdy
             _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync, _sessionCancellationTokenSource);
         }
 
-        internal static SpdySession CreateClient(
+        public static SpdySession CreateClient(
             INetworkClient networkClient)
         {
             return new SpdySession(networkClient, true);
         }
 
-        internal static SpdySession CreateServer(
+        public static SpdySession CreateServer(
             INetworkClient networkClient)
         {
             return new SpdySession(networkClient, false);
@@ -324,6 +324,7 @@ namespace Port.Server.Spdy
                 return;
             }
 
+            _logger.Trace("Received {frameType}", frame.GetType());
             bool found;
             SpdyStream? stream;
             switch (frame)
@@ -376,6 +377,8 @@ namespace Port.Server.Spdy
                     stream.Receive(frame);
                     break;
                 case RstStream rstStream:
+                    _logger.Info("Received RstStream {@rstStream}", rstStream);
+
                     (found, stream) =
                         await TryGetStreamOrCloseSessionAsync(rstStream.StreamId)
                             .ConfigureAwait(false);
@@ -489,9 +492,9 @@ namespace Port.Server.Spdy
         public SpdyStream Open(
             SynStream.PriorityLevel priority = SynStream.PriorityLevel.Normal,
             SynStream.Options options = SynStream.Options.None,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
+            NameValueHeaderBlock? headers = null)
         {
-            headers ??= new Dictionary<string, IReadOnlyList<string>>();
+            headers ??= new NameValueHeaderBlock();
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = SpdyStream.Open(

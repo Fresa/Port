@@ -26,29 +26,33 @@ namespace Port.Server.Spdy.Frames
             in Options flags,
             in UInt24 length,
             in UInt31 streamId,
-            in StatusCode status) : base(Type)
+            in StatusCode status) : this(streamId, status)
         {
             Flags = flags;
             Length = length;
-            StreamId = streamId;
-            Status = status;
         }
 
         private RstStream(
             in UInt31 streamId,
-            in StatusCode status) : base(Type)
+            in StatusCode status,
+            Exception? exception = default) : base(Type)
         {
             StreamId = streamId;
             Status = status;
+
+            var statusName = Enum.GetName(typeof(StatusCode), status);
+            _exception = exception == null
+                ? (Exception)new ProtocolViolationException(statusName)
+                : new AggregateException(statusName, exception);
         }
 
         /// <summary>
         /// This is a generic error, and should only be used if a more specific error is not available.
         /// </summary>
         public static RstStream ProtocolError(
-            in UInt31 streamId)
+            in UInt31 streamId, Exception? exception = default)
         {
-            return new RstStream(streamId, StatusCode.ProtocolError);
+            return new RstStream(streamId, StatusCode.ProtocolError, exception);
         }
 
         /// <summary>
@@ -164,8 +168,10 @@ namespace Port.Server.Spdy.Frames
             }
         }
 
-        public static implicit operator Exception(RstStream stream) =>
-            new ProtocolViolationException(Enum.GetName(typeof(StatusCode), stream.Status));
+        private readonly Exception _exception;
+
+        public static implicit operator Exception(
+            RstStream stream) => stream._exception;
 
         /// <summary>
         /// The 31-bit identifier for this stream.
@@ -183,7 +189,7 @@ namespace Port.Server.Spdy.Frames
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {
-            var streamId = 
+            var streamId =
                 await frameReader.ReadUInt32Async(cancellation)
                     .AsUInt31Async()
                     .ConfigureAwait(false);

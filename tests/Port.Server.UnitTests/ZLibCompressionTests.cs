@@ -1,8 +1,12 @@
+using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
+using Moq;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Extensions;
-using Test.It.With.XUnit;
+using Port.Server.Spdy.Zlib;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -29,7 +33,7 @@ namespace Port.Server.UnitTests
 
         private static readonly byte[] CompressedBytes =
         {
-            0x38, 0xAC, 0xE3, 0xC6, 0xA7, 0xC2, 0x55, 0x94, 0xCD, 0x6A, 0xC3,
+            0x78, 0xBB, 0xE3, 0xC6, 0xA7, 0xC2, 0x54, 0x94, 0xCD, 0x6A, 0xC3,
             0x30, 0x10, 0x84, 0xEF, 0x02, 0xBD, 0xC3, 0xA0, 0x53, 0x7A, 0xB0,
             0xE4, 0x40, 0x7B, 0x91, 0x63, 0x07, 0x1F, 0x02, 0x0D, 0x49, 0x7F,
             0x20, 0x2E, 0x3D, 0xBB, 0xAE, 0x49, 0x04, 0xAE, 0x6C, 0x22, 0x85,
@@ -51,11 +55,12 @@ namespace Port.Server.UnitTests
             0x22, 0x4A, 0x11, 0xCB, 0x11, 0xEB, 0x8A, 0xF2, 0x9C, 0x3F, 0x53,
             0x08, 0x94, 0x6D, 0x1D, 0x4A, 0x88, 0x93, 0xF7, 0x93, 0x56, 0xAA,
             0x1B, 0xFA, 0xF6, 0x4C, 0x7C, 0xD0, 0xA8, 0x87, 0x0E, 0x95, 0xA8,
-            0xE6, 0xC4, 0x95, 0x9A, 0xD7, 0xEA, 0x07, 0x99, 0x18, 0x7A, 0x92
+            0xE6, 0xC4, 0x95, 0x9A, 0xD7, 0xEA, 0x07, 0x00, 0x00, 0xFF, 0xFF,
+            0x03, 0x00, 0x99, 0x18, 0x7A, 0x92
         };
         #endregion
 
-        public class When_compressing_http_headers_with_custom_dictionary : XUnit2Specification
+        public class When_compressing_http_headers_with_custom_dictionary : XUnit2UnitTestSpecificationAsync
         {
             private byte[] _compressedBytes;
 
@@ -64,9 +69,24 @@ namespace Port.Server.UnitTests
             {
             }
 
-            protected override void When()
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
             {
-                _compressedBytes = UncompressedBytes.ZlibCompress(SpdyConstants.HeadersDictionary);
+                var memory = new MemoryStream();
+                await using (memory.ConfigureAwait(false))
+                {
+                    var zlibWriter = new ZlibWriter(
+                        memory, SpdyConstants.HeadersDictionary);
+                    await using (zlibWriter.ConfigureAwait(false))
+                    {
+                        await zlibWriter.WriteBytesAsync(
+                                            UncompressedBytes,
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
+                    }
+                }
+
+                _compressedBytes = memory.ToArray();
             }
 
             [Fact]
@@ -76,18 +96,41 @@ namespace Port.Server.UnitTests
             }
         }
 
-        public class When_decompressing_http_headers_with_custom_dictionary : XUnit2Specification
+        public class When_decompressing_http_headers_with_custom_dictionary : XUnit2UnitTestSpecificationAsync
         {
             private byte[] _decompressedBytes;
+            private ZlibReader _reader;
 
             public When_decompressing_http_headers_with_custom_dictionary(
                 ITestOutputHelper output) : base(output)
             {
             }
 
-            protected override void When()
+            protected override Task GivenAsync(
+                CancellationToken cancellationToken)
             {
-                _decompressedBytes = CompressedBytes.ZlibDecompress(SpdyConstants.HeadersDictionary);
+                var frameReader = new Mock<IFrameReader>();
+                frameReader.Setup(
+                               reader => reader.ReadBytesAsync(
+                                   CompressedBytes.Length,
+                                   It.IsAny<CancellationToken>()))
+                           .Returns(new ValueTask<byte[]>(CompressedBytes));
+
+                _reader = new ZlibReader(
+                    frameReader.Object, SpdyConstants.HeadersDictionary,
+                    CompressedBytes.Length);
+                
+                return Task.CompletedTask;
+            }
+
+            protected override async Task WhenAsync(
+                CancellationToken cancellationToken)
+            {
+                _decompressedBytes =
+                    await _reader.ReadBytesAsync(
+                                     UncompressedBytes.Length,
+                                     cancellationToken)
+                                 .ConfigureAwait(false);
             }
 
             [Fact]

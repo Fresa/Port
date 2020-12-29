@@ -15,7 +15,7 @@ namespace Port.Server.Spdy
 {
     public sealed class SpdyStream : IDisposable
     {
-        private ILogger _logger = LogFactory.Create<SpdyStream>();
+        private readonly ILogger _logger = LogFactory.Create<SpdyStream>();
         private readonly SynStream _synStream;
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue;
 
@@ -30,9 +30,9 @@ namespace Port.Server.Spdy
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
 
-        private readonly ObservableConcurrentDictionary<string, IReadOnlyList<string>> _headers = new ObservableConcurrentDictionary<string, IReadOnlyList<string>>();
+        private readonly ObservableConcurrentDictionary<string, string[]> _headers = new ObservableConcurrentDictionary<string, string[]>();
 
-        public IObservableReadOnlyDictionary<string, IReadOnlyList<string>> Headers => _headers;
+        public IObservableReadOnlyDictionary<string, string[]> Headers => _headers;
 
         private int _windowSize = 64000;
         private int _initialWindowSize = 64000;
@@ -86,6 +86,7 @@ namespace Port.Server.Spdy
                 switch (frame)
                 {
                     case RstStream _:
+                        CloseLocal();
                         return;
                     case WindowUpdate _:
                         break;
@@ -178,7 +179,7 @@ namespace Port.Server.Spdy
         }
 
         private void SetHeaders(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+            IReadOnlyDictionary<string, string[]> headers)
         {
             foreach (var (key, values) in headers)
             {
@@ -197,7 +198,7 @@ namespace Port.Server.Spdy
         internal static SpdyStream Accept(
             SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+            NameValueHeaderBlock? headers =
                 default)
         {
             var stream = new SpdyStream(synStream, sendingPriorityQueue);
@@ -205,7 +206,7 @@ namespace Port.Server.Spdy
             return stream;
         }
 
-        private void Accept(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers =
+        private void Accept(NameValueHeaderBlock? headers =
             default)
         {
             if (_synStream.IsUnidirectional)
@@ -375,8 +376,8 @@ namespace Port.Server.Spdy
             return new FlushResult(false, true);
         }
 
-        public Task SendHeadersAsync(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> headers,
+        public Task<FlushResult> SendHeadersAsync(
+            NameValueHeaderBlock headers,
             Headers.Options options = Frames.Headers.Options.None,
             TimeSpan timeout = default,
             CancellationToken cancellationToken = default)
@@ -396,7 +397,7 @@ namespace Port.Server.Spdy
                 Send(new Headers(Id, headers));
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(new FlushResult(false, true));
         }
 
         private readonly SemaphoreSlim _windowSizeGate = new SemaphoreSlim(0);
@@ -491,8 +492,15 @@ namespace Port.Server.Spdy
             {
                 Send(RstStream.Cancel(Id));
             }
-            CloseLocal();
-            CloseRemote();
+            else
+            {
+                CloseLocal();
+            }
+
+            if (Remote.IsOpen)
+            {
+                CloseRemote();
+            }
 
             _frameAvailable.Dispose();
             _windowSizeGate.Dispose();

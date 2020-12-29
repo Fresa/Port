@@ -18,62 +18,44 @@ namespace Port.Server.Spdy
             _buffer = buffer;
         }
 
-        public async ValueTask WriteUInt24Async(
+        public ValueTask WriteUInt24Async(
             UInt24 value,
             CancellationToken cancellationToken = default)
-        {
-            await WriteAsync(
+            => WriteAsync(
                 new[]
                 {
                     value.Three,
                     value.Two,
                     value.One
-                }, cancellationToken)
-                .ConfigureAwait(false);
-        }
+                }, cancellationToken);
 
-        public async ValueTask WriteInt32Async(
+        public ValueTask WriteInt32Async(
             int value,
             CancellationToken cancellationToken = default)
-        {
-            await WriteAsBigEndianAsync(
-                    BitConverter.GetBytes(value), cancellationToken)
-                .ConfigureAwait(false);
-        }
+            => WriteAsBigEndianAsync(
+                BitConverter.GetBytes(value), cancellationToken);
 
-        public async ValueTask WriteUInt32Async(
+        public ValueTask WriteUInt32Async(
             uint value,
             CancellationToken cancellationToken = default)
-        {
-            await WriteAsBigEndianAsync(
-                    BitConverter.GetBytes(value), cancellationToken)
-                .ConfigureAwait(false);
-        }
+            => WriteAsBigEndianAsync(
+                BitConverter.GetBytes(value), cancellationToken);
 
-        public async ValueTask WriteByteAsync(
+        public ValueTask WriteByteAsync(
             byte value,
             CancellationToken cancellationToken)
-        {
-            await WriteAsBigEndianAsync(new[] {value}, cancellationToken)
-                .ConfigureAwait(false);
-        }
+            => WriteAsync(new[] {value}, cancellationToken);
 
-        public async ValueTask WriteBytesAsync(
+        public ValueTask WriteBytesAsync(
             byte[] value,
             CancellationToken cancellationToken = default)
-        {
-            await WriteAsLittleEndianAsync(value, cancellationToken)
-                .ConfigureAwait(false);
-        }
+            => WriteAsync(value, cancellationToken);
 
-        public async ValueTask WriteUShortAsync(
+        public ValueTask WriteUShortAsync(
             ushort value,
             CancellationToken cancellationToken = default)
-        {
-            await WriteAsBigEndianAsync(
-                    BitConverter.GetBytes(value), cancellationToken)
-                .ConfigureAwait(false);
-        }
+            => WriteAsBigEndianAsync(
+                BitConverter.GetBytes(value), cancellationToken);
 
         public async ValueTask WriteStringAsync(
             string value,
@@ -86,21 +68,8 @@ namespace Port.Server.Spdy
             await WriteBytesAsync(bytes, cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        private async ValueTask WriteAsLittleEndianAsync(
-            byte[] value,
-            CancellationToken cancellationToken = default)
-        {
-            if (BitConverter.IsLittleEndian == false)
-            {
-                Array.Reverse(value);
-            }
-
-            await WriteAsync(value, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        private async ValueTask WriteAsBigEndianAsync(
+        
+        private ValueTask WriteAsBigEndianAsync(
             byte[] value,
             CancellationToken cancellationToken = default)
         {
@@ -109,21 +78,19 @@ namespace Port.Server.Spdy
                 Array.Reverse(value);
             }
 
-            await WriteAsync(value, cancellationToken)
-                .ConfigureAwait(false);
+            return WriteAsync(value, cancellationToken);
         }
 
-        private async ValueTask WriteAsync(
+        private ValueTask WriteAsync(
             byte[] value,
             CancellationToken cancellationToken = default)
         {
             if (value.Any() == false)
             {
-                return;
+                return new ValueTask();
             }
-
-            await _buffer.WriteAsync(value.AsMemory(), cancellationToken)
-                .ConfigureAwait(false);
+            
+            return _buffer.WriteAsync(value.AsMemory(), cancellationToken);
         }
 
         public async ValueTask DisposeAsync()

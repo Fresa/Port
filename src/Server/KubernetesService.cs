@@ -108,8 +108,9 @@ namespace Port.Server
                                               new[] {portForward.PodPort},
                                               cancellationToken)
                                           .ConfigureAwait(false);
+                _disposables.Add(session);
                 _disposables.Add(
-                    SpdyStreamForwarder.Start(socketServer, session));
+                    SpdyStreamForwarder.Start(socketServer, session, portForward));
             }
             else
             {

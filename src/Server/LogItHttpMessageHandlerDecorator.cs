@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
@@ -30,11 +31,20 @@ namespace Port.Server
                 .SendAsync(request, cancellationToken)
                 .ConfigureAwait(false);
 
-            var responseContent = await response.Content
-                .ReadAsStringAsync()
-                .ConfigureAwait(false);
+            // Response content might be a continues stream
+            if (response.StatusCode == HttpStatusCode.SwitchingProtocols)
+            {
+                return response;
+            }
 
-            _logger.Trace($"Response: {responseContent}");
+            if (response.Content != null)
+            {
+                var responseContent = await response.Content
+                                                    .ReadAsStringAsync()
+                                                    .ConfigureAwait(false);
+
+                _logger.Trace($"Response: {responseContent}");
+            }
 
             return response;
         }

@@ -8,7 +8,7 @@ namespace Port.Server.IntegrationTests.TestFramework
             this global::Kubernetes.Test.API.Server.TestFramework testFramework)
         {
             return new KubernetesConfiguration(
-                createClient: () => 
+                createClient: _ => 
                     new HttpClient(
                         new LogItHttpMessageHandlerDecorator(
                         testFramework.CreateHttpMessageHandler()))
