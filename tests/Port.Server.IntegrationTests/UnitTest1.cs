@@ -83,47 +83,20 @@ namespace Port.Server.IntegrationTests
                                           new[] { podPort },
                                           CancellationToken.None)
                                       .ConfigureAwait(false);
-            //var frame = SynReply.Accept(UInt31.From(1));
 
-            //    var logger = LogFactory.Create("TestLogger");
-            //    var frame = new SynStream(
-            //        SynStream.Options.None, UInt31.From(1), UInt31.From(0),
-            //        SynStream.PriorityLevel.AboveNormal,
-            //        new Dictionary<string, IReadOnlyList<string>>());
-            //        //{
-            //        //    {"Test",
-            //        //    new List<string>{"value1"}}
-            //        //});
-            //    logger.Info("Sending");
-            //await frame.WriteAsync(
-            //                   new FrameWriter(
-            //                       ((StreamingNetworkClient)session._networkClient)
-            //                       ._stream))
-            //               .ConfigureAwait(false);
-            //logger.Info("Sent");
-            //await session._networkClient.SendAsync(
-            //    Encoding.UTF8.GetBytes("jdlfsajldk"));
-
-
-            var stream = session.Open(
+            using var stream = session.Open(
                 headers: new NameValueHeaderBlock(
-                            ("streamtype", new[]
-                            {
-                                "data"
-                            }),
-                            ("port", new[]
-                            {
-                                podPort.ToString()
-                            })
-                    //{
-                    //    "podsadsadrt2", new List<string>
-                    //    {
-                    //        "podPort.ToString()"
-                    //    }
-                    //},
-
-                    ));
-            await Task.Delay(2000)
+                    ("streamtype", new[]
+                    {
+                        "data"
+                    }),
+                    ("port", new[]
+                    {
+                        podPort.ToString()
+                    })));
+            await stream.Remote.WaitForOpenedAsync()
+                        .ConfigureAwait(false);
+            await Task.Delay(10)
                       .ConfigureAwait(false);
         }
     }

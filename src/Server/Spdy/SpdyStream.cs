@@ -492,8 +492,15 @@ namespace Port.Server.Spdy
             {
                 Send(RstStream.Cancel(Id));
             }
-            CloseLocal();
-            CloseRemote();
+            else
+            {
+                CloseLocal();
+            }
+
+            if (Remote.IsOpen)
+            {
+                CloseRemote();
+            }
 
             _frameAvailable.Dispose();
             _windowSizeGate.Dispose();
