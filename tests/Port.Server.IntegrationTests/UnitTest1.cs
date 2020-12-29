@@ -86,11 +86,11 @@ namespace Port.Server.IntegrationTests
 
             using var stream = session.Open(
                 headers: new NameValueHeaderBlock(
-                    ("streamtype", new[]
+                    (Kubernetes.Headers.StreamType, new[]
                     {
-                        "data"
+                        Kubernetes.Headers.StreamTypeData
                     }),
-                    ("port", new[]
+                    (Kubernetes.Headers.Port, new[]
                     {
                         podPort.ToString()
                     })));

@@ -6,6 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
 using Port.Server.Spdy;
+using Port.Server.Spdy.Collections;
+using Port.Shared;
 using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server
@@ -14,6 +16,7 @@ namespace Port.Server
     {
         private readonly INetworkServer _networkServer;
         private readonly SpdySession _spdySession;
+        private readonly PortForward _portForward;
         private const int Stopped = 0;
         private const int Started = 1;
         private int _status = Stopped;
@@ -30,17 +33,20 @@ namespace Port.Server
 
         private SpdyStreamForwarder(
             INetworkServer networkServer,
-            SpdySession spdySession)
+            SpdySession spdySession,
+            PortForward portForward)
         {
             _networkServer = networkServer;
             _spdySession = spdySession;
+            _portForward = portForward;
         }
 
         internal static IAsyncDisposable Start(
             INetworkServer networkServer,
-            SpdySession spdySession)
+            SpdySession spdySession,
+            PortForward portForward)
         {
-            return new SpdyStreamForwarder(networkServer, spdySession)
+            return new SpdyStreamForwarder(networkServer, spdySession, portForward)
                 .Start();
         }
 
@@ -101,7 +107,17 @@ namespace Port.Server
                         CancellationToken);
                 var cancellationToken = cancellationTokenSource.Token;
 
-                using var stream = _spdySession.Open();
+                using var stream = _spdySession.Open(
+                    headers: new NameValueHeaderBlock(
+                        (Kubernetes.Headers.StreamType, new[]
+                        {
+                            Kubernetes.Headers.StreamTypeData
+                        }),
+                        (Kubernetes.Headers.Port, new[]
+                        {
+                           _portForward.PodPort.ToString()
+                        })));
+
                 var sendingTask = Task.CompletedTask;
                 var receivingTask = Task.CompletedTask;
                 try
@@ -143,7 +159,7 @@ namespace Port.Server
                     // sending all data, but we cannot let the process run
                     // potentially forever, the application might be in a stopping
                     // state, and at some point we have to let go.
-                    
+
                     //This will most likely change when we need to report
                     //back that the forwarding terminated or that we
                     //should retry
