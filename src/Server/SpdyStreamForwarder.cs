@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Log.It;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Collections;
+using Port.Server.Spdy.Extensions;
 using Port.Shared;
 using ReadResult = System.IO.Pipelines.ReadResult;
 
@@ -96,6 +97,7 @@ namespace Port.Server
             }
         }
 
+        private static int _requestId = 0;
         private async Task StartPortForwardingAsync(INetworkClient client)
         {
             using var _ = _logger.LogicalThread.With(
@@ -107,15 +109,20 @@ namespace Port.Server
                         CancellationToken);
                 var cancellationToken = cancellationTokenSource.Token;
 
+                var requestId = Interlocked.Increment(ref _requestId);
                 using var stream = _spdySession.Open(
                     headers: new NameValueHeaderBlock(
-                        (Kubernetes.Headers.StreamType, new[]
+                        (Kubernetes.Headers.PortForward.StreamType.Key, new[]
                         {
-                            Kubernetes.Headers.StreamTypeData
+                            Kubernetes.Headers.PortForward.StreamType.Data
                         }),
-                        (Kubernetes.Headers.Port, new[]
+                        (Kubernetes.Headers.PortForward.Port, new[]
                         {
                            _portForward.PodPort.ToString()
+                        }),
+                        (Kubernetes.Headers.PortForward.RequestId, new[]
+                        {
+                            requestId.ToString()
                         })));
 
                 var sendingTask = Task.CompletedTask;
