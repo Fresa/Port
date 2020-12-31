@@ -145,16 +145,20 @@ namespace Port.Server.Spdy
                                   .DequeueAsync(SendingCancellationToken)
                                   .ConfigureAwait(false);
 
-                if (frame is Data data)
+                switch (frame)
                 {
-                    // todo: Should we always wait for data frames to be sent before sending the next frame (which might be a control frame that are not under flow control)?
-                    await SendAsync(data, SendingCancellationToken)
-                        .ConfigureAwait(false);
-                    continue;
+                    case Data data:
+                        // todo: Should we always wait for data frames to be sent before sending the next frame (which might be a control frame that are not under flow control)?
+                        await SendAsync(data, SendingCancellationToken)
+                            .ConfigureAwait(false);
+                        break;
+                    case Control control:
+                        await SendAsync(control, SendingCancellationToken)
+                            .ConfigureAwait(false);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Frame of type {frame.GetType()} is not supported");
                 }
-
-                await SendAsync(frame, SendingCancellationToken)
-                    .ConfigureAwait(false);
             }
         }
 
@@ -162,6 +166,14 @@ namespace Port.Server.Spdy
         {
             _sendingCancellationTokenSource.Cancel();
             return _sendingTask;
+        }
+
+        private Task SendAsync(
+            Control controlFrame,
+            CancellationToken cancellationToken)
+        {
+            _logger.Debug("Sending {name} frame to network {@frame}", controlFrame.GetType().Name, controlFrame);
+            return SendAsync((Frame)controlFrame, cancellationToken);
         }
 
         private async Task SendAsync(
@@ -185,6 +197,7 @@ namespace Port.Server.Spdy
         {
             if (data.Payload.Length > 0)
             {
+                _logger.Debug($"Waiting to send Data frame with payload size {data.Payload.Length} for stream id {data.StreamId}");
                 using (await _sendDataGate.WaitAsync(cancellationToken)
                                           .ConfigureAwait(false))
                 {
@@ -201,6 +214,11 @@ namespace Port.Server.Spdy
                 }
             }
 
+            _logger.Debug(
+                "Sending Data frame to network {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
+                data.StreamId, 
+                data.IsLastFrame,
+                data.Payload.Length);
             await SendAsync((Frame)data, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -324,7 +342,7 @@ namespace Port.Server.Spdy
                 return;
             }
 
-            _logger.Trace("Received {frameType}", frame.GetType());
+            _logger.Debug($"Received {frame.GetType().Name} frame");
             bool found;
             SpdyStream? stream;
             switch (frame)
@@ -366,6 +384,7 @@ namespace Port.Server.Spdy
 
                     break;
                 case SynReply synReply:
+                    _logger.Debug("SynReply: {@synReply}", synReply);
                     (found, stream) =
                         await TryGetStreamOrCloseSessionAsync(synReply.StreamId)
                             .ConfigureAwait(false);
@@ -377,7 +396,7 @@ namespace Port.Server.Spdy
                     stream.Receive(frame);
                     break;
                 case RstStream rstStream:
-                    _logger.Info("Received RstStream {@rstStream}", rstStream);
+                    _logger.Info("RstStream: {@rstStream}", rstStream);
 
                     (found, stream) =
                         await TryGetStreamOrCloseSessionAsync(rstStream.StreamId)
@@ -492,13 +511,14 @@ namespace Port.Server.Spdy
         public SpdyStream Open(
             SynStream.PriorityLevel priority = SynStream.PriorityLevel.Normal,
             SynStream.Options options = SynStream.Options.None,
-            NameValueHeaderBlock? headers = null)
+            NameValueHeaderBlock? headers = null,
+            UInt31 associatedToStreamId = default)
         {
             headers ??= new NameValueHeaderBlock();
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = SpdyStream.Open(
-                    new SynStream(options, streamId, UInt31.From(0), priority, headers),
+                    new SynStream(options, streamId, associatedToStreamId, priority, headers),
                 _sendingPriorityQueue);
             _streams.TryAdd(stream.Id, stream);
 
