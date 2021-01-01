@@ -384,7 +384,7 @@ namespace Port.Server.Spdy
         {
             if (Local.IsClosed)
             {
-                throw new InvalidOperationException("Stream is closed");
+                return Task.FromResult(new FlushResult(true, false));
             }
 
             if (options == Frames.Headers.Options.Fin)
