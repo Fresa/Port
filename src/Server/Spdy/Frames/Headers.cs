@@ -1,15 +1,14 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
+using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
-using Port.Server.Spdy.Zlib;
 
 namespace Port.Server.Spdy.Frames
 {
@@ -72,8 +71,8 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         private new Options Flags
         {
-            get => (Options) base.Flags;
-            set => base.Flags = (byte) value;
+            get => (Options)base.Flags;
+            set => base.Flags = (byte)value;
         }
 
         [Flags]
@@ -102,6 +101,7 @@ namespace Port.Server.Spdy.Frames
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
+            IHeaderReader headerReader,
             CancellationToken cancellation = default)
         {
             var streamId =
@@ -109,7 +109,7 @@ namespace Port.Server.Spdy.Frames
                     .AsUInt31Async()
                     .ConfigureAwait(false);
             // An unsigned 24 bit value representing the number of bytes after the length field. The minimum length of the length field is 4 (when the number of name value pairs is 0).
-            var headerLength = (int) length.Value - 4;
+            var headerLength = (int)length.Value - 4;
             var headers = new NameValueHeaderBlock();
             if (headerLength > 0)
             {
@@ -117,7 +117,7 @@ namespace Port.Server.Spdy.Frames
                 {
                     headers =
                         await
-                            frameReader
+                            headerReader
                                 .ReadNameValuePairsAsync(headerLength, cancellation)
                                 .ConfigureAwait(false);
                 }
@@ -133,27 +133,30 @@ namespace Port.Server.Spdy.Frames
 
         protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
+            IHeaderWriterProvider headerWriterProvider,
             CancellationToken cancellationToken = default)
         {
-            var headerStream = new MemoryStream(1024);
-            await using (headerStream
-                .ConfigureAwait(false))
+            var pipe = new Pipe();
+            var headerWriter = await headerWriterProvider
+                                     .RequestWriterAsync(pipe.Writer, cancellationToken)
+                                     .ConfigureAwait(false);
+            await using (headerWriter.ConfigureAwait(false))
             {
-                var headerWriter = new ZlibWriter(
-                    headerStream, SpdyConstants.HeadersDictionary);
-                await using (headerWriter
-                    .ConfigureAwait(false))
-                {
-                    await headerWriter.WriteNameValuePairs(
-                                          Values, cancellationToken)
-                                      .ConfigureAwait(false);
-                }
+                await headerWriter.WriteNameValuePairs(
+                                      Values, cancellationToken)
+                                  .ConfigureAwait(false);
             }
+            
+            await using var memory = new MemoryStream();
+            await pipe.Reader.CopyToAsync(memory, cancellationToken)
+                      .ConfigureAwait(false);
+            await pipe.Reader.CompleteAsync()
+                      .ConfigureAwait(false);
 
-            var compressedHeaders = headerStream.ToArray();
+            var compressedHeaders = memory.ToArray();
             var length = compressedHeaders.Length + 4;
             await frameWriter.WriteUInt24Async(
-                    UInt24.From((uint) length), cancellationToken)
+                    UInt24.From((uint)length), cancellationToken)
                 .ConfigureAwait(false);
             await frameWriter.WriteUInt32Async(
                     StreamId, cancellationToken)

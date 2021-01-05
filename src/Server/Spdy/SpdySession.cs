@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +18,11 @@ namespace Port.Server.Spdy
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
         private readonly bool _isClient;
+
+        private readonly FrameWriter _frameWriter;
+        private readonly HeaderWriterProvider _headerWriterProvider;
+        private readonly FrameReader _frameReader;
+        private readonly IHeaderReader _headerReader;
 
         private readonly SemaphoreSlimGate _sendingGate =
             SemaphoreSlimGate.OneAtATime;
@@ -77,7 +81,10 @@ namespace Port.Server.Spdy
                     SessionCancellationToken);
 
             _networkClient = networkClient;
-
+            _frameWriter = new FrameWriter(networkClient);
+            _headerWriterProvider = new HeaderWriterProvider();
+            _frameReader = new FrameReader(_messageReceiver.Reader);
+            _headerReader = new HeaderReader(_frameReader);
             _sendingTask = StartBackgroundTaskAsync(SendFramesAsync, _sendingCancellationTokenSource);
             _receivingTask = StartBackgroundTaskAsync(ReceiveFromNetworkClientAsync, _sessionCancellationTokenSource);
             _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync, _sessionCancellationTokenSource);
@@ -183,7 +190,7 @@ namespace Port.Server.Spdy
             using (await _sendingGate.WaitAsync(cancellationToken)
                                      .ConfigureAwait(false))
             {
-                await _networkClient.SendAsync(frame, cancellationToken)
+                await frame.WriteAsync(_frameWriter, _headerWriterProvider, SendingCancellationToken)
                                     .ConfigureAwait(false);
             }
         }
@@ -318,21 +325,19 @@ namespace Port.Server.Spdy
 
         private async Task HandleMessagesAsync()
         {
-            var frameReader = new FrameReader(_messageReceiver.Reader);
-
             while (_sessionCancellationTokenSource
                 .IsCancellationRequested == false)
             {
-                await HandleNextMessageAsync(frameReader)
+                await HandleNextMessageAsync()
                     .ConfigureAwait(false);
             }
         }
 
-        private async Task HandleNextMessageAsync(
-            IFrameReader frameReader)
+        private async Task HandleNextMessageAsync()
         {
             if ((await Frame.TryReadAsync(
-                                frameReader,
+                                _frameReader,
+                                _headerReader,
                                 SessionCancellationToken)
                             .ConfigureAwait(false)).Out(
                 out var frame, out var error) == false)

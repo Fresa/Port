@@ -11,6 +11,7 @@ namespace Port.Server.Spdy.Frames
         private static ILogger _logger = LogFactory.Create<Frame>();
         internal static async ValueTask<ReadResult<Frame>> TryReadAsync(
             IFrameReader frameReader,
+            IHeaderReader headerReader,
             CancellationToken cancellation = default)
         {
             try
@@ -21,7 +22,7 @@ namespace Port.Server.Spdy.Frames
                 var isControlFrame = (firstByte & 0x80) != 0;
                 if (isControlFrame)
                 {
-                    return await Control.TryReadAsync(frameReader, cancellation)
+                    return await Control.TryReadAsync(frameReader, headerReader, cancellation)
                                         .ConfigureAwait(false);
                 }
 
@@ -39,13 +40,9 @@ namespace Port.Server.Spdy.Frames
             }
         }
 
-        internal ValueTask WriteAsync(
+        internal abstract ValueTask WriteAsync(
             IFrameWriter frameWriter,
-            CancellationToken cancellationToken = default)
-            => WriteFrameAsync(frameWriter, cancellationToken);
-
-        protected abstract ValueTask WriteFrameAsync(
-            IFrameWriter frameWriter,
+            IHeaderWriterProvider headerWriterProvider,
             CancellationToken cancellationToken = default);
     }
 }

@@ -19,7 +19,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
     {
         private static readonly byte[] Message =
         {
-            0x80, 0x03, 0x00, 0x01, 0x02, 0x00, 0x00, 0x79, 0x00, 0x00, 0x00,
+            0x80, 0x03, 0x00, 0x01, 0x02, 0x00, 0x00, 0x73, 0x00, 0x00, 0x00,
             0x7B, 0x00, 0x00, 0x02, 0x0C, 0x40, 0x00, 0x78, 0xBB, 0xE3, 0xC6,
             0xA7, 0xC2, 0x02, 0xE5, 0x0E, 0xA4, 0xF2, 0x80, 0xAB, 0x04, 0x18,
             0x49, 0x0C, 0x20, 0xC2, 0x08, 0x23, 0x1B, 0x84, 0xF9, 0xE6, 0x57,
@@ -30,7 +30,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             0x06, 0x7A, 0x06, 0x9A, 0x0A, 0xEE, 0xA9, 0xC9, 0xD9, 0xF9, 0x0A,
             0xFA, 0x0A, 0xC0, 0x24, 0x0A, 0x4E, 0xAA, 0x0A, 0x6E, 0xC0, 0xC2,
             0x28, 0x2D, 0xBF, 0x02, 0x28, 0x04, 0x52, 0x00, 0x00, 0x00, 0x00,
-            0xFF, 0xFF, 0x03, 0x00, 0x64, 0xC1, 0x21, 0xB9
+            0xFF, 0xFF
         };
 
         public class When_writing : XUnit2UnitTestSpecificationAsync
@@ -60,7 +60,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 CancellationToken cancellationToken)
             {
                 await _frame.WriteAsync(
-                                new FrameWriter(_serialized),
+                                new FrameWriter(
+                                    new StreamingNetworkClient(_serialized)),
+                                DisposeAsyncOnTearDown(new HeaderWriterProvider()),
                                 cancellationToken)
                             .ConfigureAwait(false);
             }
@@ -84,9 +86,10 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
+                var reader = new FrameReader(PipeReader.Create(_serialized));
                 _message = (await Control.TryReadAsync(
-                                      new FrameReader(
-                                          PipeReader.Create(_serialized)),
+                                      reader,
+                                      new HeaderReader(reader),
                                       cancellationToken)
                                   .ConfigureAwait(false))
                     .GetOrThrow() as SynStream;

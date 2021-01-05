@@ -39,7 +39,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 CancellationToken cancellationToken)
             {
                 await _frame.WriteAsync(
-                                new FrameWriter(_serialized),
+                                new FrameWriter(
+                                    new StreamingNetworkClient(_serialized)),
+                                new ExceptionThrowingHeaderWriterProvider(),
                                 cancellationToken)
                             .ConfigureAwait(false);
             }

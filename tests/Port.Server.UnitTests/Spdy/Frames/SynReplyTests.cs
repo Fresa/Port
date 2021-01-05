@@ -1,15 +1,13 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Collections;
-using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
-using Test.It.With.XUnit;
+using Port.Server.UnitTests.Spdy.Extensions;
 using Xunit;
 
 namespace Port.Server.UnitTests.Spdy.Frames
@@ -18,7 +16,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
     {
         private static readonly byte[] Message =
         {
-            0x80, 0x03, 0x00, 0x02, 0x01, 0x00, 0x00, 0x70, 0x00, 0x00, 0x00,
+            0x80, 0x03, 0x00, 0x02, 0x01, 0x00, 0x00, 0x6A, 0x00, 0x00, 0x00,
             0x7B, 0x78, 0xBB, 0xE3, 0xC6, 0xA7, 0xC2, 0x02, 0xE5, 0x0E, 0xA4,
             0xF2, 0x80, 0xA5, 0x24, 0x15, 0x4C, 0xA3, 0x66, 0x80, 0x30, 0xDF,
             0xFC, 0xAA, 0xCC, 0x9C, 0x9C, 0x44, 0x7D, 0x53, 0x3D, 0x03, 0x05,
@@ -28,7 +26,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
             0xC1, 0xD4, 0x40, 0xCF, 0x40, 0x53, 0xC1, 0x3D, 0x35, 0x39, 0x3B,
             0x5F, 0x41, 0x5F, 0x01, 0x98, 0x38, 0xC1, 0x89, 0x54, 0xC1, 0x0D,
             0x58, 0x0C, 0xA5, 0xE5, 0x57, 0x00, 0x85, 0x40, 0x0A, 0x00, 0x00,
-            0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00, 0x7C, 0x2F, 0x1F, 0xC1
+            0x00, 0x00, 0xFF, 0xFF
         };
 
         public class When_writing : XUnit2UnitTestSpecificationAsync
@@ -42,16 +40,19 @@ namespace Port.Server.UnitTests.Spdy.Frames
                     UInt31.From(123),
                     new NameValueHeaderBlock
                     (
-                        ("host", new []{"test"}),
+                        ("host", new[] { "test" }),
                         ("user-agent",
-                            new []{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0"})
+                            new[] { "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv: 50.0) Gecko / 20100101 Firefox / 50.0" })
                     ));
                 return Task.CompletedTask;
             }
 
             protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
-                await _frame.WriteAsync(new FrameWriter(_serialized), cancellationToken)
+                await _frame.WriteAsync(new FrameWriter(
+                                    new StreamingNetworkClient(_serialized)),
+                                DisposeAsyncOnTearDown(new HeaderWriterProvider()),
+                                cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -73,9 +74,13 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
-                _message = (SynReply)(await Control.TryReadAsync(
-                        new FrameReader(PipeReader.Create(_serialized)), cancellationToken)
-                    .ConfigureAwait(false)).Result;
+                var reader = new FrameReader(PipeReader.Create(_serialized));
+                _message = (await Control.TryReadAsync(
+                                             reader,
+                                             new HeaderReader(reader),
+                                             cancellationToken)
+                                         .ConfigureAwait(false))
+                    .GetOrThrow() as SynReply;
             }
 
             [Fact]

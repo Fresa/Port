@@ -14,7 +14,7 @@ namespace Port.Server
             _stream = stream;
         }
 
-        public ValueTask DisposeAsync() => _stream.DisposeAsync();
+        public ValueTask DisposeAsync() => new ValueTask();
 
         public ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.Spdy;
-using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 
 namespace Port.Server.IntegrationTests.Spdy
@@ -19,6 +18,9 @@ namespace Port.Server.IntegrationTests.Spdy
         private Task _receiverTask = Task.CompletedTask;
         private readonly Pipe _pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
         private readonly FrameReader _frameReader;
+        private readonly FrameWriter _frameWriter;
+        private readonly HeaderWriterProvider _headerWriterProvider;
+        private readonly IHeaderReader _headerReader;
 
         private readonly SemaphoreSlimGate _frameReaderGate =
             SemaphoreSlimGate.OneAtATime;
@@ -28,6 +30,9 @@ namespace Port.Server.IntegrationTests.Spdy
         {
             _networkClient = networkClient;
             _frameReader = new FrameReader(_pipe.Reader);
+            _frameWriter = new FrameWriter(networkClient);
+            _headerWriterProvider = new HeaderWriterProvider();
+            _headerReader = new HeaderReader(_frameReader);
             RunReceiver();
         }
 
@@ -84,6 +89,7 @@ namespace Port.Server.IntegrationTests.Spdy
             {
                 return (await Frame.TryReadAsync(
                                        _frameReader,
+                                       _headerReader,
                                        cancellationToken)
                                    .ConfigureAwait(false)).Result;
             }
@@ -106,16 +112,12 @@ namespace Port.Server.IntegrationTests.Spdy
                                 .ConfigureAwait(false);
         }
 
-        public async ValueTask SendAsync(
+        public ValueTask SendAsync(
             Frame payload,
             CancellationToken cancellationToken = default)
-        {
-            await _networkClient.SendAsync(payload,
-                CancellationTokenSource.CreateLinkedTokenSource(
-                                           cancellationToken,
-                                           _cancellationTokenSource.Token)
-                                       .Token)
-                .ConfigureAwait(false);
-        }
+            => payload.WriteAsync(_frameWriter, _headerWriterProvider, CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    _cancellationTokenSource.Token)
+                .Token);
     }
 }

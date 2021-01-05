@@ -1,4 +1,7 @@
+using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,7 +9,6 @@ using FluentAssertions;
 using Moq;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Extensions;
-using Port.Server.Spdy.Zlib;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -16,7 +18,7 @@ namespace Port.Server.UnitTests
     {
         #region Fixture
         private static readonly Encoding Encoding = Encoding.UTF8;
-        
+
         private static readonly string Uncompressed = "POST /cgi-bin/process.cgi HTTP/1.1\r\n" +
                            "User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\n" +
                            "Host: www.tutorialspoint.com\r\n" +
@@ -62,7 +64,7 @@ namespace Port.Server.UnitTests
 
         public class When_compressing_http_headers_with_custom_dictionary : XUnit2UnitTestSpecificationAsync
         {
-            private byte[] _compressedBytes;
+            private byte[] _compressedBytes = new byte[CompressedBytes.Length];
 
             public When_compressing_http_headers_with_custom_dictionary(
                 ITestOutputHelper output) : base(output)
@@ -72,21 +74,22 @@ namespace Port.Server.UnitTests
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                var memory = new MemoryStream();
-                await using (memory.ConfigureAwait(false))
+                var headerWriterProvider = DisposeAsyncOnTearDown(new HeaderWriterProvider());
+                var pipe = new Pipe();
+                var headerWriter = await headerWriterProvider
+                                         .RequestLastWriterAsync(
+                                             pipe.Writer, 
+                                             cancellationToken)
+                                         .ConfigureAwait(false);
+                await using (headerWriter.ConfigureAwait(false))
                 {
-                    var zlibWriter = new ZlibWriter(
-                        memory, SpdyConstants.HeadersDictionary);
-                    await using (zlibWriter.ConfigureAwait(false))
-                    {
-                        await zlibWriter.WriteBytesAsync(
-                                            UncompressedBytes,
-                                            cancellationToken)
-                                        .ConfigureAwait(false);
-                    }
+                    await headerWriter.WriteBytesAsync(UncompressedBytes, cancellationToken)
+                                      .ConfigureAwait(false);
                 }
 
-                _compressedBytes = memory.ToArray();
+                await using var memory = new MemoryStream(_compressedBytes);
+                await pipe.Reader.CopyToAsync(memory, cancellationToken)
+                          .ConfigureAwait(false);
             }
 
             [Fact]
@@ -99,7 +102,7 @@ namespace Port.Server.UnitTests
         public class When_decompressing_http_headers_with_custom_dictionary : XUnit2UnitTestSpecificationAsync
         {
             private byte[] _decompressedBytes;
-            private ZlibReader _reader;
+            private HeaderReader _reader;
 
             public When_decompressing_http_headers_with_custom_dictionary(
                 ITestOutputHelper output) : base(output)
@@ -116,18 +119,20 @@ namespace Port.Server.UnitTests
                                    It.IsAny<CancellationToken>()))
                            .Returns(new ValueTask<byte[]>(CompressedBytes));
 
-                _reader = new ZlibReader(
-                    frameReader.Object, SpdyConstants.HeadersDictionary,
-                    CompressedBytes.Length);
-                
+                _reader = DisposeAsyncOnTearDown(new HeaderReader(
+                    frameReader.Object));
+
                 return Task.CompletedTask;
             }
 
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
+                var reader = await _reader.RequestReaderAsync(
+                                 CompressedBytes.Length, cancellationToken)
+                             .ConfigureAwait(false);
                 _decompressedBytes =
-                    await _reader.ReadBytesAsync(
+                    await reader.ReadBytesAsync(
                                      UncompressedBytes.Length,
                                      cancellationToken)
                                  .ConfigureAwait(false);

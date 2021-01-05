@@ -73,8 +73,9 @@ namespace Port.Server.Spdy.Frames
             return new Data(streamId, Options.Fin, payload);
         }
         
-        protected override async ValueTask WriteFrameAsync(
+        internal override async ValueTask WriteAsync(
             IFrameWriter frameWriter,
+            IHeaderWriterProvider _,
             CancellationToken cancellationToken = default)
         {
             var data = StreamId
