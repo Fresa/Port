@@ -9,6 +9,7 @@ using Log.It;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
+using Port.Server.Spdy.Frames;
 using Port.Shared;
 using ReadResult = System.IO.Pipelines.ReadResult;
 
@@ -127,6 +128,7 @@ namespace Port.Server
                         })));
 
                 using var errorStream = _spdySession.Open(
+                    options: SynStream.Options.Fin,
                     headers: new NameValueHeaderBlock(
                         (Kubernetes.Headers.PortForward.StreamType.Key, new[]
                         {
@@ -163,8 +165,10 @@ namespace Port.Server
                     await Task.WhenAll(
                             errorStream.Local.WaitForClosedAsync(cancellationToken),
                             errorStream.Remote.WaitForClosedAsync(cancellationToken),
-                            stream.Local.WaitForClosedAsync(cancellationToken),
-                            stream.Remote.WaitForClosedAsync(cancellationToken))
+                            stream.Local.WaitForClosedAsync(cancellationToken)
+                                  .ContinueWith(task => _cancellationTokenSource.CancelAfter(1000), cancellationToken),
+                            stream.Remote.WaitForClosedAsync(cancellationToken)
+                                  .ContinueWith(task => _cancellationTokenSource.CancelAfter(1000), cancellationToken))
                         .ConfigureAwait(false);
                 }
                 catch when (cancellationToken

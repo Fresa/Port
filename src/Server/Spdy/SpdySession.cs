@@ -179,7 +179,7 @@ namespace Port.Server.Spdy
             Control controlFrame,
             CancellationToken cancellationToken)
         {
-            _logger.Debug("Sending {name} frame to network {@frame}", controlFrame.GetType().Name, controlFrame);
+            _logger.Debug("Sending {name} frame to remote {@frame}", controlFrame.GetType().Name, controlFrame);
             return SendAsync((Frame)controlFrame, cancellationToken);
         }
 
@@ -222,8 +222,8 @@ namespace Port.Server.Spdy
             }
 
             _logger.Debug(
-                "Sending Data frame to network {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
-                data.StreamId, 
+                "Sending Data frame to remote {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
+                data.StreamId,
                 data.IsLastFrame,
                 data.Payload.Length);
             await SendAsync((Frame)data, cancellationToken)
@@ -309,7 +309,7 @@ namespace Port.Server.Spdy
                 // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                 if (bytes == 0)
                 {
-                    _logger.Info("Got 0 bytes, stopping receiving more data from the network client");
+                    _logger.Info("Got 0 bytes, stopping receiving data from remote");
                     return;
                 }
                 _messageReceiver.Writer.Advance(bytes);
@@ -319,8 +319,7 @@ namespace Port.Server.Spdy
             } while (_sessionCancellationTokenSource
                          .IsCancellationRequested ==
                      false &&
-                     result.IsCanceled == false &&
-                     result.IsCompleted == false);
+                     result.HasMore());
         }
 
         private async Task HandleMessagesAsync()
@@ -562,14 +561,8 @@ namespace Port.Server.Spdy
                     .ConfigureAwait(false);
             }
 
-            try
-            {
-                _sessionCancellationTokenSource.Cancel(false);
-            }
-            catch
-            {
-                // Try cancel
-            }
+            _sendingCancellationTokenSource.Cancel(false);
+            _sessionCancellationTokenSource.Cancel(false);
 
             await Task.WhenAll(
                           _receivingTask, _sendingTask, _messageHandlerTask)
