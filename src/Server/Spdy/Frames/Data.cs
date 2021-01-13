@@ -94,7 +94,7 @@ namespace Port.Server.Spdy.Frames
                 .ConfigureAwait(false);
         }
 
-        internal new static async ValueTask<ReadResult<Data>> TryReadAsync(
+        internal static async ValueTask<ReadResult<Data>> TryReadAsync(
             IFrameReader frameReader,
             CancellationToken cancellation = default)
         {

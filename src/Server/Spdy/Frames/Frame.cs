@@ -8,7 +8,7 @@ namespace Port.Server.Spdy.Frames
 {
     public abstract class Frame
     {
-        private static ILogger _logger = LogFactory.Create<Frame>();
+        private static readonly ILogger Logger = LogFactory.Create<Frame>();
         internal static async ValueTask<ReadResult<Frame>> TryReadAsync(
             IFrameReader frameReader,
             IHeaderReader headerReader,
@@ -18,7 +18,7 @@ namespace Port.Server.Spdy.Frames
             {
                 var firstByte = await frameReader.PeekByteAsync(cancellation)
                                                  .ConfigureAwait(false);
-                _logger.Debug("Started reading frame");
+                Logger.Trace("Started reading frame");
                 var isControlFrame = (firstByte & 0x80) != 0;
                 if (isControlFrame)
                 {
