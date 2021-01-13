@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
@@ -97,10 +98,10 @@ namespace Port.Server
             }
         }
 
-        private static int _requestId = 0;
+        private static int _requestId;
         private async Task StartPortForwardingAsync(INetworkClient client)
         {
-            using var _ = _logger.LogicalThread.With(
+            using var _ = _logger.LogicalThread.Capture(
                 "local-socket-id", Guid.NewGuid());
             await using (client.ConfigureAwait(false))
             {
@@ -109,7 +110,7 @@ namespace Port.Server
                         CancellationToken);
                 var cancellationToken = cancellationTokenSource.Token;
 
-                var requestId = Interlocked.Increment(ref _requestId);
+                var requestId = Interlocked.Increment(ref _requestId).ToString();
                 using var stream = _spdySession.Open(
                     headers: new NameValueHeaderBlock(
                         (Kubernetes.Headers.PortForward.StreamType.Key, new[]
@@ -122,11 +123,28 @@ namespace Port.Server
                         }),
                         (Kubernetes.Headers.PortForward.RequestId, new[]
                         {
-                            requestId.ToString()
+                            requestId
                         })));
 
+                using var errorStream = _spdySession.Open(
+                    headers: new NameValueHeaderBlock(
+                        (Kubernetes.Headers.PortForward.StreamType.Key, new[]
+                        {
+                            Kubernetes.Headers.PortForward.StreamType.Error
+                        }),
+                        (Kubernetes.Headers.PortForward.Port, new[]
+                        {
+                            _portForward.PodPort.ToString()
+                        }),
+                        (Kubernetes.Headers.PortForward.RequestId, new[]
+                        {
+                            requestId
+                        })));
+                
                 var sendingTask = Task.CompletedTask;
                 var receivingTask = Task.CompletedTask;
+                var receivingErrorsTask = Task.CompletedTask;
+                
                 try
                 {
                     sendingTask = StartSendingAsync(
@@ -137,11 +155,17 @@ namespace Port.Server
                         client,
                         stream,
                         cancellationToken);
+                    receivingErrorsTask = StartReceivingAsync(
+                        new LogErrorStreamNetworkClient(), 
+                        errorStream,
+                        cancellationToken);
 
-                    await stream.Local.WaitForClosedAsync(cancellationToken)
-                                .ConfigureAwait(false);
-                    await stream.Remote.WaitForClosedAsync(cancellationToken)
-                                .ConfigureAwait(false);
+                    await Task.WhenAll(
+                            errorStream.Local.WaitForClosedAsync(cancellationToken),
+                            errorStream.Remote.WaitForClosedAsync(cancellationToken),
+                            stream.Local.WaitForClosedAsync(cancellationToken),
+                            stream.Remote.WaitForClosedAsync(cancellationToken))
+                        .ConfigureAwait(false);
                 }
                 catch when (cancellationToken
                     .IsCancellationRequested)
@@ -175,7 +199,7 @@ namespace Port.Server
                     // Wait for the tasks to complete otherwise
                     // we risk to dispose the stream and the local
                     // socket client while being in used
-                    await Task.WhenAll(sendingTask, receivingTask)
+                    await Task.WhenAll(sendingTask, receivingTask, receivingErrorsTask)
                               .ConfigureAwait(false);
                 }
             }
@@ -188,6 +212,9 @@ namespace Port.Server
         {
             try
             {
+                using var _ = _logger.LogicalThread.Capture(
+                    "stream-id", spdyStream.Id);
+
                 using var memoryOwner = MemoryPool<byte>.Shared.Rent(65536);
                 var memory = memoryOwner.Memory;
                 FlushResult sendResult;
@@ -249,10 +276,13 @@ namespace Port.Server
         {
             try
             {
+                using var _ = _logger.LogicalThread.Capture(
+                    "stream-id", spdyStream.Id);
+
                 ReadResult content;
                 do
                 {
-                    _logger.Trace("Receiving from remote socket");
+                    _logger.Trace("Waiting for data from remote socket...");
                     content = await spdyStream
                                     .ReceiveAsync(
                                         cancellationToken: cancellationToken)
@@ -270,6 +300,8 @@ namespace Port.Server
                     {
                         _logger.Trace("Sending {bytes} bytes to local socket",
                             sequence.Length);
+                        _logger.Trace(
+                            Encoding.ASCII.GetString(sequence.ToArray()));
                         await localSocket
                               .SendAsync(
                                   sequence,
