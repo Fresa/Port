@@ -99,7 +99,6 @@ namespace Port.Server
                 IPAddress.Any,
                 (int) portForward.LocalPort,
                 portForward.ProtocolType);
-            _disposables.Add(socketServer);
 
             if (await _featureManager
                       .IsEnabledAsync(nameof(Features.PortForwardingWithSpdy))
@@ -111,9 +110,9 @@ namespace Port.Server
                                               new[] {portForward.PodPort},
                                               cancellationToken)
                                           .ConfigureAwait(false);
-                _disposables.Add(session);
                 _disposables.Add(
                     SpdyStreamForwarder.Start(socketServer, session, portForward));
+                _disposables.Add(session);
             }
             else
             {
@@ -129,6 +128,7 @@ namespace Port.Server
                     .Start(socketServer, webSocket);
                 _disposables.Add(streamForwarder);
             }
+            _disposables.Add(socketServer);
         }
 
         public async ValueTask DisposeAsync()
