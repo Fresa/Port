@@ -75,7 +75,10 @@ namespace Port.Server
                     service.Metadata.Name,
                     service.Spec.Ports.Select(
                         port => new Shared.Port(
-                            port.Port,
+                            int.TryParse(
+                                port.TargetPort.Value, out var targetPort)
+                                ? targetPort
+                                : port.NodePort ?? port.Port,
                             Enum.Parse<ProtocolType>(port.Protocol, true))),
                     service.Spec.Selector));
         }
