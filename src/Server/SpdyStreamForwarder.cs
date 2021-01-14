@@ -166,9 +166,9 @@ namespace Port.Server
                             errorStream.Local.WaitForClosedAsync(cancellationToken),
                             errorStream.Remote.WaitForClosedAsync(cancellationToken),
                             stream.Local.WaitForClosedAsync(cancellationToken)
-                                  .ContinueWith(task => _cancellationTokenSource.CancelAfter(1000), cancellationToken),
+                                  .ContinueWith(task => cancellationTokenSource.CancelAfter(1000), cancellationToken),
                             stream.Remote.WaitForClosedAsync(cancellationToken)
-                                  .ContinueWith(task => _cancellationTokenSource.CancelAfter(1000), cancellationToken))
+                                  .ContinueWith(task => cancellationTokenSource.CancelAfter(1000), cancellationToken))
                         .ConfigureAwait(false);
                 }
                 catch when (cancellationToken
@@ -198,7 +198,7 @@ namespace Port.Server
                     //This will most likely change when we need to report
                     //back that the forwarding terminated or that we
                     //should retry
-                    _cancellationTokenSource.CancelAfter(1000);
+                    cancellationTokenSource.CancelAfter(1000);
 
                     // Wait for the tasks to complete otherwise
                     // we risk to dispose the stream and the local
