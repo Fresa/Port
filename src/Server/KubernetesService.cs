@@ -135,14 +135,13 @@ namespace Port.Server
         {
             _cancellationSource.Cancel();
 
-            await Task.WhenAll(
-                          _disposables
-                              .Select(disposable => disposable.DisposeAsync())
-                              .Where(
-                                  valueTask
-                                      => !valueTask.IsCompletedSuccessfully)
-                              .Select(valueTask => valueTask.AsTask()))
-                      .ConfigureAwait(false);
+            // The disposables have order dependencies so they need to be
+            // disposed fully in the order they have been registered
+            foreach (var disposable in _disposables)
+            {
+                await disposable.DisposeAsync()
+                                .ConfigureAwait(false);
+            }
         }
     }
 }
