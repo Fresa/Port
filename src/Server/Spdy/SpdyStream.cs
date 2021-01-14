@@ -62,14 +62,14 @@ namespace Port.Server.Spdy
         {
             if (_remote.Open())
             {
-                _logger.Trace("Remote opened");
+                _logger.Info($"[{_synStream.StreamId}]: Remote opened");
             }
         }
         private void CloseRemote()
         {
             if (_remote.Close())
             {
-                _logger.Trace("Remote closed");
+                _logger.Info($"[{_synStream.StreamId}]: Remote closed");
             }
         }
         private void OpenLocal()
@@ -77,14 +77,14 @@ namespace Port.Server.Spdy
             var opened = _local.Open();
             if (opened)
             {
-                _logger.Trace("Local opened");
+                _logger.Info($"[{_synStream.StreamId}]: Local opened");
             }
         }
         private void CloseLocal()
         {
             if (_local.Close())
             {
-                _logger.Trace("Local closed");
+                _logger.Info($"[{_synStream.StreamId}]: Local closed");
             }
         }
 
@@ -177,14 +177,14 @@ namespace Port.Server.Spdy
                     _receivingQueue.Enqueue(data);
                     _frameAvailable.Release();
 
-                    _logger.Trace("{length} bytes data received", data.Payload.Length);
+                    _logger.Trace($"[{_synStream.StreamId}]: {data.Payload.Length} bytes data received");
                     if (data.IsLastFrame)
                     {
                         CloseRemote();
                     }
                     return;
                 default:
-                    throw new InvalidOperationException($"{frame.GetType()} was not handled");
+                    throw new InvalidOperationException($"[{_synStream.StreamId}]: {frame.GetType()} was not handled");
             }
         }
 
@@ -285,7 +285,7 @@ namespace Port.Server.Spdy
                     type,
                     control) =>
                 {
-                    _logger.Debug(
+                    _logger.Debug($"[{_synStream.StreamId}]: " +
                         "{Name} has already been sent, ignoring sending {@message}",
                         type.Name, rstStream);
                     return control;
@@ -343,7 +343,7 @@ namespace Port.Server.Spdy
             {
                 if (acquired == false)
                 {
-                    throw new InvalidOperationException("Data is currently being sent");
+                    throw new InvalidOperationException($"[{_synStream.StreamId}]: Data is currently being sent");
                 }
 
                 var index = 0;
@@ -471,7 +471,7 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
-                    _logger.Trace(
+                    _logger.Trace($"[{_synStream.StreamId}]: " + 
                         "Received data frame with payload length of {length} bytes",
                         frame.Payload.Length);
                     
@@ -487,10 +487,10 @@ namespace Port.Server.Spdy
 
                 try
                 {
-                    _logger.Trace("Waiting for an available frame");
+                    _logger.Trace($"[{_synStream.StreamId}]: Waiting for an available frame");
                     await _frameAvailable.WaitAsync(token)
                                          .ConfigureAwait(false);
-                    _logger.Trace("Available frame signaled");
+                    _logger.Trace($"[{_synStream.StreamId}]: Available frame signaled");
                 }
                 catch when (token.IsCancellationRequested)
                 {
