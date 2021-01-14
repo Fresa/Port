@@ -29,6 +29,7 @@ namespace Port.Server.Spdy
         private readonly RstStream _streamAlreadyClosedError;
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
+        private readonly ConcurrentDictionary<Type, Control> _controlFramesSent = new ConcurrentDictionary<Type, Control>();
 
         private readonly ObservableConcurrentDictionary<string, string[]> _headers = new ObservableConcurrentDictionary<string, string[]>();
 
@@ -266,7 +267,20 @@ namespace Port.Server.Spdy
             CloseRemote();
             CloseLocal();
 
-            Send((Frame)rstStream);
+            _controlFramesSent.AddOrUpdate(
+                typeof(RstStream), _ =>
+                {
+                    Send((Frame) rstStream);
+                    return rstStream;
+                }, (
+                    type,
+                    control) =>
+                {
+                    _logger.Debug(
+                        "{Name} has already been sent, ignoring sending {@message}",
+                        type.Name, rstStream);
+                    return control;
+                });
         }
 
         private void Send(
