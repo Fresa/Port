@@ -60,23 +60,32 @@ namespace Port.Server.Spdy
 
         private void OpenRemote()
         {
-            _remote.Open();
-            _logger.Trace("Remote opened");
+            if (_remote.Open())
+            {
+                _logger.Trace("Remote opened");
+            }
         }
         private void CloseRemote()
         {
-            _remote.Close();
-            _logger.Trace("Remote closed");
+            if (_remote.Close())
+            {
+                _logger.Trace("Remote closed");
+            }
         }
         private void OpenLocal()
         {
-            _local.Open();
-            _logger.Trace("Local opened");
+            var opened = _local.Open();
+            if (opened)
+            {
+                _logger.Trace("Local opened");
+            }
         }
         private void CloseLocal()
         {
-            _local.Close();
-            _logger.Trace("Local closed");
+            if (_local.Close())
+            {
+                _logger.Trace("Local closed");
+            }
         }
 
         internal void Receive(
