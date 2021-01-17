@@ -122,7 +122,7 @@ namespace Port.Server.Spdy
                     }
                     catch (Exception ex)
                     {
-                        _logger.Fatal(ex, "Unknown error, closing down");
+                        _logger.Fatal(ex, "Unknown error, closing the session");
                         await StopNetworkSenderAsync()
                             .ConfigureAwait(false);
                         try
@@ -179,7 +179,13 @@ namespace Port.Server.Spdy
             Control controlFrame,
             CancellationToken cancellationToken)
         {
-            _logger.Debug("Sending {name} frame to remote {@frame}", controlFrame.GetType().Name, controlFrame);
+            _logger.Debug(
+                (controlFrame.TryGetStreamId(out var streamId)
+                    ? $"[{streamId}]: "
+                    : "") 
+                + "Sending {name} to remote {@frame}",
+                controlFrame.GetType()
+                            .Name, controlFrame);
             return SendAsync((Frame)controlFrame, cancellationToken);
         }
 
@@ -204,7 +210,7 @@ namespace Port.Server.Spdy
         {
             if (data.Payload.Length > 0)
             {
-                _logger.Debug($"Waiting to send Data frame with payload size {data.Payload.Length} for stream id {data.StreamId}");
+                _logger.Debug($"[{data.StreamId}]: Waiting to send Data frame with payload size {data.Payload.Length} for stream id {data.StreamId}");
                 using (await _sendDataGate.WaitAsync(cancellationToken)
                                           .ConfigureAwait(false))
                 {
@@ -222,7 +228,7 @@ namespace Port.Server.Spdy
             }
 
             _logger.Debug(
-                "Sending Data frame to remote {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
+                $"[{data.StreamId}]: " + "Sending Data frame to remote {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
                 data.StreamId,
                 data.IsLastFrame,
                 data.Payload.Length);
@@ -244,9 +250,11 @@ namespace Port.Server.Spdy
             }
             catch (OverflowException)
             {
+                var error =
+                    RstStream.FlowControlError(_lastGoodRepliedStreamId);
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top,
-                        RstStream.FlowControlError(_lastGoodRepliedStreamId));
-
+                        error);
+                _logger.Error(error, "Received payload overflowing the buffer window, cancelling the session");
                 _sessionCancellationTokenSource.Cancel(false);
                 return;
             }
@@ -289,7 +297,7 @@ namespace Port.Server.Spdy
                     GoAway.ProtocolError(_lastGoodRepliedStreamId),
                     SessionCancellationToken)
                 .ConfigureAwait(false);
-
+            _logger.Error("Stream with id {streamId} was not found, closing the session", streamId);
             _sessionCancellationTokenSource.Cancel(false);
             return (false, stream)!;
         }
@@ -341,12 +349,16 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false)).Out(
                 out var frame, out var error) == false)
             {
-                _logger.Error(error, "Sending stream error");
+                _logger.Error(error, $"[{error.StreamId}]: Sending stream error");
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.High, error);
                 return;
             }
 
-            _logger.Debug($"Received {frame.GetType().Name} frame");
+            if (frame is Control control)
+            {
+                _logger.LogControlFrameReceived(control);
+            }
+
             bool found;
             SpdyStream? stream;
             switch (frame)
@@ -360,12 +372,21 @@ namespace Port.Server.Spdy
                     {
                         await StopNetworkSenderAsync()
                             .ConfigureAwait(false);
-                        await SendAsync(
-                                GoAway.ProtocolError(_lastGoodRepliedStreamId),
-                                SessionCancellationToken)
-                            .ConfigureAwait(false);
+                        _logger.Error(
+                            "Received a stream with id {id} which is less than the previous received stream which had id {previousId}, closing the session",
+                            synStream.StreamId, previousId);
+                        try
+                        {
+                            await SendAsync(
+                                    GoAway.ProtocolError(_lastGoodRepliedStreamId),
+                                    SessionCancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            _sessionCancellationTokenSource.Cancel(false);
+                        }
 
-                        _sessionCancellationTokenSource.Cancel(false);
                         return;
                     }
 
@@ -388,7 +409,6 @@ namespace Port.Server.Spdy
 
                     break;
                 case SynReply synReply:
-                    _logger.Debug("SynReply: {@synReply}", synReply);
                     (found, stream) =
                         await TryGetStreamOrCloseSessionAsync(synReply.StreamId)
                             .ConfigureAwait(false);
@@ -400,8 +420,6 @@ namespace Port.Server.Spdy
                     stream.Receive(frame);
                     break;
                 case RstStream rstStream:
-                    _logger.Info("RstStream: {@rstStream}", rstStream);
-
                     (found, stream) =
                         await TryGetStreamOrCloseSessionAsync(rstStream.StreamId)
                             .ConfigureAwait(false);
@@ -413,7 +431,6 @@ namespace Port.Server.Spdy
                     stream.Receive(frame);
                     break;
                 case Settings settings:
-                    if (settings.ClearSettings)
                     {
                         _settings.Clear();
                     }
@@ -451,7 +468,7 @@ namespace Port.Server.Spdy
                     _sessionCancellationTokenSource.Cancel(false);
                     Interlocked.Exchange(
                         ref _streamCounter, goAway.LastGoodStreamId);
-                    _logger.Info("Received GoAway {@goAway}, stopping the session", goAway);
+                    _logger.Info($"Received GoAway with reason {Enum.GetName(typeof(GoAway.StatusCode), goAway.Status)}, closing the session");
                     return;
                 case Headers headers:
                     (found, stream) =
@@ -484,6 +501,7 @@ namespace Port.Server.Spdy
                     stream.Receive(windowUpdate);
                     break;
                 case Data data:
+                    _logger.LogDataFrameReceived(data);
                     if (_streams.TryGetValue(
                         data.StreamId,
                         out stream))
@@ -501,10 +519,11 @@ namespace Port.Server.Spdy
                     }
 
                     // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
-                    _logger.Error("Received data for an unknown stream with id {id}, sending INVALID_STREAM", data.StreamId);
+                    var invalidStream = RstStream.InvalidStream(data.StreamId);
+                    _logger.Error(invalidStream, "Received data for an unknown stream with id {id}, sending INVALID_STREAM", data.StreamId);
                     _sendingPriorityQueue.Enqueue(
                         SynStream.PriorityLevel.High,
-                        RstStream.InvalidStream(data.StreamId));
+                        invalidStream);
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -551,18 +570,23 @@ namespace Port.Server.Spdy
 
         public async ValueTask DisposeAsync()
         {
-            var isClosed = _sessionCancellationTokenSource
-                .IsCancellationRequested;
-            if (isClosed == false)
+            try
             {
-                await SendAsync(
-                        GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
-                        SessionCancellationToken)
-                    .ConfigureAwait(false);
+                var isClosed = _sessionCancellationTokenSource
+                    .IsCancellationRequested;
+                if (isClosed == false)
+                {
+                    await SendAsync(
+                            GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
+                            SessionCancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
-
-            _sendingCancellationTokenSource.Cancel(false);
-            _sessionCancellationTokenSource.Cancel(false);
+            finally
+            {
+                _sendingCancellationTokenSource.Cancel(false);
+                _sessionCancellationTokenSource.Cancel(false);
+            }
 
             await Task.WhenAll(
                           _receivingTask, _sendingTask, _messageHandlerTask)

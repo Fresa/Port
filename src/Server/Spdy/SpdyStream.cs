@@ -74,8 +74,7 @@ namespace Port.Server.Spdy
         }
         private void OpenLocal()
         {
-            var opened = _local.Open();
-            if (opened)
+            if (_local.Open())
             {
                 _logger.Info($"[{_synStream.StreamId}]: Local opened");
             }
@@ -471,10 +470,6 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
-                    _logger.Trace($"[{_synStream.StreamId}]: " + 
-                        "Received data frame with payload length of {length} bytes",
-                        frame.Payload.Length);
-                    
                     if (frame.Payload.Length > 0)
                     {
                         Send(new WindowUpdate(Id, (uint)frame.Payload.Length));

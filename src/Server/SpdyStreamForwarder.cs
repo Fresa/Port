@@ -163,7 +163,6 @@ namespace Port.Server
                         cancellationToken);
 
                     await Task.WhenAll(
-                            errorStream.Local.WaitForClosedAsync(cancellationToken),
                             errorStream.Remote.WaitForClosedAsync(cancellationToken),
                             stream.Local.WaitForClosedAsync(cancellationToken)
                                   .ContinueWith(task => cancellationTokenSource.CancelAfter(1000), cancellationToken),
