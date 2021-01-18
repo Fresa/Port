@@ -96,7 +96,7 @@ namespace Port.Server
             using var client = _clientFactory.Create(context);
 
             var socketServer = _networkServerFactory.CreateAndStart(
-                IPAddress.Any,
+                IPAddress.IPv6Any,
                 (int) portForward.LocalPort,
                 portForward.ProtocolType);
 

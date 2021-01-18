@@ -94,7 +94,7 @@ namespace Port.Server.IntegrationTests
                 var client =
                     await _fixture.PortForwardingSocket
                         .ConnectAsync(
-                            new ByteArrayMessageClientFactory(), IPAddress.Any,
+                            new ByteArrayMessageClientFactory(), IPAddress.IPv6Any,
                             1000, ProtocolType.Tcp, cancellationToken)
                         .ConfigureAwait(false);
 
