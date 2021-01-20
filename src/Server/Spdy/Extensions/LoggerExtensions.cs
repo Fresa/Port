@@ -5,32 +5,56 @@ namespace Port.Server.Spdy.Extensions
 {
     internal static class LoggerExtensions
     {
-        internal static void LogDataFrameReceived(
+        internal static void LogFrameReceived(
             this ILogger logger,
-            Data data)
+            int sessionId,
+            Frame frame)
         {
-            logger.Debug(
-                $"[{data.StreamId}]: " +
-                "Received {type}: {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
-                data.GetType()
-                    .Name,
-                data.StreamId,
-                data.IsLastFrame,
-                data.Payload.Length);
+            if (frame.TryGetStreamId(out var streamId))
+            {
+                logger.Debug(
+                    "[{SessionId}:{StreamId}]: Received {FrameType}: {@Frame}",
+                    sessionId,
+                    streamId,
+                    frame.GetType()
+                           .Name,
+                    frame.ToStructuredLogging());
+            }
+            else
+            {
+                logger.Debug(
+                    "[{SessionId}]: Received {FrameType}: {@Frame}",
+                    sessionId,
+                    frame.GetType()
+                           .Name,
+                    frame.ToStructuredLogging());
+            }
         }
 
-        internal static void LogControlFrameReceived(
+        internal static void LogSendingFrame(
             this ILogger logger,
-            Control control)
+            int sessionId,
+            Frame frame)
         {
-            logger.Debug(
-                (control.TryGetStreamId(out var streamId)
-                    ? $"[{streamId}]: "
-                    : "") +
-                "Received {type}: {@frame}",
-                control.GetType()
-                       .Name,
-                control);
+            if (frame.TryGetStreamId(out var streamId))
+            {
+                logger.Debug(
+                    "[{SessionId}:{StreamId}]: Sending {FrameType}: {@Frame}",
+                    sessionId,
+                    streamId,
+                    frame.GetType()
+                         .Name, 
+                    frame.ToStructuredLogging());
+            }
+            else
+            {
+                logger.Debug(
+                    "[{SessionId}]: Sending {FrameType}: {@Frame}",
+                    sessionId,
+                    frame.GetType()
+                         .Name, 
+                    frame.ToStructuredLogging());
+            }
         }
     }
 }

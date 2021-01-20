@@ -218,9 +218,6 @@ namespace Port.Server.Spdy
                                 readLength, CancellationToken)
                             .ConfigureAwait(false);
 
-                        _logger.Trace(
-                            "Compressed bytes read: " +
-                            inputBuffer.ToHexArrayRepresentation());
                         _zlibCodec.NextIn = 0;
                         _zlibCodec.InputBuffer = inputBuffer;
                         _zlibCodec.AvailableBytesIn = inputBuffer.Length;

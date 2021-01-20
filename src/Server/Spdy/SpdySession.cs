@@ -19,6 +19,8 @@ namespace Port.Server.Spdy
         private readonly INetworkClient _networkClient;
         private readonly bool _isClient;
 
+        private static int _sessionCounter;
+
         private readonly FrameWriter _frameWriter;
         private readonly HeaderWriterProvider _headerWriterProvider;
         private readonly FrameReader _frameReader;
@@ -65,6 +67,7 @@ namespace Port.Server.Spdy
 
         public IObservableReadOnlyCollection<Settings.Setting> Settings
             => _settings;
+        public int Id { get; }
 
         private const int InitialWindowSize = 64000;
         private int _windowSize = InitialWindowSize;
@@ -73,6 +76,7 @@ namespace Port.Server.Spdy
             INetworkClient networkClient,
             bool isClient)
         {
+            Id = Interlocked.Increment(ref _sessionCounter);
             _pingId = _streamCounter = isClient ? -1 : 0;
             _isClient = isClient;
 
@@ -122,7 +126,10 @@ namespace Port.Server.Spdy
                     }
                     catch (Exception ex)
                     {
-                        _logger.Fatal(ex, "Unknown error, closing the session");
+                        _logger.Fatal(
+                            ex,
+                            "[{SessionId}]: Unknown error, closing the session",
+                            Id);
                         await StopNetworkSenderAsync()
                             .ConfigureAwait(false);
                         try
@@ -135,7 +142,9 @@ namespace Port.Server.Spdy
                         }
                         catch (Exception e)
                         {
-                            _logger.Error(e, "Could not send GoAway");
+                            _logger.Error(
+                                e, "[{SessionId}]: Could not send GoAway",
+                                Id);
                         }
 
                         _sessionCancellationTokenSource.Cancel(false);
@@ -155,7 +164,9 @@ namespace Port.Server.Spdy
                 switch (frame)
                 {
                     case Data data:
-                        // todo: Should we always wait for data frames to be sent before sending the next frame (which might be a control frame that are not under flow control)?
+                        // todo: Should we always wait for data frames to be sent before sending
+                        // the next frame (which might be a control frame that are not under
+                        // flow control)?
                         await SendAsync(data, SendingCancellationToken)
                             .ConfigureAwait(false);
                         break;
@@ -164,7 +175,8 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false);
                         break;
                     default:
-                        throw new InvalidOperationException($"Frame of type {frame.GetType()} is not supported");
+                        throw new InvalidOperationException(
+                            $"[{Id}]: Frame of type {frame.GetType()} is not supported");
                 }
             }
         }
@@ -175,24 +187,11 @@ namespace Port.Server.Spdy
             return _sendingTask;
         }
 
-        private Task SendAsync(
-            Control controlFrame,
-            CancellationToken cancellationToken)
-        {
-            _logger.Debug(
-                (controlFrame.TryGetStreamId(out var streamId)
-                    ? $"[{streamId}]: "
-                    : "") 
-                + "Sending {name} to remote {@frame}",
-                controlFrame.GetType()
-                            .Name, controlFrame);
-            return SendAsync((Frame)controlFrame, cancellationToken);
-        }
-
         private async Task SendAsync(
             Frame frame,
             CancellationToken cancellationToken)
         {
+            _logger.LogSendingFrame(Id, frame);
             using (await _sendingGate.WaitAsync(cancellationToken)
                                      .ConfigureAwait(false))
             {
@@ -210,7 +209,10 @@ namespace Port.Server.Spdy
         {
             if (data.Payload.Length > 0)
             {
-                _logger.Debug($"[{data.StreamId}]: Waiting to send Data frame with payload size {data.Payload.Length} for stream id {data.StreamId}");
+                _logger.Debug(
+                    "[{SessionId}:{StreamId}]: " +
+                    $"Waiting to send Data frame with payload size {data.Payload.Length}",
+                    Id, data.StreamId);
                 using (await _sendDataGate.WaitAsync(cancellationToken)
                                           .ConfigureAwait(false))
                 {
@@ -227,11 +229,6 @@ namespace Port.Server.Spdy
                 }
             }
 
-            _logger.Debug(
-                $"[{data.StreamId}]: " + "Sending Data frame to remote {{\"StreamId\":{streamId}, \"IsLastFrame\":{isLastFrame}, \"PayloadSize\":{size}}}",
-                data.StreamId,
-                data.IsLastFrame,
-                data.Payload.Length);
             await SendAsync((Frame)data, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -254,7 +251,10 @@ namespace Port.Server.Spdy
                     RstStream.FlowControlError(_lastGoodRepliedStreamId);
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top,
                         error);
-                _logger.Error(error, "Received payload overflowing the buffer window, cancelling the session");
+                _logger.Error(
+                    error,
+                    "[{SessionId}]: Received payload overflowing the buffer window, cancelling the session",
+                    Id);
                 _sessionCancellationTokenSource.Cancel(false);
                 return;
             }
@@ -297,7 +297,9 @@ namespace Port.Server.Spdy
                     GoAway.ProtocolError(_lastGoodRepliedStreamId),
                     SessionCancellationToken)
                 .ConfigureAwait(false);
-            _logger.Error("Stream with id {streamId} was not found, closing the session", streamId);
+            _logger.Error(
+                "[{SessionId}]: Stream with id {StreamId} was not found, closing the session",
+                Id, streamId);
             _sessionCancellationTokenSource.Cancel(false);
             return (false, stream)!;
         }
@@ -317,7 +319,7 @@ namespace Port.Server.Spdy
                 // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                 if (bytes == 0)
                 {
-                    _logger.Info("Got 0 bytes, stopping receiving data from remote");
+                    _logger.Info("[{SessionId}]: Got 0 bytes, stopping receiving data from remote", Id);
                     return;
                 }
                 _messageReceiver.Writer.Advance(bytes);
@@ -349,15 +351,14 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false)).Out(
                 out var frame, out var error) == false)
             {
-                _logger.Error(error, $"[{error.StreamId}]: Sending stream error");
+                _logger.Error(
+                    error, "[{SessionId}:{StreamId}]: Sending stream error",
+                    Id, error.StreamId);
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.High, error);
                 return;
             }
 
-            if (frame is Control control)
-            {
-                _logger.LogControlFrameReceived(control);
-            }
+            _logger.LogFrameReceived(Id, frame);
 
             bool found;
             SpdyStream? stream;
@@ -373,8 +374,10 @@ namespace Port.Server.Spdy
                         await StopNetworkSenderAsync()
                             .ConfigureAwait(false);
                         _logger.Error(
-                            "Received a stream with id {id} which is less than the previous received stream which had id {previousId}, closing the session",
-                            synStream.StreamId, previousId);
+                            "[{SessionId}]: Received a stream with id {StreamId} which is less than the previous received stream which had id {PreviousStreamId}, closing the session",
+                            Id,
+                            synStream.StreamId,
+                            previousId);
                         try
                         {
                             await SendAsync(
@@ -398,7 +401,7 @@ namespace Port.Server.Spdy
                         return;
                     }
 
-                    stream = SpdyStream.Accept(synStream, _sendingPriorityQueue);
+                    stream = SpdyStream.Accept(Id, synStream, _sendingPriorityQueue);
                     _streams.TryAdd(stream.Id, stream);
 
                     await _receivedStreamRequests
@@ -454,7 +457,9 @@ namespace Port.Server.Spdy
 
                     break;
                 case Ping ping:
-                    // If a server receives an even numbered PING which it did not initiate, it must ignore the PING. If a client receives an odd numbered PING which it did not initiate, it must ignore the PING.
+                    // If a server receives an even numbered PING which it did not initiate,
+                    // it must ignore the PING. If a client receives an odd numbered PING
+                    // which it did not initiate, it must ignore the PING.
                     if (_isClient == ping.IsOdd())
                     {
                         break;
@@ -468,7 +473,11 @@ namespace Port.Server.Spdy
                     _sessionCancellationTokenSource.Cancel(false);
                     Interlocked.Exchange(
                         ref _streamCounter, goAway.LastGoodStreamId);
-                    _logger.Info($"Received GoAway with reason {Enum.GetName(typeof(GoAway.StatusCode), goAway.Status)}, closing the session");
+                    _logger.Info(
+                        "[{SessionId}]: Received {FrameType} with reason {GoAwayStatus}, closing the session",
+                        Id,
+                        nameof(GoAway),
+                        goAway.Status.GetName());
                     return;
                 case Headers headers:
                     (found, stream) =
@@ -501,7 +510,6 @@ namespace Port.Server.Spdy
                     stream.Receive(windowUpdate);
                     break;
                 case Data data:
-                    _logger.LogDataFrameReceived(data);
                     if (_streams.TryGetValue(
                         data.StreamId,
                         out stream))
@@ -520,7 +528,11 @@ namespace Port.Server.Spdy
 
                     // If an endpoint receives a data frame for a stream-id which is not open and the endpoint has not sent a GOAWAY (Section 2.6.6) frame, it MUST issue a stream error (Section 2.4.2) with the error code INVALID_STREAM for the stream-id.
                     var invalidStream = RstStream.InvalidStream(data.StreamId);
-                    _logger.Error(invalidStream, "Received data for an unknown stream with id {id}, sending INVALID_STREAM", data.StreamId);
+                    _logger.Error(
+                        invalidStream,
+                        "[{SessionId}]: Received data for an unknown stream with id {StreamId}, sending {RstStatus}",
+                        Id,
+                        data.StreamId, invalidStream.Status.GetName());
                     _sendingPriorityQueue.Enqueue(
                         SynStream.PriorityLevel.High,
                         invalidStream);
@@ -541,7 +553,9 @@ namespace Port.Server.Spdy
             var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
 
             var stream = SpdyStream.Open(
-                    new SynStream(options, streamId, associatedToStreamId, priority, headers),
+                Id,
+                new SynStream(
+                    options, streamId, associatedToStreamId, priority, headers),
                 _sendingPriorityQueue);
             _streams.TryAdd(stream.Id, stream);
 
@@ -549,6 +563,7 @@ namespace Port.Server.Spdy
         }
 
         private readonly SemaphoreSlimGate _receiveGate = SemaphoreSlimGate.OneAtATime;
+
         public async Task<SpdyStream> ReceiveAsync(
             CancellationToken cancellationToken = default)
         {

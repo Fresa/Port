@@ -4,8 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Ionic.Zlib;
-using Log.It;
-using Port.Server.Spdy.Extensions;
 
 namespace Port.Server.Spdy
 {
@@ -13,7 +11,6 @@ namespace Port.Server.Spdy
     {
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         private readonly ValueTask _backgroundTask;
-        private readonly ILogger _logger = LogFactory.Create<HeaderWriter>();
         private readonly ZlibCodec _zlibCodec = new ZlibCodec();
 
         private CancellationToken CancellationToken
@@ -160,7 +157,6 @@ namespace Port.Server.Spdy
                             .ConfigureAwait(false);
                 await writer.FlushAsync(CancellationToken)
                             .ConfigureAwait(false);
-                _logger.Trace("Compressed bytes written: " + data.ToHexArrayRepresentation());
             }
         }
 

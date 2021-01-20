@@ -15,8 +15,11 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         private readonly ILogger _logger = 
             LogFactory.Create<CrossWiredInMemoryNetworkClient>();
 
+        private bool _disconnected;
+
         public async ValueTask DisposeAsync()
         {
+            _disconnected = true;
             await _reader.Reader.CompleteAsync()
                          .ConfigureAwait(false);
             await _writer.Writer.CompleteAsync()
@@ -56,23 +59,30 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
-            var result = await _reader.Reader
-                                    .ReadAsync(cancellationToken)
-                                    .ConfigureAwait(false);
+            try
+            {
+                var result = await _reader.Reader
+                                          .ReadAsync(cancellationToken)
+                                          .ConfigureAwait(false);
 
-            var length = result.Buffer.Length > buffer.Length
-                ? buffer.Length
-                : (int)result.Buffer.Length;
+                var length = result.Buffer.Length > buffer.Length
+                    ? buffer.Length
+                    : (int)result.Buffer.Length;
 
-            var data = result
-                       .Buffer
-                       .Slice(0, length);
-            data.CopyTo(
-                buffer
-                    .Span);
+                var data = result
+                           .Buffer
+                           .Slice(0, length);
+                data.CopyTo(
+                    buffer
+                        .Span);
 
-            _reader.Reader.AdvanceTo(data.End, result.Buffer.End);
-            return length;
+                _reader.Reader.AdvanceTo(data.End, result.Buffer.End);
+                return length;
+            }
+            catch when(_disconnected)
+            {
+                return 0;
+            }
         }
     }
 }

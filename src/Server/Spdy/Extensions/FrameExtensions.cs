@@ -3,10 +3,10 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy.Extensions
 {
-    internal static class ControlExtensions
+    internal static class FrameExtensions
     {
         internal static bool TryGetStreamId(
-            this Control control,
+            this Frame control,
             out UInt31 streamId)
         {
             switch (control)
@@ -23,10 +23,26 @@ namespace Port.Server.Spdy.Extensions
                 case SynStream synStream:
                     streamId = synStream.StreamId;
                     return true;
+                case Data data:
+                    streamId = data.StreamId;
+                    return true;
             }
 
             streamId = default;
             return false;
         }
+
+        internal static object ToStructuredLogging(
+            this Frame frame)
+            => frame switch
+            {
+                Data data => new
+                {
+                    data.StreamId,
+                    data.IsLastFrame,
+                    PayloadSize = data.Payload.Length
+                },
+                _ => frame
+            };
     }
 }

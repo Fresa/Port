@@ -54,6 +54,12 @@ namespace Port.Server.IntegrationTests.Spdy
                                     _cancellationTokenSource
                                         .Token)
                                 .ConfigureAwait(false);
+                            // End of the stream! 
+                            // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
+                            if (bytes == 0)
+                            {
+                                return;
+                            }
                             _pipe.Writer.Advance(bytes);
                             result = await _pipe
                                            .Writer.FlushAsync(
