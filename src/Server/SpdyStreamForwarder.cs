@@ -85,7 +85,7 @@ namespace Port.Server
                 }
                 catch (Exception ex)
                 {
-                    _logger.Fatal(ex, "Unknown error while waiting for clients, closing down");
+                    _logger.Error(ex, "Unknown error while waiting for clients, closing down");
 #pragma warning disable 4014
                     //Cancel and exit fast
                     //This will most likely change when we need to report
@@ -160,10 +160,16 @@ namespace Port.Server
                         cancellationToken);
 
                     await Task.WhenAny(
-                            errorStream.Remote.WaitForClosedAsync(cancellationToken),
                             stream.Local.WaitForClosedAsync(cancellationToken),
                             stream.Remote.WaitForClosedAsync(cancellationToken))
                         .ConfigureAwait(false);
+
+                    // Remote has closed. Let the receiving local socket
+                    // receive any in-flight data before cancelling
+                    if (stream.Local.IsOpen)
+                    {
+                        await receivingTask.ConfigureAwait(false);
+                    }
                 }
                 catch when (cancellationToken
                     .IsCancellationRequested)
@@ -176,27 +182,19 @@ namespace Port.Server
                         "[{SessionId},{StreamId}]: Unknown error while sending and receiving data, " +
                         "closing down",
                         _spdySession.Id,
-                        errorStream.Id);
+                        stream.Id);
                 }
                 finally
                 {
-                    // todo:
-                    // Hack!
-                    // There is a race condition when the spdy stream is 
-                    // reported as fully closed but the last data might not
-                    // have been fully sent to the client. By stalling for 
-                    // a while we let the remote receiving background worker
-                    // do it's job for a little while longer.
-                    // Ideally we should let this process work until it's done
-                    // sending all data, but we cannot let the process run
-                    // potentially forever, the application might be in a stopping
-                    // state, and at some point we have to let go.
-                    cancellationTokenSource.CancelAfter(1000);
+                    cancellationTokenSource.Cancel();
 
                     await Task.WhenAll(sendingTask, receivingTask, receivingErrorsTask)
                               .ConfigureAwait(false);
 
-                    _logger.Trace("Disconnecting local socket");
+                    _logger.Info(
+                        "[{SessionId},{StreamId}]: Port forward stream has completed, disconnecting local socket",
+                        _spdySession.Id,
+                        stream.Id);
                 }
             }
         }
@@ -247,7 +245,8 @@ namespace Port.Server
 
                     sendResult = await spdyStream
                                        .SendAsync(
-                                           memory.Slice(0, bytesReceived))
+                                           memory.Slice(0, bytesReceived),
+                                           cancellationToken: cancellationToken)
                                        .ConfigureAwait(false);
                     _logger.Trace(
                         "[{SessionId}:{StreamId}]: Sending to remote socket complete",
@@ -312,7 +311,7 @@ namespace Port.Server
                             Encoding.ASCII.GetString(sequence.ToArray()));
                         await localSocket
                               .SendAsync(
-                                  sequence)
+                                  sequence, cancellationToken)
                               .ConfigureAwait(false);
                         _logger.Trace(
                             "[{SessionId}:{StreamId}]: Sending to local socket complete",
