@@ -69,7 +69,7 @@ namespace Port.Server.Spdy
                 _logger.Info("[{SessionId}:{StreamId}]: Remote opened", SessionId, Id);
             }
         }
-        private void CloseRemote(bool fin = false)
+        private void CloseRemote()
         {
             if (_remote.Close())
             {
@@ -426,7 +426,7 @@ namespace Port.Server.Spdy
                 CloseLocal();
             }
 
-            return new FlushResult(false, true);
+            return new FlushResult(false, isFin);
         }
 
         public Task<FlushResult> SendHeadersAsync(
@@ -545,11 +545,7 @@ namespace Port.Server.Spdy
             {
                 Send(RstStream.Cancel(Id));
             }
-            else
-            {
-                CloseLocal();
-            }
-
+            
             if (Remote.IsOpen)
             {
                 CloseRemote();
