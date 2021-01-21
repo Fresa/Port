@@ -96,7 +96,8 @@ namespace Port.Server
                 address.AddressFamily,
                 SocketType.Stream,
                 protocolType);
-
+            _clientAcceptingSocket.SetSocketOption(
+                SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
             _clientAcceptingSocket.Bind(endPoint);
             var localEndPoint =
                 (IPEndPoint) _clientAcceptingSocket.LocalEndPoint;

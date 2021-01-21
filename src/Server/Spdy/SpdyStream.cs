@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Endpoint;
+using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
 
@@ -29,15 +30,18 @@ namespace Port.Server.Spdy
         private readonly RstStream _streamAlreadyClosedError;
 
         private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
+        private readonly ConcurrentDictionary<Type, Control> _controlFramesSent = new ConcurrentDictionary<Type, Control>();
 
         private readonly ObservableConcurrentDictionary<string, string[]> _headers = new ObservableConcurrentDictionary<string, string[]>();
 
         public IObservableReadOnlyDictionary<string, string[]> Headers => _headers;
+        public int SessionId { get; }
 
         private int _windowSize = 64000;
         private int _initialWindowSize = 64000;
 
         private SpdyStream(
+            int sessionId,
             SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
         {
@@ -48,6 +52,7 @@ namespace Port.Server.Spdy
             _protocolError = RstStream.ProtocolError(Id);
             _flowControlError = RstStream.FlowControlError(Id);
             _streamAlreadyClosedError = RstStream.StreamAlreadyClosed(Id);
+            SessionId = sessionId;
         }
 
         public UInt31 Id => _synStream.StreamId;
@@ -59,23 +64,31 @@ namespace Port.Server.Spdy
 
         private void OpenRemote()
         {
-            _remote.Open();
-            _logger.Trace("Remote opened");
+            if (_remote.Open())
+            {
+                _logger.Info("[{SessionId}:{StreamId}]: Remote opened", SessionId, Id);
+            }
         }
-        private void CloseRemote()
+        private void CloseRemote(bool fin = false)
         {
-            _remote.Close();
-            _logger.Trace("Remote closed");
+            if (_remote.Close())
+            {
+                _logger.Info("[{SessionId}:{StreamId}]: Remote closed", SessionId, Id);
+            }
         }
         private void OpenLocal()
         {
-            _local.Open();
-            _logger.Trace("Local opened");
+            if (_local.Open())
+            {
+                _logger.Info("[{SessionId}:{StreamId}]: Local opened", SessionId, Id);
+            }
         }
         private void CloseLocal()
         {
-            _local.Close();
-            _logger.Trace("Local closed");
+            if (_local.Close())
+            {
+                _logger.Info("[{SessionId}:{StreamId}]: Local closed", SessionId, Id);
+            }
         }
 
         internal void Receive(
@@ -92,13 +105,29 @@ namespace Port.Server.Spdy
                         break;
                     case SynReply _:
                         break;
-                    default:
+                    case Data _:
                         if (Local.IsClosed)
                         {
+                            _logger.Error(
+                                _protocolError,
+                                "[{SessionId}:{StreamId}]: The stream is fully closed. Received: {@Frame}",
+                                SessionId, Id,
+                                frame.ToStructuredLogging());
                             Send(_protocolError);
                             return;
                         }
+
+                        // If an endpoint receives a data frame after the stream is half-closed from the
+                        // sender (e.g. the endpoint has already received a prior frame for the stream
+                        // with the FIN flag set), it MUST send a RST_STREAM to the sender with the
+                        // status STREAM_ALREADY_CLOSED.
+                        _logger.Error(
+                            _protocolError,
+                            "[{SessionId}:{StreamId}]: The remote stream is closed. Received: {@Frame}",
+                            SessionId, Id, frame.ToStructuredLogging());
                         Send(_streamAlreadyClosedError);
+                        return;
+                    default:
                         return;
                 }
             }
@@ -125,7 +154,13 @@ namespace Port.Server.Spdy
                     }
 
                     return;
-                case RstStream _:
+                case RstStream rstStream:
+                    _controlFramesReceived.TryAdd(typeof(RstStream), rstStream);
+                    _logger.Warning(
+                        rstStream,
+                        "[{SessionId}:{StreamId}]: Received {FrameType}, closing stream. {@Frame}",
+                        SessionId, Id, frame.GetType()
+                                            .Name, frame);
                     CloseRemote();
                     CloseLocal();
                     return;
@@ -157,9 +192,16 @@ namespace Port.Server.Spdy
 
                     break;
                 case Data data:
-                    // If the endpoint which created the stream receives a data frame before receiving a SYN_REPLY on that stream, it is a protocol error, and the recipient MUST issue a stream error (Section 2.4.2) with the status code PROTOCOL_ERROR for the stream-id.
+                    // If the endpoint which created the stream receives a data frame
+                    // before receiving a SYN_REPLY on that stream, it is a protocol
+                    // error, and the recipient MUST issue a stream error (Section 2.4.2)
+                    // with the status code PROTOCOL_ERROR for the stream-id.
                     if (_controlFramesReceived.ContainsKey(typeof(SynReply)) == false)
                     {
+                        _logger.Error(
+                            _protocolError,
+                            "[{SessionId}:{StreamId}]: {FrameType} has already been received",
+                            SessionId, Id, nameof(SynReply));
                         Send(_protocolError);
                         return;
                     }
@@ -167,14 +209,14 @@ namespace Port.Server.Spdy
                     _receivingQueue.Enqueue(data);
                     _frameAvailable.Release();
 
-                    _logger.Trace("{length} bytes data received", data.Payload.Length);
                     if (data.IsLastFrame)
                     {
                         CloseRemote();
                     }
                     return;
                 default:
-                    throw new InvalidOperationException($"{frame.GetType()} was not handled");
+                    throw new InvalidOperationException(
+                        $"[{SessionId}:{Id}]: {frame.GetType()} was not handled");
             }
         }
 
@@ -188,6 +230,12 @@ namespace Port.Server.Spdy
                     continue;
                 }
 
+                _logger.Error(
+                    _protocolError,
+                    "[{SessionId}:{StreamId}]: " +
+                    $"Header with key '{key}' has been sent twice",
+                    SessionId,
+                    Id);
                 Send(_protocolError);
                 break;
             }
@@ -196,12 +244,13 @@ namespace Port.Server.Spdy
         public SynStream.PriorityLevel Priority => _synStream.Priority;
 
         internal static SpdyStream Accept(
+            int sessionId,
             SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue,
             NameValueHeaderBlock? headers =
                 default)
         {
-            var stream = new SpdyStream(synStream, sendingPriorityQueue);
+            var stream = new SpdyStream(sessionId, synStream, sendingPriorityQueue);
             stream.Accept(headers);
             return stream;
         }
@@ -233,10 +282,11 @@ namespace Port.Server.Spdy
         }
 
         internal static SpdyStream Open(
+            int sessionId,
             SynStream synStream,
             ConcurrentPriorityQueue<Frame> sendingPriorityQueue)
         {
-            var stream = new SpdyStream(synStream, sendingPriorityQueue);
+            var stream = new SpdyStream(sessionId, synStream, sendingPriorityQueue);
             stream.Open();
             return stream;
         }
@@ -266,6 +316,8 @@ namespace Port.Server.Spdy
             CloseRemote();
             CloseLocal();
 
+            _controlFramesSent.TryAdd(
+                typeof(RstStream), rstStream);
             Send((Frame)rstStream);
         }
 
@@ -320,7 +372,8 @@ namespace Port.Server.Spdy
             {
                 if (acquired == false)
                 {
-                    throw new InvalidOperationException("Data is currently being sent");
+                    throw new InvalidOperationException(
+                        $"[{SessionId}:{Id}]: Data is currently being sent");
                 }
 
                 var index = 0;
@@ -331,7 +384,7 @@ namespace Port.Server.Spdy
                     {
                         return new FlushResult(true, false);
                     }
-                    
+
                     var windowSize = _windowSize;
                     var length = windowSize > left ? left : windowSize;
 
@@ -384,7 +437,7 @@ namespace Port.Server.Spdy
         {
             if (Local.IsClosed)
             {
-                throw new InvalidOperationException("Stream is closed");
+                return Task.FromResult(new FlushResult(true, false));
             }
 
             if (options == Frames.Headers.Options.Fin)
@@ -434,12 +487,12 @@ namespace Port.Server.Spdy
                 cancellationToken,
                 _remote.Cancellation
             };
-            
+
             if (timeout != default)
             {
                 tokens.Add(new CancellationTokenSource(timeout).Token);
             }
-            
+
             var token = CancellationTokenSource
                         .CreateLinkedTokenSource(tokens.ToArray())
                         .Token;
@@ -448,10 +501,6 @@ namespace Port.Server.Spdy
             {
                 if (_receivingQueue.TryDequeue(out var frame))
                 {
-                    _logger.Trace(
-                        "Received data frame with payload length of {length} bytes",
-                        frame.Payload.Length);
-                    
                     if (frame.Payload.Length > 0)
                     {
                         Send(new WindowUpdate(Id, (uint)frame.Payload.Length));
@@ -464,10 +513,14 @@ namespace Port.Server.Spdy
 
                 try
                 {
-                    _logger.Trace("Waiting for an available frame");
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: Waiting for an available frame",
+                        SessionId, Id);
                     await _frameAvailable.WaitAsync(token)
                                          .ConfigureAwait(false);
-                    _logger.Trace("Available frame signaled");
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: Available frame signaled",
+                        SessionId, Id);
                 }
                 catch when (token.IsCancellationRequested)
                 {

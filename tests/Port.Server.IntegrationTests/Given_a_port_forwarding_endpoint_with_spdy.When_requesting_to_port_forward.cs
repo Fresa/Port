@@ -67,6 +67,10 @@ namespace Port.Server.IntegrationTests
                                           stream, cancellationToken)
                                       .ConfigureAwait(false))
                             {
+                                await stream.SendLastAsync(
+                                                ReadOnlyMemory<byte>.Empty,
+                                                cancellationToken: cancellationToken)
+                                            .ConfigureAwait(false);
                                 return;
                             }
                         } while (cancellationToken
@@ -94,17 +98,19 @@ namespace Port.Server.IntegrationTests
                 var client =
                     await _fixture.PortForwardingSocket
                         .ConnectAsync(
-                            new ByteArrayMessageClientFactory(), IPAddress.Any,
+                            new ByteArrayMessageClientFactory(), IPAddress.IPv6Any,
                             1000, ProtocolType.Tcp, cancellationToken)
                         .ConfigureAwait(false);
+                await using (client.ConfigureAwait(false))
+                {
+                    await client.SendAsync(
+                                    Encoding.ASCII.GetBytes(_fixture.Request),
+                                    cancellationToken)
+                                .ConfigureAwait(false);
 
-                await client.SendAsync(
-                    Encoding.ASCII.GetBytes(_fixture.Request),
-                    cancellationToken)
-                    .ConfigureAwait(false);
-
-                await _fixture.WaitForResponseAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                    await _fixture.WaitForResponseAsync(cancellationToken)
+                                  .ConfigureAwait(false);
+                }
             }
 
             [Fact(

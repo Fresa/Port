@@ -31,8 +31,9 @@ namespace Port.Server.Spdy.Frames
         /// </summary>
         protected byte Flags { get; set; }
 
-        protected sealed override async ValueTask WriteFrameAsync(
+        internal sealed override async ValueTask WriteAsync(
             IFrameWriter frameWriter,
+            IHeaderWriterProvider headerWriterProvider,
             CancellationToken cancellationToken = default)
         {
             await frameWriter.WriteUShortAsync(
@@ -43,16 +44,18 @@ namespace Port.Server.Spdy.Frames
             await frameWriter.WriteByteAsync(Flags, cancellationToken)
                 .ConfigureAwait(false);
 
-            await WriteControlFrameAsync(frameWriter, cancellationToken)
+            await WriteControlFrameAsync(frameWriter, headerWriterProvider, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         protected abstract ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
+            IHeaderWriterProvider headerWriter,
             CancellationToken cancellationToken = default);
         
         internal new static async ValueTask<ReadResult<Control>> TryReadAsync(
             IFrameReader frameReader,
+            IHeaderReader headerReader,
             CancellationToken cancellation = default)
         {
             var version =
@@ -74,10 +77,10 @@ namespace Port.Server.Spdy.Frames
             return type switch
             {
                 SynStream.Type => (await SynStream.TryReadAsync(
-                        flags, length, frameReader, cancellation)
+                        flags, length, frameReader, headerReader, cancellation)
                     .ConfigureAwait(false)).AsControl(),
                 SynReply.Type => (await SynReply.TryReadAsync(
-                        flags, length, frameReader, cancellation)
+                        flags, length, frameReader, headerReader, cancellation)
                     .ConfigureAwait(false)).AsControl(),
                 RstStream.Type => (await RstStream.TryReadAsync(
                         flags, length, frameReader, cancellation)
@@ -92,7 +95,7 @@ namespace Port.Server.Spdy.Frames
                         flags, length, frameReader, cancellation)
                     .ConfigureAwait(false)).AsControl(),
                 Headers.Type => (await Headers.TryReadAsync(
-                        flags, length, frameReader, cancellation)
+                        flags, length, frameReader, headerReader, cancellation)
                     .ConfigureAwait(false)).AsControl(),
                 WindowUpdate.Type => (await WindowUpdate.TryReadAsync(
                         flags, length, frameReader, cancellation)

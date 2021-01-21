@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
 using Port.Server.Spdy.Collections;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
-using Port.Server.Spdy.Zlib;
 
 namespace Port.Server.Spdy.Frames
 {
@@ -115,6 +115,7 @@ namespace Port.Server.Spdy.Frames
             byte flags,
             UInt24 length,
             IFrameReader frameReader,
+            IHeaderReader headerReader,
             CancellationToken cancellation = default)
         {
             var streamId =
@@ -141,7 +142,7 @@ namespace Port.Server.Spdy.Frames
                 {
                     headers =
                         await
-                            frameReader
+                            headerReader
                             .ReadNameValuePairsAsync(headerLength, cancellation)
                             .ConfigureAwait(false);
                 }
@@ -170,24 +171,27 @@ namespace Port.Server.Spdy.Frames
 
         protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
+            IHeaderWriterProvider headerWriterProvider,
             CancellationToken cancellationToken = default)
         {
-            var headerStream = new MemoryStream(1024);
-            await using (headerStream
-                .ConfigureAwait(false))
+            var pipe = new Pipe();
+            var headerWriter = await headerWriterProvider
+                                     .RequestWriterAsync(pipe.Writer, cancellationToken)
+                                     .ConfigureAwait(false);
+            await using (headerWriter.ConfigureAwait(false))
             {
-                var headerWriter = new ZlibWriter(
-                    headerStream, SpdyConstants.HeadersDictionary);
-                await using (headerWriter
-                    .ConfigureAwait(false))
-                {
-                    await headerWriter.WriteNameValuePairs(
-                                          Headers, cancellationToken)
-                                      .ConfigureAwait(false);
-                }
+                await headerWriter.WriteNameValuePairs(
+                                      Headers, cancellationToken)
+                                  .ConfigureAwait(false);
             }
 
-            var compressedHeaders = headerStream.ToArray();
+            await using var memory = new MemoryStream();
+            await pipe.Reader.CopyToAsync(memory, cancellationToken)
+                      .ConfigureAwait(false);
+            await pipe.Reader.CompleteAsync()
+                      .ConfigureAwait(false);
+
+            var compressedHeaders = memory.ToArray();
             var length = compressedHeaders.Length + 10;
 
             await frameWriter.WriteUInt24Async(

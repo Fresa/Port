@@ -141,6 +141,7 @@ namespace Port.Server.Spdy.Frames
 
         protected override async ValueTask WriteControlFrameAsync(
             IFrameWriter frameWriter,
+            IHeaderWriterProvider _,
             CancellationToken cancellationToken = default)
         {
             await frameWriter.WriteUInt24Async(Length, cancellationToken)

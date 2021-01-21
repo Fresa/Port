@@ -1,63 +1,48 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.IO.Pipelines;
-using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-using Port.Server.Spdy.Frames;
+﻿using Port.Server.Spdy.Frames;
+using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy.Extensions
 {
     internal static class FrameExtensions
     {
-        internal static async IAsyncEnumerable<ReadOnlySequence<byte>>
-            WriteAsync(
-                this Frame frame,
-                [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        internal static bool TryGetStreamId(
+            this Frame control,
+            out UInt31 streamId)
         {
-            var pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
-            var writeTask = Task.Run(async
-                () =>
+            switch (control)
             {
-                Exception? exception = null;
-                try
-                {
-                    var frameWriter =
-                        new FrameWriter(pipe.Writer.AsStream());
-                    await using (
-                        frameWriter.ConfigureAwait(false))
-                    {
-                        await frame.WriteAsync(
-                                       frameWriter,
-                                       cancellationToken)
-                                   .ConfigureAwait(false);
-                    }
+                case Headers headers:
+                    streamId = headers.StreamId;
+                    return true;
+                case RstStream rstStream:
+                    streamId = rstStream.StreamId;
+                    return true;
+                case SynReply synReply:
+                    streamId = synReply.StreamId;
+                    return true;
+                case SynStream synStream:
+                    streamId = synStream.StreamId;
+                    return true;
+                case Data data:
+                    streamId = data.StreamId;
+                    return true;
+            }
 
-                    await pipe.Writer.FlushAsync(cancellationToken)
-                              .ConfigureAwait(false);
-                }
-                catch (Exception caughtException)
-                {
-                    exception = caughtException;
-                }
-
-                await pipe.Writer.CompleteAsync(exception)
-                          .ConfigureAwait(false);
-            }, cancellationToken);
-
-            System.IO.Pipelines.ReadResult result;
-            do
-            {
-                result = await pipe.Reader.ReadAsync(cancellationToken)
-                                   .ConfigureAwait(false);
-                yield return result.Buffer;
-                pipe.Reader.AdvanceTo(result.Buffer.GetPosition(result.Buffer.Length));
-            } while (result.IsCompleted == false && result.IsCanceled == false);
-
-            await pipe.Reader.CompleteAsync()
-                      .ConfigureAwait(false);
-            await writeTask.ConfigureAwait(false);
+            streamId = default;
+            return false;
         }
+
+        internal static object ToStructuredLogging(
+            this Frame frame)
+            => frame switch
+            {
+                Data data => new
+                {
+                    data.StreamId,
+                    data.IsLastFrame,
+                    PayloadSize = data.Payload.Length
+                },
+                _ => frame
+            };
     }
 }

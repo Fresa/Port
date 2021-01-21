@@ -25,12 +25,15 @@ namespace Port.Server.Spdy.Endpoint
             Cancellation = _cancellationSource.Token;
         }
 
-        internal void Open()
+        internal bool Open()
         {
-            if (_stateIterator.TransitionTo(EndpointState.Opened))
+            var opened = _stateIterator.TransitionTo(EndpointState.Opened);
+            if (opened)
             {
                 StateChanged.Invoke(EndpointState.Opened);
             }
+
+            return opened;
         }
 
         public bool IsOpen => _stateIterator.Current == EndpointState.Opened;
@@ -39,13 +42,16 @@ namespace Port.Server.Spdy.Endpoint
             return WaitForStateAsync(EndpointState.Opened, cancellationToken);
         }
 
-        internal void Close()
+        internal bool Close()
         {
-            if (_stateIterator.TransitionTo(EndpointState.Closed))
+            var closed = _stateIterator.TransitionTo(EndpointState.Closed);
+            if (closed)
             {
                 _cancellationSource.Cancel(false);
                 StateChanged.Invoke(EndpointState.Closed);
             }
+
+            return closed;
         }
 
         public bool IsClosed => _stateIterator.Current == EndpointState.Closed;

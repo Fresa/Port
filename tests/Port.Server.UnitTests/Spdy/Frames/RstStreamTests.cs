@@ -6,7 +6,7 @@ using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
-using Test.It.With.XUnit;
+using Port.Server.UnitTests.Spdy.Extensions;
 using Xunit;
 
 namespace Port.Server.UnitTests.Spdy.Frames
@@ -33,8 +33,12 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override async Task WhenAsync(CancellationToken cancellationToken)
             {
-                await _frame.WriteAsync(new FrameWriter(_serialized), cancellationToken)
-                    .ConfigureAwait(false);
+                await _frame.WriteAsync(
+                                new FrameWriter(
+                                    new StreamingNetworkClient(_serialized)),
+                                new ExceptionThrowingHeaderWriterProvider(),
+                                cancellationToken)
+                            .ConfigureAwait(false);
             }
 
             [Fact]
@@ -52,10 +56,12 @@ namespace Port.Server.UnitTests.Spdy.Frames
 
             protected override async Task WhenAsync(CancellationToken cancellation)
             {
-                _message = (RstStream) (await Control.TryReadAsync(
+                _message = (await Control.TryReadAsync(
                         new FrameReader(
-                            PipeReader.Create(new MemoryStream(Message))), cancellation)
-                    .ConfigureAwait(false)).Result;
+                            PipeReader.Create(new MemoryStream(Message))),
+                        new ExceptionThrowingHeaderReader(),
+                        cancellation)
+                    .ConfigureAwait(false)).GetOrThrow() as RstStream;
             }
 
             [Fact]

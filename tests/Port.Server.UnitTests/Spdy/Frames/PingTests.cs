@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
+using Port.Server.UnitTests.Spdy.Extensions;
 using Test.It.With.XUnit;
 using Xunit;
 
@@ -34,7 +35,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 CancellationToken cancellationToken)
             {
                 await _frame.WriteAsync(
-                                new FrameWriter(_serialized),
+                                new FrameWriter(
+                                    new StreamingNetworkClient(_serialized)),
+                                new ExceptionThrowingHeaderWriterProvider(),
                                 cancellationToken)
                             .ConfigureAwait(false);
             }
@@ -58,12 +61,13 @@ namespace Port.Server.UnitTests.Spdy.Frames
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _message = (Ping)
+                _message =
                     (await Control.TryReadAsync(
-                                     new FrameReader(
-                                         PipeReader.Create(_serialized)),
-                                     cancellationToken)
-                                 .ConfigureAwait(false)).Result;
+                                      new FrameReader(
+                                          PipeReader.Create(_serialized)),
+                                      new ExceptionThrowingHeaderReader(),
+                                      cancellationToken)
+                                  .ConfigureAwait(false)).GetOrThrow() as Ping;
             }
 
             [Fact]

@@ -30,12 +30,23 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                                    .IsCancellationRequested ==
                                false)
                         {
-                            var receivedMessage = await client
+                            var receivedMessageTask = client
                                 .ReceiveAsync(
                                     _cancellationTokenSource
-                                        .Token)
-                                .ConfigureAwait(false);
-
+                                        .Token);
+                            
+                            T receivedMessage;
+                            try
+                            {
+                                receivedMessage = await receivedMessageTask
+                                    .ConfigureAwait(false);
+                            }
+                            catch when(receivedMessageTask.IsCanceled)
+                            {
+                                _cancellationTokenSource.Cancel(false);
+                                return;
+                            }
+                            
                             if (!_subscriptions.TryGetValue(
                                 receivedMessage.GetType(),
                                 out var subscription))

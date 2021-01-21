@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -8,12 +7,12 @@ using Port.Server.Spdy.Primitives;
 
 namespace Port.Server.Spdy
 {
-    internal class FrameWriter : IFrameWriter, IAsyncDisposable
+    internal class FrameWriter : IFrameWriter
     {
-        private readonly Stream _buffer;
+        private readonly INetworkClient _buffer;
 
         public FrameWriter(
-            Stream buffer)
+            INetworkClient buffer)
         {
             _buffer = buffer;
         }
@@ -81,22 +80,17 @@ namespace Port.Server.Spdy
             return WriteAsync(value, cancellationToken);
         }
 
-        private ValueTask WriteAsync(
+        private async ValueTask WriteAsync(
             byte[] value,
             CancellationToken cancellationToken = default)
         {
             if (value.Any() == false)
             {
-                return new ValueTask();
+                return;
             }
             
-            return _buffer.WriteAsync(value.AsMemory(), cancellationToken);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await _buffer.FlushAsync()
-                .ConfigureAwait(false);
+            await _buffer.SendAsync(value.AsMemory(), cancellationToken)
+                         .ConfigureAwait(false);
         }
     }
 }

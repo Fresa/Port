@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Server.Spdy.Collections;
-using Port.Server.Spdy.Zlib;
 
 namespace Port.Server.Spdy.Extensions
 {
@@ -32,20 +31,14 @@ namespace Port.Server.Spdy.Extensions
         }
 
         internal static async ValueTask<NameValueHeaderBlock> ReadNameValuePairsAsync(
-                this IFrameReader frameReader,
+                this IHeaderReader headerReader,
                 int length,
                 CancellationToken cancellationToken)
         {
-            var reader = new ZlibReader(
-                frameReader,
-                SpdyConstants.HeadersDictionary,
-                length);
-            await using (reader
-                .ConfigureAwait(false))
-            {
-                return await reader.ReadNameValuePairsAsync(cancellationToken)
-                                   .ConfigureAwait(false);
-            }
+            var reader = await headerReader.RequestReaderAsync(length, cancellationToken)
+                       .ConfigureAwait(false);
+            return await reader.ReadNameValuePairsAsync(cancellationToken)
+                               .ConfigureAwait(false);
         }
     }
 }

@@ -6,7 +6,6 @@ using FluentAssertions;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Frames;
 using Port.Server.Spdy.Primitives;
-using Test.It.With.XUnit;
 using Xunit;
 
 namespace Port.Server.UnitTests.Spdy.Frames
@@ -36,7 +35,9 @@ namespace Port.Server.UnitTests.Spdy.Frames
                 CancellationToken cancellationToken)
             {
                 await _frame.WriteAsync(
-                                new FrameWriter(_serialized),
+                                new FrameWriter(
+                                    new StreamingNetworkClient(_serialized)),
+                                new ExceptionThrowingHeaderWriterProvider(),
                                 cancellationToken)
                             .ConfigureAwait(false);
             }
@@ -64,6 +65,7 @@ namespace Port.Server.UnitTests.Spdy.Frames
                     (GoAway)(await Control.TryReadAsync(
                                      new FrameReader(
                                          PipeReader.Create(_serialized)),
+                                     new ExceptionThrowingHeaderReader(),
                                      cancellationToken)
                                  .ConfigureAwait(false)).Result;
             }

@@ -75,7 +75,10 @@ namespace Port.Server
                     service.Metadata.Name,
                     service.Spec.Ports.Select(
                         port => new Shared.Port(
-                            port.Port,
+                            int.TryParse(
+                                port.TargetPort.Value, out var targetPort)
+                                ? targetPort
+                                : port.NodePort ?? port.Port,
                             Enum.Parse<ProtocolType>(port.Protocol, true))),
                     service.Spec.Selector));
         }
@@ -93,10 +96,9 @@ namespace Port.Server
             using var client = _clientFactory.Create(context);
 
             var socketServer = _networkServerFactory.CreateAndStart(
-                IPAddress.Any,
+                IPAddress.IPv6Any,
                 (int) portForward.LocalPort,
                 portForward.ProtocolType);
-            _disposables.Add(socketServer);
 
             if (await _featureManager
                       .IsEnabledAsync(nameof(Features.PortForwardingWithSpdy))
@@ -108,9 +110,9 @@ namespace Port.Server
                                               new[] {portForward.PodPort},
                                               cancellationToken)
                                           .ConfigureAwait(false);
-                _disposables.Add(session);
                 _disposables.Add(
                     SpdyStreamForwarder.Start(socketServer, session, portForward));
+                _disposables.Add(session);
             }
             else
             {
@@ -126,20 +128,20 @@ namespace Port.Server
                     .Start(socketServer, webSocket);
                 _disposables.Add(streamForwarder);
             }
+            _disposables.Add(socketServer);
         }
 
         public async ValueTask DisposeAsync()
         {
             _cancellationSource.Cancel();
 
-            await Task.WhenAll(
-                          _disposables
-                              .Select(disposable => disposable.DisposeAsync())
-                              .Where(
-                                  valueTask
-                                      => !valueTask.IsCompletedSuccessfully)
-                              .Select(valueTask => valueTask.AsTask()))
-                      .ConfigureAwait(false);
+            // The disposables have order dependencies so they need to be
+            // disposed fully in the order they have been registered
+            foreach (var disposable in _disposables)
+            {
+                await disposable.DisposeAsync()
+                                .ConfigureAwait(false);
+            }
         }
     }
 }

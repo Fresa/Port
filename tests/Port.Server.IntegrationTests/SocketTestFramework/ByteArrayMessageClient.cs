@@ -26,7 +26,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
 
         public ValueTask DisposeAsync()
         {
-            return new ValueTask();
+            return _networkClient.DisposeAsync();
         }
 
         public async ValueTask SendAsync(

@@ -2,42 +2,34 @@
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using Ionic.Zlib;
 using Log.It;
 using Port.Server.Spdy.Extensions;
 using Port.Server.Spdy.Primitives;
 
-namespace Port.Server.Spdy.Zlib
+namespace Port.Server.Spdy
 {
-    internal sealed class ZlibReader : IFrameReader, IAsyncDisposable
+    internal sealed class HeaderReader : IFrameReader, IHeaderReader, IAsyncDisposable
     {
         private readonly IFrameReader _frameReader;
-        private readonly byte[] _dictionary;
-        private readonly int _length;
+        private readonly byte[] _dictionary = SpdyConstants.HeadersDictionary;
         private readonly Pipe _pipe = new Pipe();
         private readonly FrameReader _headerReader;
         private readonly ZlibCodec _zlibCodec = new ZlibCodec();
-        private readonly ILogger _logger = LogFactory.Create<ZlibReader>();
+        private readonly ILogger _logger = LogFactory.Create<HeaderReader>();
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         private readonly ValueTask _backgroundTask;
+        private readonly BufferBlock<int> _requestQueue = new BufferBlock<int>();
 
         private CancellationToken CancellationToken
             => _cancellationTokenSource.Token;
 
-        public ZlibReader(
-            IFrameReader frameReader,
-            byte[] dictionary,
-            int length)
+        public HeaderReader(
+            IFrameReader frameReader)
         {
-            if (length <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(length), $"{length} is an invalid length of a Zlib stream");
-            }
-
             _frameReader = frameReader;
             _headerReader = new FrameReader(_pipe.Reader);
-            _dictionary = dictionary;
-            _length = length;
 
             _backgroundTask = RunZlibDecompress();
         }
@@ -80,7 +72,7 @@ namespace Port.Server.Spdy.Zlib
                     task.SetResult(valueTask.Result);
                     return;
                 }
-                
+
                 task.SetCanceled();
             }
             catch (Exception e)
@@ -180,6 +172,19 @@ namespace Port.Server.Spdy.Zlib
                 .ConfigureAwait(false);
         }
 
+        public async Task<IFrameReader> RequestReaderAsync(
+            int bytes, CancellationToken cancellationToken = default)
+        {
+            await _requestQueue.SendAsync(
+                                   bytes, CancellationTokenSource
+                                          .CreateLinkedTokenSource(
+                                              cancellationToken,
+                                              CancellationToken)
+                                          .Token)
+                               .ConfigureAwait(false);
+            return this;
+        }
+
         private async ValueTask RunZlibDecompress()
         {
             var result = _zlibCodec.InitializeInflate();
@@ -189,71 +194,71 @@ namespace Port.Server.Spdy.Zlib
                     $"Got error code {result} when initializing inflate routine: {_zlibCodec.Message}");
             }
 
-            var buffer = new byte[Math.Min(1024, _length)];
+            var buffer = new byte[1024];
             _zlibCodec.OutputBuffer = buffer;
 
-            var left = _length;
             Exception? exception = null;
             try
             {
-                while (left > 0)
+                var flushResult = new FlushResult();
+                do
                 {
-                    var readLength =
-                        left > buffer.Length ? buffer.Length : left;
-                    left -= readLength;
-                    var inputBuffer = await _frameReader.ReadBytesAsync(
-                            readLength, CancellationToken)
-                        .ConfigureAwait(false);
-
-                    _zlibCodec.NextIn = 0;
-                    _zlibCodec.InputBuffer = inputBuffer;
-                    _zlibCodec.AvailableBytesIn = inputBuffer.Length;
-
-                    while (_zlibCodec.AvailableBytesIn > 0)
+                    var requestedLength = await _requestQueue
+                                                .ReceiveAsync(CancellationToken)
+                                                .ConfigureAwait(false);
+                    while (requestedLength > 0)
                     {
-                        _zlibCodec.NextOut = 0;
-                        _zlibCodec.AvailableBytesOut = buffer.Length;
+                        var readLength =
+                            requestedLength > buffer.Length
+                                ? buffer.Length
+                                : requestedLength;
+                        requestedLength -= readLength;
 
-                        var start = _zlibCodec.NextOut;
-                        result = _zlibCodec.Inflate(
-                            left == 0 ? FlushType.Finish : FlushType.Sync);
-                        var end = _zlibCodec.NextOut;
-                        var length = _zlibCodec.NextOut - start;
-                        
-                        buffer[start..end]
-                            .CopyTo(_pipe.Writer.GetMemory());
-                        _pipe.Writer.Advance(length);
-                        await _pipe.Writer.FlushAsync(CancellationToken)
-                                   .ConfigureAwait(false);
+                        var inputBuffer = await _frameReader.ReadBytesAsync(
+                                readLength, CancellationToken)
+                            .ConfigureAwait(false);
 
-                        switch (result)
+                        _zlibCodec.NextIn = 0;
+                        _zlibCodec.InputBuffer = inputBuffer;
+                        _zlibCodec.AvailableBytesIn = inputBuffer.Length;
+
+                        while (_zlibCodec.AvailableBytesIn > 0)
                         {
-                            case ZlibConstants.Z_STREAM_END:
-                                if (left > 0)
-                                {
-                                    throw new InvalidOperationException(
-                                        $"Expected {_length} bytes, but received end of stream when there were {left} bytes left");
-                                }
+                            _zlibCodec.NextOut = 0;
+                            _zlibCodec.AvailableBytesOut = buffer.Length;
 
-                                return;
-                            case ZlibConstants.Z_NEED_DICT:
-                                result = _zlibCodec.SetDictionary(_dictionary);
-                                if (result < 0)
-                                {
-                                    throw new InvalidOperationException(
-                                        $"Got error code {result} when setting dictionary: {_zlibCodec.Message}");
-                                }
+                            result = _zlibCodec.Inflate(FlushType.None);
+                            var end = _zlibCodec.NextOut;
 
-                                break;
-                            case var _ when result < 0:
-                                throw new InvalidOperationException(
-                                    $"Got error code {result} when deflating the stream: {_zlibCodec.Message}");
+                            buffer[..end]
+                                .CopyTo(_pipe.Writer.GetMemory());
+                            _pipe.Writer.Advance(end);
+                            flushResult = await _pipe.Writer
+                                .FlushAsync(CancellationToken)
+                                .ConfigureAwait(false);
+
+                            switch (result)
+                            {
+                                case ZlibConstants.Z_STREAM_END:
+                                    return;
+                                case ZlibConstants.Z_NEED_DICT:
+                                    result =
+                                        _zlibCodec.SetDictionary(_dictionary);
+                                    if (result < 0)
+                                    {
+                                        throw new InvalidOperationException(
+                                            $"Got error code {result} when setting dictionary: {_zlibCodec.Message}");
+                                    }
+
+                                    break;
+                                case var _ when result < 0:
+                                    throw new InvalidOperationException(
+                                        $"Got error code {result} when deflating the stream: {_zlibCodec.Message}");
+                            }
                         }
                     }
-                }
+                } while (flushResult.HasMore());
 
-                _logger.Warning(
-                    $"Could not verify checksum {_zlibCodec.Adler32}. Was the checksum present in the stream?");
             }
             catch (Exception ex)
             {

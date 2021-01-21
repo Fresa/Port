@@ -2,11 +2,13 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
 using Port.Server.Spdy;
 using Port.Server.Spdy.Collections;
+using Port.Server.Spdy.Frames;
 using Port.Shared;
 using ReadResult = System.IO.Pipelines.ReadResult;
 
@@ -96,10 +98,9 @@ namespace Port.Server
             }
         }
 
+        private static int _requestId;
         private async Task StartPortForwardingAsync(INetworkClient client)
         {
-            using var _ = _logger.LogicalThread.With(
-                "local-socket-id", Guid.NewGuid());
             await using (client.ConfigureAwait(false))
             {
                 using var cancellationTokenSource =
@@ -107,19 +108,42 @@ namespace Port.Server
                         CancellationToken);
                 var cancellationToken = cancellationTokenSource.Token;
 
+                var requestId = Interlocked.Increment(ref _requestId).ToString();
                 using var stream = _spdySession.Open(
                     headers: new NameValueHeaderBlock(
-                        (Kubernetes.Headers.StreamType, new[]
+                        (Kubernetes.Headers.PortForward.StreamType.Key, new[]
                         {
-                            Kubernetes.Headers.StreamTypeData
+                            Kubernetes.Headers.PortForward.StreamType.Data
                         }),
-                        (Kubernetes.Headers.Port, new[]
+                        (Kubernetes.Headers.PortForward.Port, new[]
                         {
                            _portForward.PodPort.ToString()
+                        }),
+                        (Kubernetes.Headers.PortForward.RequestId, new[]
+                        {
+                            requestId
+                        })));
+
+                using var errorStream = _spdySession.Open(
+                    options: SynStream.Options.Fin,
+                    headers: new NameValueHeaderBlock(
+                        (Kubernetes.Headers.PortForward.StreamType.Key, new[]
+                        {
+                            Kubernetes.Headers.PortForward.StreamType.Error
+                        }),
+                        (Kubernetes.Headers.PortForward.Port, new[]
+                        {
+                            _portForward.PodPort.ToString()
+                        }),
+                        (Kubernetes.Headers.PortForward.RequestId, new[]
+                        {
+                            requestId
                         })));
 
                 var sendingTask = Task.CompletedTask;
                 var receivingTask = Task.CompletedTask;
+                var receivingErrorsTask = Task.CompletedTask;
+
                 try
                 {
                     sendingTask = StartSendingAsync(
@@ -130,11 +154,16 @@ namespace Port.Server
                         client,
                         stream,
                         cancellationToken);
+                    receivingErrorsTask = StartReceivingAsync(
+                        new LogErrorStreamNetworkClient(),
+                        errorStream,
+                        cancellationToken);
 
-                    await stream.Local.WaitForClosedAsync(cancellationToken)
-                                .ConfigureAwait(false);
-                    await stream.Remote.WaitForClosedAsync(cancellationToken)
-                                .ConfigureAwait(false);
+                    await Task.WhenAny(
+                            errorStream.Remote.WaitForClosedAsync(cancellationToken),
+                            stream.Local.WaitForClosedAsync(cancellationToken),
+                            stream.Remote.WaitForClosedAsync(cancellationToken))
+                        .ConfigureAwait(false);
                 }
                 catch when (cancellationToken
                     .IsCancellationRequested)
@@ -144,7 +173,10 @@ namespace Port.Server
                 {
                     _logger.Fatal(
                         ex,
-                        "Unknown error while sending and receiving data, closing down");
+                        "[{SessionId},{StreamId}]: Unknown error while sending and receiving data, " +
+                        "closing down",
+                        _spdySession.Id,
+                        errorStream.Id);
                 }
                 finally
                 {
@@ -159,17 +191,12 @@ namespace Port.Server
                     // sending all data, but we cannot let the process run
                     // potentially forever, the application might be in a stopping
                     // state, and at some point we have to let go.
+                    cancellationTokenSource.CancelAfter(1000);
 
-                    //This will most likely change when we need to report
-                    //back that the forwarding terminated or that we
-                    //should retry
-                    _cancellationTokenSource.CancelAfter(1000);
-
-                    // Wait for the tasks to complete otherwise
-                    // we risk to dispose the stream and the local
-                    // socket client while being in used
-                    await Task.WhenAll(sendingTask, receivingTask)
+                    await Task.WhenAll(sendingTask, receivingTask, receivingErrorsTask)
                               .ConfigureAwait(false);
+
+                    _logger.Trace("Disconnecting local socket");
                 }
             }
         }
@@ -186,37 +213,52 @@ namespace Port.Server
                 FlushResult sendResult;
                 do
                 {
-                    _logger.Trace("Receiving from local socket");
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: Waiting for data from local socket...",
+                        spdyStream.SessionId, spdyStream.Id);
                     var bytesReceived = await localSocket
                                               .ReceiveAsync(
                                                   memory,
                                                   cancellationToken)
                                               .ConfigureAwait(false);
-                    _logger.Trace("Received {bytes} bytes from local socket",
-                        bytesReceived);
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: " +
+                        $"Received {bytesReceived} bytes from local socket",
+                        spdyStream.SessionId, spdyStream.Id);
                     // End of the stream! 
                     // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                     if (bytesReceived == 0)
                     {
                         await spdyStream.SendLastAsync(
-                                            new ReadOnlyMemory<byte>(),
+                                            ReadOnlyMemory<byte>.Empty,
                                             cancellationToken: cancellationToken)
                                         .ConfigureAwait(false);
+                        _logger.Trace(
+                            "[{SessionId}:{StreamId}]: Local -> remote data transferring has " +
+                            "stopped (Local socket closed the connection)",
+                            spdyStream.SessionId, spdyStream.Id);
                         return;
                     }
 
                     _logger.Trace(
-                        "Sending {bytes} bytes to remote socket",
-                        bytesReceived);
+                        "[{SessionId}:{StreamId}]: " +
+                        $"Sending {bytesReceived} bytes to remote socket",
+                        spdyStream.SessionId, spdyStream.Id);
 
                     sendResult = await spdyStream
                                        .SendAsync(
-                                           memory.Slice(0, bytesReceived),
-                                           cancellationToken: cancellationToken)
+                                           memory.Slice(0, bytesReceived))
                                        .ConfigureAwait(false);
-                    _logger.Trace("Sending to remote socket complete");
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: Sending to remote socket complete",
+                        spdyStream.SessionId, spdyStream.Id);
 
                 } while (sendResult.HasMore());
+
+                _logger.Trace(
+                    "[{SessionId}:{StreamId}]: " +
+                    $"Local -> remote data transferring has stopped ({sendResult.GetStatusAsString()})",
+                    spdyStream.SessionId, spdyStream.Id);
             }
             catch when (cancellationToken
                 .IsCancellationRequested)
@@ -224,14 +266,11 @@ namespace Port.Server
             }
             catch (Exception ex)
             {
-                _logger.Fatal(ex, "Unknown error while sending and receiving data, closing down");
-#pragma warning disable 4014
-                //Cancel and exit fast
-                //This will most likely change when we need to report
-                //back that the forwarding terminated or that we
-                //should retry
+                _logger.Fatal(
+                    ex,
+                    "[{SessionId}:{StreamId}]: Unknown error while sending and receiving data, closing down",
+                    spdyStream.SessionId, spdyStream.Id);
                 _cancellationTokenSource.Cancel(false);
-#pragma warning restore 4014
             }
         }
 
@@ -245,14 +284,18 @@ namespace Port.Server
                 ReadResult content;
                 do
                 {
-                    _logger.Trace("Receiving from remote socket");
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: Waiting for data from remote socket...",
+                        spdyStream.SessionId, spdyStream.Id);
                     content = await spdyStream
                                     .ReceiveAsync(
                                         cancellationToken: cancellationToken)
                                     .ConfigureAwait(false);
 
-                    _logger.Trace("Received {bytes} bytes from remote socket",
-                        content.Buffer.Length);
+                    _logger.Trace(
+                        "[{SessionId}:{StreamId}]: " +
+                        $"Received {content.Buffer.Length} bytes from remote socket",
+                        spdyStream.SessionId, spdyStream.Id);
 
                     if (content.Buffer.IsEmpty)
                     {
@@ -261,16 +304,26 @@ namespace Port.Server
 
                     foreach (var sequence in content.Buffer)
                     {
-                        _logger.Trace("Sending {bytes} bytes to local socket",
-                            sequence.Length);
+                        _logger.Trace(
+                            "[{SessionId}:{StreamId}]: " +
+                            $"Sending {sequence.Length} bytes to local socket",
+                            spdyStream.SessionId, spdyStream.Id);
+                        _logger.Trace(
+                            Encoding.ASCII.GetString(sequence.ToArray()));
                         await localSocket
                               .SendAsync(
-                                  sequence,
-                                  cancellationToken)
+                                  sequence)
                               .ConfigureAwait(false);
-                        _logger.Trace("Sending to local socket complete");
+                        _logger.Trace(
+                            "[{SessionId}:{StreamId}]: Sending to local socket complete",
+                            spdyStream.SessionId, spdyStream.Id);
                     }
                 } while (content.HasMoreData());
+
+                _logger.Trace(
+                    "[{SessionId}:{StreamId}]: " +
+                    $"Remote -> local data transferring has stopped ({content.GetStatusAsString()})",
+                    spdyStream.SessionId, spdyStream.Id);
             }
             catch when (cancellationToken
                 .IsCancellationRequested)
@@ -278,14 +331,11 @@ namespace Port.Server
             }
             catch (Exception ex)
             {
-                _logger.Fatal(ex, "Unknown error while sending and receiving data, closing down");
-#pragma warning disable 4014
-                //Cancel and exit fast
-                //This will most likely change when we need to report
-                //back that the forwarding terminated or that we
-                //should retry
+                _logger.Fatal(
+                    ex,
+                    "[{SessionId}:{StreamId}]: Unknown error while sending and receiving data, closing down",
+                    spdyStream.SessionId, spdyStream.Id);
                 _cancellationTokenSource.Cancel(false);
-#pragma warning restore 4014
             }
         }
 
