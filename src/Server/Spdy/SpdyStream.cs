@@ -29,8 +29,8 @@ namespace Port.Server.Spdy
         private readonly RstStream _flowControlError;
         private readonly RstStream _streamAlreadyClosedError;
 
-        private readonly ConcurrentDictionary<Type, Control> _controlFramesReceived = new ConcurrentDictionary<Type, Control>();
-        private readonly ConcurrentDictionary<Type, Control> _controlFramesSent = new ConcurrentDictionary<Type, Control>();
+        private readonly ConcurrentDistinctTypeBag _controlFramesReceived = new ConcurrentDistinctTypeBag();
+        private readonly ConcurrentDistinctTypeBag _controlFramesSent = new ConcurrentDistinctTypeBag();
 
         private readonly ObservableConcurrentDictionary<string, string[]> _headers = new ObservableConcurrentDictionary<string, string[]>();
 
@@ -66,28 +66,28 @@ namespace Port.Server.Spdy
         {
             if (_remote.Open())
             {
-                _logger.Info("[{SessionId}:{StreamId}]: Remote opened", SessionId, Id);
+                _logger.Debug("[{SessionId}:{StreamId}]: Remote opened", SessionId, Id);
             }
         }
         private void CloseRemote()
         {
             if (_remote.Close())
             {
-                _logger.Info("[{SessionId}:{StreamId}]: Remote closed", SessionId, Id);
+                _logger.Debug("[{SessionId}:{StreamId}]: Remote closed", SessionId, Id);
             }
         }
         private void OpenLocal()
         {
             if (_local.Open())
             {
-                _logger.Info("[{SessionId}:{StreamId}]: Local opened", SessionId, Id);
+                _logger.Debug("[{SessionId}:{StreamId}]: Local opened", SessionId, Id);
             }
         }
         private void CloseLocal()
         {
             if (_local.Close())
             {
-                _logger.Info("[{SessionId}:{StreamId}]: Local closed", SessionId, Id);
+                _logger.Debug("[{SessionId}:{StreamId}]: Local closed", SessionId, Id);
             }
         }
 
@@ -135,7 +135,7 @@ namespace Port.Server.Spdy
             switch (frame)
             {
                 case SynReply synReply:
-                    if (_controlFramesReceived.TryAdd(typeof(SynReply), synReply) == false)
+                    if (_controlFramesReceived.TryAdd<SynReply>() == false)
                     {
                         Send(_streamInUse);
                         return;
@@ -155,7 +155,7 @@ namespace Port.Server.Spdy
 
                     return;
                 case RstStream rstStream:
-                    _controlFramesReceived.TryAdd(typeof(RstStream), rstStream);
+                    _controlFramesReceived.TryAdd<RstStream>();
                     _logger.Warning(
                         rstStream,
                         "[{SessionId}:{StreamId}]: Received {FrameType}, closing stream. {@Frame}",
@@ -196,7 +196,7 @@ namespace Port.Server.Spdy
                     // before receiving a SYN_REPLY on that stream, it is a protocol
                     // error, and the recipient MUST issue a stream error (Section 2.4.2)
                     // with the status code PROTOCOL_ERROR for the stream-id.
-                    if (_controlFramesReceived.ContainsKey(typeof(SynReply)) == false)
+                    if (_controlFramesReceived.Contains<SynReply>() == false)
                     {
                         _logger.Error(
                             _protocolError,
@@ -258,6 +258,9 @@ namespace Port.Server.Spdy
         private void Accept(NameValueHeaderBlock? headers =
             default)
         {
+            _controlFramesReceived.TryAdd<SynReply>();
+            var reply = SynReply.Accept(Id, headers);
+
             if (_synStream.IsUnidirectional)
             {
                 CloseRemote();
@@ -267,7 +270,6 @@ namespace Port.Server.Spdy
                 OpenRemote();
             }
 
-            var reply = SynReply.Accept(Id, headers);
             if (_synStream.IsFin || reply.IsLastFrame)
             {
                 CloseLocal();
@@ -277,7 +279,6 @@ namespace Port.Server.Spdy
                 OpenLocal();
             }
 
-            _controlFramesReceived.TryAdd(typeof(SynReply), reply);
             Send(reply);
         }
 
@@ -316,8 +317,7 @@ namespace Port.Server.Spdy
             CloseRemote();
             CloseLocal();
 
-            _controlFramesSent.TryAdd(
-                typeof(RstStream), rstStream);
+            _controlFramesSent.TryAdd<RstStream>();
             Send((Frame)rstStream);
         }
 

@@ -86,13 +86,7 @@ namespace Port.Server
                 catch (Exception ex)
                 {
                     _logger.Error(ex, "Unknown error while waiting for clients, closing down");
-#pragma warning disable 4014
-                    //Cancel and exit fast
-                    //This will most likely change when we need to report
-                    //back that the forwarding terminated or that we
-                    //should retry
                     _cancellationTokenSource.Cancel(false);
-#pragma warning restore 4014
                     return;
                 }
             }
@@ -123,6 +117,11 @@ namespace Port.Server
                         {
                             requestId
                         })));
+
+                _logger.Info(
+                    "[{SessionId},{StreamId}]: Port forward stream started",
+                    _spdySession.Id,
+                    stream.Id);
 
                 using var errorStream = _spdySession.Open(
                     options: SynStream.Options.Fin,
@@ -164,7 +163,7 @@ namespace Port.Server
                             stream.Remote.WaitForClosedAsync(cancellationToken))
                         .ConfigureAwait(false);
 
-                    // Remote has closed. Let the receiving local socket
+                    // Remote has closed. Let the local receiving socket
                     // receive any in-flight data before cancelling
                     if (stream.Local.IsOpen)
                     {
@@ -177,7 +176,7 @@ namespace Port.Server
                 }
                 catch (Exception ex)
                 {
-                    _logger.Fatal(
+                    _logger.Error(
                         ex,
                         "[{SessionId},{StreamId}]: Unknown error while sending and receiving data, " +
                         "closing down",
