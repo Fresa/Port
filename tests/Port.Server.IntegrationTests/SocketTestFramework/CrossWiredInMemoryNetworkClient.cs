@@ -59,13 +59,14 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
+            var length = 0;
             try
             {
                 var result = await _reader.Reader
                                           .ReadAsync(cancellationToken)
                                           .ConfigureAwait(false);
 
-                var length = result.Buffer.Length > buffer.Length
+                length = result.Buffer.Length > buffer.Length
                     ? buffer.Length
                     : (int)result.Buffer.Length;
 
@@ -77,12 +78,14 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                         .Span);
 
                 _reader.Reader.AdvanceTo(data.End, result.Buffer.End);
-                return length;
             }
-            catch when(_disconnected)
+            // The other cross-wired client might have sent us data and then "disconnected".
+            // We want to inform about potential data we wrote to the buffer
+            catch when (_disconnected)
             {
-                return 0;
             }
+
+            return length;
         }
     }
 }

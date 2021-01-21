@@ -15,6 +15,9 @@ namespace Port.Server.IntegrationTests.Spdy
         private readonly CancellationTokenSource _cancellationTokenSource =
             new CancellationTokenSource();
 
+        private CancellationToken ReceiverCancellationToken
+            => _cancellationTokenSource.Token;
+
         private Task _receiverTask = Task.CompletedTask;
         private readonly Pipe _pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
         private readonly FrameReader _frameReader;
@@ -51,27 +54,27 @@ namespace Port.Server.IntegrationTests.Spdy
                                     _pipe
                                         .Writer
                                         .GetMemory(),
-                                    _cancellationTokenSource
-                                        .Token)
+                                    ReceiverCancellationToken)
                                 .ConfigureAwait(false);
                             // End of the stream! 
                             // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.sockettaskextensions.receiveasync?view=netcore-3.1
                             if (bytes == 0)
                             {
+                                _cancellationTokenSource.Cancel(false);
                                 return;
                             }
                             _pipe.Writer.Advance(bytes);
                             result = await _pipe
                                            .Writer.FlushAsync(
-                                               _cancellationTokenSource.Token)
+                                               ReceiverCancellationToken)
                                            .ConfigureAwait(false);
-                        } while (_cancellationTokenSource
+                        } while (ReceiverCancellationToken
                                      .IsCancellationRequested ==
                                  false &&
                                  result.IsCompleted == false &&
                                  result.IsCanceled == false);
                     }
-                    catch when (_cancellationTokenSource
+                    catch when (ReceiverCancellationToken
                         .IsCancellationRequested)
                     {
                     }
@@ -90,13 +93,14 @@ namespace Port.Server.IntegrationTests.Spdy
         public async ValueTask<Frame> ReceiveAsync(
             CancellationToken cancellationToken = default)
         {
-            using (await _frameReaderGate.WaitAsync(cancellationToken)
+            var linkedCancellationToken = CatchReceiverCancellation(cancellationToken);
+            using (await _frameReaderGate.WaitAsync(linkedCancellationToken)
                                          .ConfigureAwait(false))
             {
                 return (await Frame.TryReadAsync(
                                        _frameReader,
                                        _headerReader,
-                                       cancellationToken)
+                                       linkedCancellationToken)
                                    .ConfigureAwait(false)).Result;
             }
         }
@@ -121,9 +125,14 @@ namespace Port.Server.IntegrationTests.Spdy
         public ValueTask SendAsync(
             Frame payload,
             CancellationToken cancellationToken = default)
-            => payload.WriteAsync(_frameWriter, _headerWriterProvider, CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    _cancellationTokenSource.Token)
-                .Token);
+            => payload.WriteAsync(_frameWriter, _headerWriterProvider, CatchReceiverCancellation(cancellationToken));
+
+        private CancellationToken CatchReceiverCancellation(
+            CancellationToken cancellationToken)
+            => CancellationTokenSource
+               .CreateLinkedTokenSource(
+                   cancellationToken,
+                   ReceiverCancellationToken)
+               .Token;
     }
 }
