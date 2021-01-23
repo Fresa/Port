@@ -1,13 +1,14 @@
 using System;
 using System.Buffers;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
 using Port.Server.IntegrationTests.TestFramework;
 using Port.Server.Kubernetes;
+using Port.Server.Spdy;
 using Port.Server.Spdy.Collections;
-using Port.Server.Spdy.Extensions;
 using Xunit;
 using Xunit.Abstractions;
 using Headers = Port.Server.Kubernetes.Headers;
@@ -15,120 +16,121 @@ using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server.IntegrationTests
 {
-    public class UnitTest1 : TestSpecificationAsync
+    public class Given_a_real_k8s_cluster
     {
-        private ILogger logger = LogFactory.Create<UnitTest1>();
-
-        public UnitTest1(
-            ITestOutputHelper testOutputHelper)
-            : base(testOutputHelper)
+        public class When_starting_port_forwarding : TestSpecificationAsync
         {
-        }
+            private readonly ILogger _logger = LogFactory.Create<When_starting_port_forwarding>();
 
-        [Fact(Skip = "Dependent on a real k8s cluster and services")]
-        public async Task Test1()
-        {
-            var factory =
-                new KubernetesClientFactory(new KubernetesConfiguration());
-            var ks = new KubernetesService(
-                factory, new SocketNetworkServerFactory(), new TestFeatureManager());
-            await ks.PortForwardAsync(
-                        "kind-argo-demo-ci", new Shared.PortForward(
-                                podPort: 2746,
-                                protocolType: ProtocolType.Tcp,
-                                @namespace: "argo",
-                                service: "argo-server-5f5c647dcb-bkcz6",
-                                pod: "")
-                        { LocalPort = 2746 }, CancellationTokenSource.Token)
-                    .ConfigureAwait(false);
+            public When_starting_port_forwarding(
+                ITestOutputHelper testOutputHelper)
+                : base(testOutputHelper)
+            {
+            }
 
-            await Task.Delay(int.MaxValue)
-                      .ConfigureAwait(false);
-        }
-
-        [Fact(Skip = "Dependent on a real k8s cluster and services")]
-        public async Task TestWithSpdy()
-        {
-            var config = new KubernetesConfiguration();
-            var factory =
-                new KubernetesClientFactory(config);
-            await using var ks = new KubernetesService(
-                factory, new SocketNetworkServerFactory(), new TestFeatureManager((nameof(Features.PortForwardingWithSpdy), true)));
-            await ks.PortForwardAsync(
-                        "kind-argo-demo-test", new Shared.PortForward(
-                                podPort: 80,
-                                protocolType: ProtocolType.Tcp,
-                                @namespace: "argocd",
-                                service: "",
-                                pod: "argocd-server-78ffb87fd8-f6559")
-                        { LocalPort = 8081 }, CancellationTokenSource.Token)
-                    .ConfigureAwait(false);
-
-            await Task.Delay(5000)
-                      .ConfigureAwait(false);
-        }
-
-        [Fact(Skip = "Dependent on a real k8s cluster and services")]
-        //[Fact]
-        public async Task TestWithSpdySession()
-        {
-            var cancellation = new CancellationTokenSource(5000).Token;
-            var podPort = 80;
-            var config = new KubernetesConfiguration();
-            var factory =
-                new KubernetesClientFactory(config);
-            using var client = factory.Create("kind-argo-demo-test");
-            await using var session = await client.SpdyNamespacedPodPortForwardAsync(
-                                                      "argocd-server-78ffb87fd8-f6559",
-                                                      "argocd",
-                                                      new[] { podPort },
-                                                      cancellation)
-                                                  .ConfigureAwait(false);
-            var requestId = "1";
-
-            using var errorStream = session.Open(
-                headers: new NameValueHeaderBlock(
-                    (Headers.PortForward.StreamType.Key, new[]
-                    {
-                            Headers.PortForward.StreamType.Error
-                    }),
-                    (Headers.PortForward.Port, new[]
-                    {
-                            podPort.ToString()
-                    }),
-                    (Headers.PortForward.RequestId, new[]
-                    {
-                            requestId
-                    })));
-
-            await errorStream.Remote.WaitForOpenedAsync(cancellation)
-                             .ConfigureAwait(false);
-
-            await Task.Delay(1000, cancellation)
-                      .ConfigureAwait(false);
-
-            using var stream = session.Open(
-                headers: new NameValueHeaderBlock(
-                    (Headers.PortForward.StreamType.Key, new[]
-                    {
-                            Headers.PortForward.StreamType.Data
-                    }),
-                    (Headers.PortForward.Port, new[]
-                    {
-                            podPort.ToString()
-                    }),
-                    (Headers.PortForward.RequestId, new[]
-                    {
-                            requestId
-                    })));
-
-            await stream.Remote.WaitForOpenedAsync(cancellation)
+            [Fact(Skip = "Dependent on a real k8s cluster and services")]
+            public async Task Test1()
+            {
+                var factory =
+                    new KubernetesClientFactory(new KubernetesConfiguration());
+                var ks = new KubernetesService(
+                    factory, new SocketNetworkServerFactory(), new TestFeatureManager());
+                await ks.PortForwardAsync(
+                            "kind-argo-demo-ci", new Shared.PortForward(
+                                    podPort: 2746,
+                                    protocolType: ProtocolType.Tcp,
+                                    @namespace: "argo",
+                                    service: "argo-server-5f5c647dcb-bkcz6",
+                                    pod: "")
+                            { LocalPort = 2746 }, CancellationTokenSource.Token)
                         .ConfigureAwait(false);
 
-            await stream.SendAsync(
-                            new ReadOnlyMemory<byte>(
-                                new byte[]
-                                {
+                await Task.Delay(int.MaxValue)
+                          .ConfigureAwait(false);
+            }
+
+            [Fact(Skip = "Dependent on a real k8s cluster and services")]
+            public async Task TestWithSpdy()
+            {
+                var config = new KubernetesConfiguration();
+                var factory =
+                    new KubernetesClientFactory(config);
+                await using var ks = new KubernetesService(
+                    factory, new SocketNetworkServerFactory(), new TestFeatureManager((nameof(Features.PortForwardingWithSpdy), true)));
+                await ks.PortForwardAsync(
+                            "kind-argo-demo-test", new Shared.PortForward(
+                                    podPort: 80,
+                                    protocolType: ProtocolType.Tcp,
+                                    @namespace: "argocd",
+                                    service: "",
+                                    pod: "argocd-server-78ffb87fd8-f6559")
+                            { LocalPort = 8081 }, CancellationTokenSource.Token)
+                        .ConfigureAwait(false);
+
+                await Task.Delay(5000)
+                          .ConfigureAwait(false);
+            }
+
+            [Fact(Skip = "Dependent on a real k8s cluster and services")]
+            //[Fact]
+            public async Task TestWithSpdySession()
+            {
+                var cancellation = new CancellationTokenSource(5000).Token;
+                var podPort = 8080;
+                var config = new KubernetesConfiguration();
+                var factory =
+                    new KubernetesClientFactory(config);
+                using var client = factory.Create("kind-argo-demo-test");
+                var session = await client.SpdyNamespacedPodPortForwardAsync(
+                                                          "argocd-server-78ffb87fd8-v4kq9",
+                                                          "argocd",
+                                                          new[] { podPort },
+                                                          cancellation)
+                                                      .ConfigureAwait(false);
+                await using (session.ConfigureAwait(false))
+                {
+                    const string? requestId = "1";
+
+                    using var errorStream = session.Open(
+                        headers: new NameValueHeaderBlock(
+                            (Headers.PortForward.StreamType.Key, new[]
+                            {
+                            Headers.PortForward.StreamType.Error
+                            }),
+                            (Headers.PortForward.Port, new[]
+                            {
+                            podPort.ToString()
+                            }),
+                            (Headers.PortForward.RequestId, new[]
+                            {
+                            requestId
+                            })));
+
+                    await errorStream.Remote.WaitForOpenedAsync(cancellation)
+                                     .ConfigureAwait(false);
+
+                    using var stream = session.Open(
+                        headers: new NameValueHeaderBlock(
+                            (Headers.PortForward.StreamType.Key, new[]
+                            {
+                            Headers.PortForward.StreamType.Data
+                            }),
+                            (Headers.PortForward.Port, new[]
+                            {
+                            podPort.ToString()
+                            }),
+                            (Headers.PortForward.RequestId, new[]
+                            {
+                            requestId
+                            })));
+
+                    await stream.Remote.WaitForOpenedAsync(cancellation)
+                                .ConfigureAwait(false);
+
+                    await stream.SendAsync(
+                                    new ReadOnlyMemory<byte>(
+                                        new byte[]
+                                        {
                                         0x47, 0x45, 0x54, 0x20, 0x2F, 0x20, 0x48, 0x54, 0x54,
                                         0x50, 0x2F, 0x31, 0x2E, 0x31, 0x0D, 0x0A, 0x48, 0x6F,
                                         0x73, 0x74, 0x3A, 0x20, 0x31, 0x32, 0x37, 0x2E, 0x30,
@@ -198,26 +200,32 @@ namespace Port.Server.IntegrationTests
                                         0x47, 0x42, 0x3B, 0x71, 0x3D, 0x30, 0x2E, 0x36, 0x2C,
                                         0x65, 0x6E, 0x2D, 0x55, 0x53, 0x3B, 0x71, 0x3D, 0x30,
                                         0x2E, 0x35, 0x0D, 0x0A, 0x0D, 0x0A
-                                }), cancellationToken: cancellation)
-                        .ConfigureAwait(false);
+                                        }), cancellationToken: cancellation)
+                                .ConfigureAwait(false);
 
-            ReadResult result;
-            do
-            {
-                result = await stream
-                               .ReceiveAsync(timeout: TimeSpan.FromSeconds(2))
-                               .ConfigureAwait(false);
+                    await Task.WhenAll(
+                        ReceiveAsync(stream),
+                        ReceiveAsync(errorStream))
+                              .ConfigureAwait(false);
 
-                var buffer = result.Buffer.Slice(
-                    0, result.Buffer.Length);
-                logger.Debug(
-                    buffer
-                        .ToArray()
-                        .ToHexArrayRepresentation());
-            } while (result.HasMoreData());
+                    async Task ReceiveAsync(SpdyStream spdyStream)
+                    {
+                        ReadResult result;
+                        do
+                        {
+                            result = await spdyStream
+                                           .ReceiveAsync(timeout: TimeSpan.FromSeconds(2))
+                                           .ConfigureAwait(false);
 
-            await Task.Delay(2000, cancellation)
-                      .ConfigureAwait(false);
+                            var buffer = result.Buffer.Slice(
+                                0, result.Buffer.Length);
+                            _logger.Debug(
+                                Encoding.UTF8.GetString(buffer
+                                    .ToArray()));
+                        } while (result.HasMoreData());
+                    }
+                }
+            }
         }
     }
 }
