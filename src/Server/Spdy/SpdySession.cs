@@ -50,8 +50,8 @@ namespace Port.Server.Spdy
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
 
-        private int _streamCounter;
-        private uint _lastGoodStreamId;
+        private UInt31 _nextStreamId;
+        private UInt31 _lastGoodStreamId;
 
         private readonly BufferBlock<SpdyStream> _receivedStreamRequests = new BufferBlock<SpdyStream>();
 
@@ -76,7 +76,7 @@ namespace Port.Server.Spdy
             bool isClient)
         {
             Id = Interlocked.Increment(ref _sessionCounter);
-            _pingId = _streamCounter = isClient ? -1 : 0;
+            _nextPingId = _nextStreamId = isClient ? 1u : 2u;
             _isClient = isClient;
 
             _sendingCancellationTokenSource =
@@ -135,7 +135,7 @@ namespace Port.Server.Spdy
                         {
                             await SendAsync(
                                     GoAway.InternalError(
-                                        UInt31.From(_lastGoodStreamId)),
+                                        _lastGoodStreamId),
                                     SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -264,19 +264,28 @@ namespace Port.Server.Spdy
             }
         }
 
-        private long _pingId;
+        private uint _nextPingId;
 
         private void EnqueuePing()
         {
-            var id = Interlocked.Add(ref _pingId, 2);
-            if (id > uint.MaxValue)
+            while (true)
             {
-                id = id.IsOdd() ? 1 : 2;
-                Interlocked.Exchange(ref _pingId, id);
-            }
+                var nextPingId = InterlockedExtensions.Add(ref _nextPingId, 2);
+                var ping = new Ping(nextPingId - 2);
 
-            var ping = new Ping((uint)id);
-            _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
+                // If a sender uses all possible PING ids (e.g. has sent all 2^31 possible IDs), it can wrap and start re-using IDs.
+                if (nextPingId < ping.Id)
+                {
+                    var resetPingId = nextPingId.IsOdd() ? (uint)1 : 2;
+                    // Prevent competing pings from resetting to the same id
+                    InterlockedExtensions.CompareExchange(
+                        ref _nextPingId, resetPingId, nextPingId);
+                    continue;
+                }
+
+                _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
+                break;
+            }
         }
 
         private async Task<(bool Found, SpdyStream Stream)>
@@ -470,8 +479,8 @@ namespace Port.Server.Spdy
                     break;
                 case GoAway goAway:
                     _sessionCancellationTokenSource.Cancel(false);
-                    Interlocked.Exchange(
-                        ref _streamCounter, goAway.LastGoodStreamId);
+                    InterlockedExtensions.Exchange(
+                        ref _nextStreamId, goAway.LastGoodStreamId + 2u);
                     _logger.Info(
                         "[{SessionId}]: Received {FrameType} with reason {GoAwayStatus}, closing the session",
                         Id,
@@ -549,7 +558,7 @@ namespace Port.Server.Spdy
             UInt31 associatedToStreamId = default)
         {
             headers ??= new NameValueHeaderBlock();
-            var streamId = (uint)Interlocked.Add(ref _streamCounter, 2);
+            var streamId = InterlockedExtensions.Add(ref _nextStreamId, 2) - 2;
 
             var stream = SpdyStream.Open(
                 Id,
@@ -584,7 +593,7 @@ namespace Port.Server.Spdy
                 if (isClosed == false)
                 {
                     await SendAsync(
-                            GoAway.Ok(UInt31.From(_lastGoodStreamId)),
+                            GoAway.Ok(_lastGoodStreamId),
                             SessionCancellationToken)
                         .ConfigureAwait(false);
                 }
