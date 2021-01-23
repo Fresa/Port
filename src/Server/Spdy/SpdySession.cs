@@ -50,9 +50,8 @@ namespace Port.Server.Spdy
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
 
-        private int _lastReceivedStreamId;
         private int _streamCounter;
-        private UInt31 _lastGoodRepliedStreamId;
+        private uint _lastGoodStreamId;
 
         private readonly BufferBlock<SpdyStream> _receivedStreamRequests = new BufferBlock<SpdyStream>();
 
@@ -136,7 +135,7 @@ namespace Port.Server.Spdy
                         {
                             await SendAsync(
                                     GoAway.InternalError(
-                                        UInt31.From(_lastGoodRepliedStreamId)),
+                                        UInt31.From(_lastGoodStreamId)),
                                     SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -248,7 +247,7 @@ namespace Port.Server.Spdy
             catch (OverflowException)
             {
                 var error =
-                    RstStream.FlowControlError(_lastGoodRepliedStreamId);
+                    RstStream.FlowControlError(_lastGoodStreamId);
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top,
                         error);
                 _logger.Error(
@@ -294,7 +293,7 @@ namespace Port.Server.Spdy
             await StopNetworkSenderAsync()
                 .ConfigureAwait(false);
             await SendAsync(
-                    GoAway.ProtocolError(_lastGoodRepliedStreamId),
+                    GoAway.ProtocolError(_lastGoodStreamId),
                     SessionCancellationToken)
                 .ConfigureAwait(false);
             _logger.Error(
@@ -365,10 +364,10 @@ namespace Port.Server.Spdy
             switch (frame)
             {
                 case SynStream synStream:
-                    var previousId = Interlocked.Exchange(
-                        ref _lastReceivedStreamId, synStream.StreamId);
+                    var previousLastGoodStreamId = InterlockedExtensions.Exchange(
+                        ref _lastGoodStreamId, synStream.StreamId);
 
-                    if (previousId >= synStream.StreamId ||
+                    if (previousLastGoodStreamId >= synStream.StreamId ||
                         _isClient == synStream.IsClient())
                     {
                         await StopNetworkSenderAsync()
@@ -377,11 +376,11 @@ namespace Port.Server.Spdy
                             "[{SessionId}]: Received a stream with id {StreamId} which is less than the previous received stream which had id {PreviousStreamId}, closing the session",
                             Id,
                             synStream.StreamId,
-                            previousId);
+                            previousLastGoodStreamId);
                         try
                         {
                             await SendAsync(
-                                    GoAway.ProtocolError(_lastGoodRepliedStreamId),
+                                    GoAway.ProtocolError(previousLastGoodStreamId),
                                     SessionCancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -570,16 +569,9 @@ namespace Port.Server.Spdy
             using (await _receiveGate.WaitAsync(cancellationToken)
                               .ConfigureAwait(false))
             {
-                var stream = await _receivedStreamRequests
+                return await _receivedStreamRequests
                                       .ReceiveAsync(cancellationToken)
                                       .ConfigureAwait(false);
-
-                // This is thread safe since this is the only place
-                // where this property changes and we are inside
-                // a one-at-a-time gate
-                _lastGoodRepliedStreamId = stream.Id;
-
-                return stream;
             }
         }
 
@@ -592,7 +584,7 @@ namespace Port.Server.Spdy
                 if (isClosed == false)
                 {
                     await SendAsync(
-                            GoAway.Ok(UInt31.From(_lastGoodRepliedStreamId)),
+                            GoAway.Ok(UInt31.From(_lastGoodStreamId)),
                             SessionCancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -613,5 +605,6 @@ namespace Port.Server.Spdy
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);
         }
+
     }
 }
