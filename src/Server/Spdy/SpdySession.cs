@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,7 @@ namespace Port.Server.Spdy
         private readonly ILogger _logger = LogFactory.Create<SpdySession>();
         private readonly INetworkClient _networkClient;
         private readonly bool _isClient;
+        private readonly Configuration.Configuration _configuration;
 
         private static int _sessionCounter;
 
@@ -46,6 +48,7 @@ namespace Port.Server.Spdy
         private readonly Task _sendingTask;
         private readonly Task _receivingTask;
         private readonly Task _messageHandlerTask;
+        private readonly Task _sendPingTask;
 
         private readonly ConcurrentPriorityQueue<Frame> _sendingPriorityQueue =
             new ConcurrentPriorityQueue<Frame>();
@@ -73,11 +76,13 @@ namespace Port.Server.Spdy
 
         private SpdySession(
             INetworkClient networkClient,
-            bool isClient)
+            bool isClient,
+            Configuration.Configuration configuration)
         {
             Id = Interlocked.Increment(ref _sessionCounter);
             _nextPingId = _nextStreamId = isClient ? 1u : 2u;
             _isClient = isClient;
+            _configuration = configuration;
 
             _sendingCancellationTokenSource =
                 CancellationTokenSource.CreateLinkedTokenSource(
@@ -91,22 +96,27 @@ namespace Port.Server.Spdy
             _sendingTask = StartBackgroundTaskAsync(SendFramesAsync, _sendingCancellationTokenSource);
             _receivingTask = StartBackgroundTaskAsync(ReceiveFromNetworkClientAsync, _sessionCancellationTokenSource);
             _messageHandlerTask = StartBackgroundTaskAsync(HandleMessagesAsync, _sessionCancellationTokenSource);
+            _sendPingTask = StartBackgroundTaskAsync(SendPingsAsync, _sessionCancellationTokenSource);
         }
 
         public static SpdySession CreateClient(
-            INetworkClient networkClient)
+            INetworkClient networkClient,
+            Configuration.Configuration? configuration = default)
         {
-            return new SpdySession(networkClient, true);
+            return new SpdySession(
+                networkClient, true, configuration ?? Configuration.Configuration.Default);
         }
 
         public static SpdySession CreateServer(
-            INetworkClient networkClient)
+            INetworkClient networkClient,
+            Configuration.Configuration? configuration = default)
         {
-            return new SpdySession(networkClient, false);
+            return new SpdySession(
+                networkClient, false, configuration ?? Configuration.Configuration.Default);
         }
 
         private Task StartBackgroundTaskAsync(
-            Func<Task> action,
+            Func<CancellationToken, Task> action,
             CancellationTokenSource cancellationTokenSource)
         {
             // ReSharper disable once MethodSupportsCancellation
@@ -116,7 +126,7 @@ namespace Port.Server.Spdy
                 {
                     try
                     {
-                        await action()
+                        await action(cancellationTokenSource.Token)
                             .ConfigureAwait(false);
                     }
                     catch when (cancellationTokenSource
@@ -151,13 +161,13 @@ namespace Port.Server.Spdy
                 });
         }
 
-        private async Task SendFramesAsync()
+        private async Task SendFramesAsync(CancellationToken cancellationToken)
         {
-            while (_sendingCancellationTokenSource
+            while (cancellationToken
                 .IsCancellationRequested == false)
             {
                 var frame = await _sendingPriorityQueue
-                                  .DequeueAsync(SendingCancellationToken)
+                                  .DequeueAsync(cancellationToken)
                                   .ConfigureAwait(false);
 
                 switch (frame)
@@ -166,11 +176,11 @@ namespace Port.Server.Spdy
                         // todo: Should we always wait for data frames to be sent before sending
                         // the next frame (which might be a control frame that are not under
                         // flow control)?
-                        await SendAsync(data, SendingCancellationToken)
+                        await SendAsync(data, cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     case Control control:
-                        await SendAsync(control, SendingCancellationToken)
+                        await SendAsync(control, cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     default:
@@ -194,7 +204,7 @@ namespace Port.Server.Spdy
             using (await _sendingGate.WaitAsync(cancellationToken)
                                      .ConfigureAwait(false))
             {
-                await frame.WriteAsync(_frameWriter, _headerWriterProvider, SendingCancellationToken)
+                await frame.WriteAsync(_frameWriter, _headerWriterProvider, cancellationToken)
                                     .ConfigureAwait(false);
             }
         }
@@ -264,10 +274,39 @@ namespace Port.Server.Spdy
             }
         }
 
-        private uint _nextPingId;
+        private readonly ConcurrentDictionary<UInt31, Stopwatch> _pingsSent = new ConcurrentDictionary<UInt31, Stopwatch>();
+        private async Task SendPingsAsync(CancellationToken cancellationToken)
+        {
+            if (_configuration.Ping.MaxOutstandingPings == 0)
+            {
+                _logger.Info($"{nameof(_configuration.Ping.MaxOutstandingPings)} is set to 0, ping disabled");
+                return;
+            }
 
+            while (cancellationToken
+                .IsCancellationRequested == false)
+            {
+                EnqueuePing();
+
+                await Task.Delay(
+                              _configuration.Ping.PingInterval,
+                              cancellationToken)
+                          .ConfigureAwait(false);
+            }
+        }
+
+        private uint _nextPingId;
         private void EnqueuePing()
         {
+            _logger.Debug(
+                "[{SessionId}]: " +
+                $"{_pingsSent.Count}/{_configuration.Ping.MaxOutstandingPings} pings outstanding",
+                Id);
+            if (_pingsSent.Count >= _configuration.Ping.MaxOutstandingPings)
+            {
+                return;
+            }
+
             while (true)
             {
                 var nextPingId = InterlockedExtensions.Add(ref _nextPingId, 2);
@@ -276,13 +315,14 @@ namespace Port.Server.Spdy
                 // If a sender uses all possible PING ids (e.g. has sent all 2^31 possible IDs), it can wrap and start re-using IDs.
                 if (nextPingId < ping.Id)
                 {
-                    var resetPingId = nextPingId.IsOdd() ? (uint)1 : 2;
+                    var resetPingId = nextPingId.IsOdd() ? 1u : 2u;
                     // Prevent competing pings from resetting to the same id
                     InterlockedExtensions.CompareExchange(
                         ref _nextPingId, resetPingId, nextPingId);
                     continue;
                 }
 
+                _pingsSent.TryAdd(ping.Id, Stopwatch.StartNew());
                 _sendingPriorityQueue.Enqueue(SynStream.PriorityLevel.Top, ping);
                 break;
             }
@@ -312,7 +352,7 @@ namespace Port.Server.Spdy
             return (false, stream)!;
         }
 
-        private async Task ReceiveFromNetworkClientAsync()
+        private async Task ReceiveFromNetworkClientAsync(CancellationToken cancellationToken)
         {
             FlushResult result;
             do
@@ -320,7 +360,7 @@ namespace Port.Server.Spdy
                 var bytes = await _networkClient
                                   .ReceiveAsync(
                                       _messageReceiver.Writer.GetMemory(),
-                                      SessionCancellationToken)
+                                      cancellationToken)
                                   .ConfigureAwait(false);
 
                 // End of the stream! 
@@ -332,17 +372,17 @@ namespace Port.Server.Spdy
                 }
                 _messageReceiver.Writer.Advance(bytes);
                 result = await _messageReceiver
-                               .Writer.FlushAsync(SessionCancellationToken)
+                               .Writer.FlushAsync(cancellationToken)
                                .ConfigureAwait(false);
-            } while (_sessionCancellationTokenSource
+            } while (cancellationToken
                          .IsCancellationRequested ==
                      false &&
                      result.HasMore());
         }
 
-        private async Task HandleMessagesAsync()
+        private async Task HandleMessagesAsync(CancellationToken cancellationToken)
         {
-            while (_sessionCancellationTokenSource
+            while (cancellationToken
                 .IsCancellationRequested == false)
             {
                 await HandleNextMessageAsync()
@@ -465,17 +505,23 @@ namespace Port.Server.Spdy
 
                     break;
                 case Ping ping:
-                    // If a server receives an even numbered PING which it did not initiate,
-                    // it must ignore the PING. If a client receives an odd numbered PING
-                    // which it did not initiate, it must ignore the PING.
-                    if (_isClient == ping.IsOdd())
+                    if (_isClient != ping.IsOdd())
                     {
+                        // Pong
+                        _sendingPriorityQueue.Enqueue(
+                            SynStream.PriorityLevel.Top, ping);
                         break;
                     }
 
-                    // Pong
-                    _sendingPriorityQueue.Enqueue(
-                        SynStream.PriorityLevel.Top, ping);
+                    // If a server receives an even numbered PING which it did not initiate,
+                    // it must ignore the PING. If a client receives an odd numbered PING
+                    // which it did not initiate, it must ignore the PING.
+                    if (_pingsSent.TryRemove(ping.Id, out var stopWatch))
+                    {
+                        stopWatch.Stop();
+                        _configuration.Metrics.PingRoundTripTime.Observe(
+                            stopWatch.Elapsed);
+                    }
                     break;
                 case GoAway goAway:
                     _sessionCancellationTokenSource.Cancel(false);
@@ -605,7 +651,10 @@ namespace Port.Server.Spdy
             }
 
             await Task.WhenAll(
-                          _receivingTask, _sendingTask, _messageHandlerTask)
+                          _receivingTask,
+                          _sendingTask,
+                          _messageHandlerTask,
+                          _sendPingTask)
                       .ConfigureAwait(false);
 
             _sendDataGate.Dispose();
@@ -614,6 +663,5 @@ namespace Port.Server.Spdy
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);
         }
-
     }
 }
