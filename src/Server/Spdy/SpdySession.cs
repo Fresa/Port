@@ -36,9 +36,6 @@ namespace Port.Server.Spdy
         private readonly CancellationTokenSource
             _sendingCancellationTokenSource;
 
-        private CancellationToken SendingCancellationToken
-            => _sendingCancellationTokenSource.Token;
-
         private readonly CancellationTokenSource
             _sessionCancellationTokenSource = new CancellationTokenSource();
 
@@ -616,19 +613,10 @@ namespace Port.Server.Spdy
             return stream;
         }
 
-        private readonly SemaphoreSlimGate _receiveGate = SemaphoreSlimGate.OneAtATime;
-
-        public async Task<SpdyStream> ReceiveAsync(
+        public Task<SpdyStream> ReceiveAsync(
             CancellationToken cancellationToken = default)
-        {
-            using (await _receiveGate.WaitAsync(cancellationToken)
-                              .ConfigureAwait(false))
-            {
-                return await _receivedStreamRequests
-                                      .ReceiveAsync(cancellationToken)
-                                      .ConfigureAwait(false);
-            }
-        }
+            => _receivedStreamRequests
+                .ReceiveAsync(cancellationToken);
 
         public async ValueTask DisposeAsync()
         {
@@ -658,7 +646,6 @@ namespace Port.Server.Spdy
                       .ConfigureAwait(false);
 
             _sendDataGate.Dispose();
-            _receiveGate.Dispose();
             _windowSizeIncreased.Dispose();
             await _networkClient.DisposeAsync()
                                 .ConfigureAwait(false);
