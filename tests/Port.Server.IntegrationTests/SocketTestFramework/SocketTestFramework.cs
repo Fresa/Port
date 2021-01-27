@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
+using Port.Server.IntegrationTests.SocketTestFramework.Collections;
 
 namespace Port.Server.IntegrationTests.SocketTestFramework
 {
@@ -11,7 +13,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         private readonly CancellationTokenSource _cancellationTokenSource =
             new CancellationTokenSource();
 
-        private readonly List<Task> _backgroundTasks = new List<Task>();
+        private readonly List<Task> _messageReceivingTasks = new List<Task>();
 
         public static InMemorySocketTestFramework InMemory()
             => new InMemorySocketTestFramework();
@@ -34,19 +36,19 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                                 .ReceiveAsync(
                                     _cancellationTokenSource
                                         .Token);
-                            
+
                             T receivedMessage;
                             try
                             {
                                 receivedMessage = await receivedMessageTask
                                     .ConfigureAwait(false);
                             }
-                            catch when(receivedMessageTask.IsCanceled)
+                            catch when (receivedMessageTask.IsCanceled)
                             {
                                 _cancellationTokenSource.Cancel(false);
                                 return;
                             }
-                            
+
                             if (!_subscriptions.TryGetValue(
                                 receivedMessage.GetType(),
                                 out var subscription))
@@ -55,10 +57,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                                     $"Missing subscription for {receivedMessage.GetType()}");
                             }
 
-                            await subscription(
-                                    receivedMessage,
-                                    _cancellationTokenSource.Token)
-                                .ConfigureAwait(false);
+                            subscription(receivedMessage);
                         }
                     }
                     catch when (_cancellationTokenSource
@@ -66,34 +65,66 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
                     {
                     }
                 });
-            _backgroundTasks.Add(task);
+            task.ContinueWith(
+                _ => _cancellationTokenSource.Cancel(false),
+                TaskContinuationOptions.OnlyOnFaulted);
+            _messageReceivingTasks.Add(task);
         }
 
         private readonly Dictionary<Type, MessageSubscription> _subscriptions =
             new Dictionary<Type, MessageSubscription>();
 
-        private delegate Task MessageSubscription(
-            object message,
-            CancellationToken cancellationToken = default);
+        private delegate void MessageSubscription(
+            object message);
 
-        public ISourceBlock<TRequestMessage> On<TRequestMessage>(
-            CancellationToken cancellationToken = default)
+        private bool TryGetExceptionFromMessageReceivedTasks(
+            [NotNullWhen(true)] out Exception? exception)
         {
-            var messagesReceived = new BufferBlock<TRequestMessage>();
-            On<TRequestMessage>(
-                async (
-                    message,
-                    cancellation) =>
+            var exceptions = _messageReceivingTasks.Aggregate(
+                new List<Exception>(), (
+                    currentExceptions,
+                    task) =>
                 {
-                    await messagesReceived.SendAsync(
-                                              message,
-                                              CancellationTokenSource
-                                                  .CreateLinkedTokenSource(
-                                                      cancellationToken,
-                                                      cancellation)
-                                                  .Token)
-                                          .ConfigureAwait(false);
+                    if (task.Exception != null)
+                    {
+                        currentExceptions.AddRange(
+                            task.Exception.InnerExceptions);
+                    }
+
+                    return currentExceptions;
                 });
+            if (exceptions.Any() == false)
+            {
+                exception = default;
+                return false;
+            }
+
+            exception =
+                exceptions.Count == 1
+                    ? exceptions.First()
+                    : new AggregateException(exceptions);
+            return true;
+        }
+
+        public ISubscription<TRequestMessage> On<TRequestMessage>()
+        {
+            var messagesReceived = new ConcurrentMessageBroker<TRequestMessage>();
+            _cancellationTokenSource.Token.Register(
+                () =>
+                {
+                    if (TryGetExceptionFromMessageReceivedTasks(
+                        out var exception))
+                    {
+                        messagesReceived.Complete(exception);
+                    }
+                    else
+                    {
+                        messagesReceived.Complete();
+                    }
+                });
+            _subscriptions.Add(
+                typeof(TRequestMessage),
+                message => messagesReceived.Send((TRequestMessage)message));
 
             return messagesReceived;
         }
@@ -102,38 +133,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
             Action<TRequestMessage> subscription)
         {
             _subscriptions.Add(
-                typeof(TRequestMessage),
-                (
-                    message,
-                    cancellationToken) => Task.Run(
-                    () => subscription.Invoke((TRequestMessage) message),
-                    cancellationToken));
-            return this;
-        }
-
-        public SocketTestFramework On<TRequestMessage>(
-            Func<TRequestMessage, CancellationToken, Task> subscription)
-        {
-            _subscriptions.Add(
-                typeof(TRequestMessage), (
-                    message,
-                    cancellationToken) => subscription.Invoke(
-                    (TRequestMessage) message, cancellationToken));
-            return this;
-        }
-
-        public SocketTestFramework On<TRequestMessage, TResponseMessage>(
-            Func<TRequestMessage, CancellationToken, Task>
-                subscription)
-            where TRequestMessage : IRespond<TResponseMessage>
-        {
-            _subscriptions.Add(
-                typeof(TRequestMessage), (
-                        message,
-                        cancellationToken) =>
-                    subscription.Invoke(
-                        (TRequestMessage) message,
-                        cancellationToken));
+                typeof(TRequestMessage), message
+                    => subscription.Invoke((TRequestMessage)message));
             return this;
         }
 
@@ -141,7 +142,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         {
             _cancellationTokenSource.Cancel(false);
 
-            await Task.WhenAll(_backgroundTasks)
+            await Task.WhenAll(_messageReceivingTasks)
                       .ConfigureAwait(false);
         }
     }

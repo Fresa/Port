@@ -4,17 +4,17 @@ namespace Port.Server.Spdy.Primitives
 {
     public readonly struct UInt31
     {
-        internal byte One { get; }
-        internal byte Two { get; }
-        internal byte Three { get; }
-        internal byte Four { get; }
+        private byte One { get; }
+        private byte Two { get; }
+        private byte Three { get; }
+        private byte Four { get; }
 
         public uint Value => (uint)(One | (Two << 8) | (Three << 16) | (Four << 24));
 
         internal static readonly UInt31 MaxValue = new UInt31(
             byte.MaxValue, byte.MaxValue, byte.MaxValue, 0x7F);
 
-        public bool Equals(
+        private bool Equals(
             UInt31 other)
         {
             return One == other.One && Two == other.Two &&
@@ -51,7 +51,14 @@ namespace Port.Server.Spdy.Primitives
             return !left.Equals(right);
         }
 
-        public UInt31(
+        public static UInt31 operator -(
+            UInt31 left,
+            UInt31 right)
+        {
+            return From(left.Value - right.Value);
+        }
+
+        private UInt31(
             byte one,
             byte two,
             byte three,

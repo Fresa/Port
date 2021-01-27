@@ -3,9 +3,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
 using Port.Server.IntegrationTests.SocketTestFramework;
+using Port.Server.IntegrationTests.SocketTestFramework.Collections;
 using Port.Server.Spdy;
+using Port.Server.Spdy.Configuration;
 using Port.Server.Spdy.Frames;
 
 namespace Port.Server.IntegrationTests.Spdy
@@ -19,6 +20,7 @@ namespace Port.Server.IntegrationTests.Spdy
         private INetworkServer _server = default!;
 
         internal async Task<SpdySession> ConnectAsync(
+            Configuration configuration,
             CancellationToken cancellationToken = default)
         {
             _server =
@@ -34,7 +36,7 @@ namespace Port.Server.IntegrationTests.Spdy
 
             return SpdySession.CreateClient(
                 await _server.WaitForConnectedClientAsync(cancellationToken)
-                             .ConfigureAwait(false));
+                             .ConfigureAwait(false), configuration);
         }
 
         internal async Task SendAsync(
@@ -45,10 +47,9 @@ namespace Port.Server.IntegrationTests.Spdy
                          .ConfigureAwait(false);
         }
 
-        internal ISourceBlock<T> On<T>(
-            CancellationToken cancellationToken = default)
+        internal ISubscription<T> On<T>()
             where T : Frame
-            => _testFramework.On<T>(cancellationToken);
+            => _testFramework.On<T>();
 
         public async ValueTask DisposeAsync()
         {

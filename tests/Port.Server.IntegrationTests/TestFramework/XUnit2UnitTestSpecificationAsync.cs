@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Port.Server.Observability;
+using Test.It.Specifications;
 using Test.It.With.XUnit;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace Port.Server.IntegrationTests.TestFramework
@@ -29,10 +32,7 @@ namespace Port.Server.IntegrationTests.TestFramework
             NLogCapturingTargetExtensions.RegisterOutputOnce();
         }
 
-        protected XUnit2UnitTestSpecificationAsync()
-        {
-        }
-
+        
         protected XUnit2UnitTestSpecificationAsync(
             ITestOutputHelper testOutputHelper)
             : base(testOutputHelper)
@@ -83,4 +83,92 @@ namespace Port.Server.IntegrationTests.TestFramework
                       .ConfigureAwait(false);
         }
     }
+
+    //public abstract class XUnit2SpecificationAsync : SpecificationAsync,
+    //    IAsyncLifetime
+    //{
+    //    private readonly DisposableList _disposableList = new DisposableList();
+    //    private readonly ITestOutputHelper _testOutputHelper;
+
+
+    //    protected XUnit2SpecificationAsync(
+    //        ITestOutputHelper testOutputHelper)
+    //    {
+    //        _testOutputHelper = testOutputHelper;
+    //        SetupOutput();
+    //    }
+
+    //    protected virtual CancellationTokenSource CancellationTokenSource
+    //    {
+    //        get;
+    //    } = new CancellationTokenSource();
+
+    //    private void SetupOutput()
+    //    {
+    //        _disposableList.Add(Output.WriteTo(_testOutputHelper));
+    //    }
+
+    //    protected readonly TextWriter TestOutputHelper = Output.Writer;
+
+    //    protected virtual Task DisposeAsync(
+    //        bool disposing)
+    //    {
+    //        if (!disposing)
+    //        {
+    //            return Task.CompletedTask;
+    //        }
+
+    //        CancellationTokenSource.Dispose();
+    //        _disposableList.Dispose();
+    //        return Task.CompletedTask;
+    //    }
+
+    //    public async Task InitializeAsync()
+    //    {
+    //        try
+    //        {
+    //            await SetupAsync(CancellationTokenSource.Token)
+    //                .ConfigureAwait(false);
+    //        }
+    //        catch
+    //        {
+    //            await DisposeAsync()
+    //                .ConfigureAwait(false);
+    //            throw;
+    //        }
+    //    }
+
+    //    public Task DisposeAsync()
+    //    {
+    //        GC.SuppressFinalize(this);
+    //        return DisposeAsync(true);
+    //    }
+
+    //    ~XUnit2SpecificationAsync()
+    //    {
+    //        DisposeAsync(false)
+    //            .GetAwaiter()
+    //            .GetResult();
+    //    }
+    //}
+
+    //internal class DisposableList : List<IDisposable>, IDisposable
+    //{
+    //    public static DisposableList FromRange(params IDisposable[] disposables)
+    //    {
+    //        var list = new DisposableList();
+
+    //        if (disposables.Any())
+    //        {
+    //            list.AddRange(disposables);
+    //        }
+
+    //        return list;
+    //    }
+
+    //    public void Dispose()
+    //    {
+    //        ForEach(disposable => disposable.Dispose());
+    //    }
+    //}
 }
