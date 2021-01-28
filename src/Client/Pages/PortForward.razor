@@ -67,14 +67,11 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var serviceGroups in _portForwards.GroupBy(forward => $"{forward.Namespace}.{forward.Service}"))
-            {
-                var renderService = true;
-                @foreach (var podGroups in serviceGroups.GroupBy(forward => forward.Pod))
-                {
-                    var renderPod = true;
-                    @foreach (var portForward in podGroups)
-                    {
+            <Virtualize Context="serviceGroups" Items="@(_portForwards.GroupBy(forward => $"{forward.Namespace}.{forward.Service}").ToList())">
+                @{ var renderService = true; }
+                <Virtualize Context="podGroups" Items="serviceGroups.GroupBy(forward => forward.Pod).ToList()">
+                    @{ var renderPod = true; }
+                    <Virtualize Context="portForward" Items="@podGroups.ToList()">
                         <tr>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Namespace : "")</td>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Service : "")</td>
@@ -82,17 +79,19 @@ else
                             <td>@portForward.PodPort</td>
                             <td>@portForward.ProtocolType</td>
                             <td>
-                                <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort"/>
+                                <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort" />
                             </td>
                             <td>
                                 <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
                             </td>
                         </tr>
-                        renderPod = false;
-                        renderService = false;
-                    }
-                }
-            }
+                        @{
+                            renderPod = false;
+                            renderService = false;
+                        }
+                    </Virtualize>
+                </Virtualize>
+            </Virtualize>
         </tbody>
     </table>
 }
@@ -121,10 +120,10 @@ else
                 foreach (var port in service.Ports)
                 {
                     _portForwards.Add(new global::Port.Shared.PortForward(
-                        service.Namespace, 
-                        pod.Name, 
-                        service.Name, 
-                        port.ProtocolType, 
+                        service.Namespace,
+                        pod.Name,
+                        service.Name,
+                        port.ProtocolType,
                         port.Number));
                 }
             }

@@ -1,0 +1,10 @@
+﻿<ProjectConfiguration>
+  <Settings>
+    <HiddenComponentWarnings />
+    <IgnoredTests>
+      <NamedTestSelector>
+        <TestName>Port.Server.IntegrationTests.UnitTest1.Test1</TestName>
+      </NamedTestSelector>
+    </IgnoredTests>
+  </Settings>
+</ProjectConfiguration>

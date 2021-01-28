@@ -10,6 +10,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using FluentAssertions;
 using k8s;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
@@ -41,8 +42,7 @@ namespace Port.Server.IntegrationTests
                 IServiceContainer configurer)
             {
                 _fixture = DisposeAsyncOnTearDown(new Fixture(configurer));
-                _fixture.PortForwardingSocket.On<byte[]>(
-                    bytes => { _fixture.PortForwardResponseReceived(bytes); });
+                _fixture.PortForwardingSocket.On<byte[]>().ReceiveAsync().ContinueWith(task => { _fixture.PortForwardResponseReceived(task.Result); });
 
                 _fixture.KubernetesApiServer.Pod.PortForward.OnConnected(
                     new PortForward("test", "pod1", 2001), (

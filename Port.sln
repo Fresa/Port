@@ -15,14 +15,20 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Server.IntegrationTest
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kubernetes.Test.API.Server", "tests\Kubernetes.Test.API.Server\Kubernetes.Test.API.Server.csproj", "{9DB62491-B637-4AAF-B80D-FA682CA92A9D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Port.Server.UnitTests", "tests\Port.Server.UnitTests\Port.Server.UnitTests.csproj", "{FC1B10B8-A755-4149-B75D-819FBF500B3E}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{635C3A39-6AFA-4D36-839F-AFECFBA3D1DD}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		.github\workflows\ci.yml = .github\workflows\ci.yml
 		README.md = README.md
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Spdy", "src\Spdy\Spdy.csproj", "{D462EF38-BC80-430B-BD47-1369DB0D40C3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Spdy.AspNetCore", "src\Spdy.AspNetCore\Spdy.AspNetCore.csproj", "{BD9C10BE-57D0-4CE5-982F-0BD426ED90A3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Spdy.UnitTests", "tests\Spdy.UnitTests\Spdy.UnitTests.csproj", "{927A425B-FEBF-4D26-850A-5E38C822AFD8}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Spdy.IntegrationTests", "tests\Spdy.IntegrationTests\Spdy.IntegrationTests.csproj", "{37657727-966D-4F2A-BF54-AEEF1760308A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -50,10 +56,22 @@ Global
 		{9DB62491-B637-4AAF-B80D-FA682CA92A9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9DB62491-B637-4AAF-B80D-FA682CA92A9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9DB62491-B637-4AAF-B80D-FA682CA92A9D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FC1B10B8-A755-4149-B75D-819FBF500B3E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FC1B10B8-A755-4149-B75D-819FBF500B3E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FC1B10B8-A755-4149-B75D-819FBF500B3E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FC1B10B8-A755-4149-B75D-819FBF500B3E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D462EF38-BC80-430B-BD47-1369DB0D40C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D462EF38-BC80-430B-BD47-1369DB0D40C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D462EF38-BC80-430B-BD47-1369DB0D40C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D462EF38-BC80-430B-BD47-1369DB0D40C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD9C10BE-57D0-4CE5-982F-0BD426ED90A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD9C10BE-57D0-4CE5-982F-0BD426ED90A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD9C10BE-57D0-4CE5-982F-0BD426ED90A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD9C10BE-57D0-4CE5-982F-0BD426ED90A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{927A425B-FEBF-4D26-850A-5E38C822AFD8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{927A425B-FEBF-4D26-850A-5E38C822AFD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{927A425B-FEBF-4D26-850A-5E38C822AFD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{927A425B-FEBF-4D26-850A-5E38C822AFD8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{37657727-966D-4F2A-BF54-AEEF1760308A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37657727-966D-4F2A-BF54-AEEF1760308A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37657727-966D-4F2A-BF54-AEEF1760308A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37657727-966D-4F2A-BF54-AEEF1760308A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -61,7 +79,8 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{4D40A233-BD84-4BEB-9C18-4B72889EC091} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
 		{9DB62491-B637-4AAF-B80D-FA682CA92A9D} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
-		{FC1B10B8-A755-4149-B75D-819FBF500B3E} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
+		{927A425B-FEBF-4D26-850A-5E38C822AFD8} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
+		{37657727-966D-4F2A-BF54-AEEF1760308A} = {CC72268D-FDB0-40D5-83B2-3392A057FEC3}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {545068F2-D696-4259-B223-651868C08A1C}

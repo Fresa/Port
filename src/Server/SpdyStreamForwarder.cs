@@ -6,10 +6,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
-using Port.Server.Spdy;
-using Port.Server.Spdy.Collections;
-using Port.Server.Spdy.Frames;
 using Port.Shared;
+using Spdy;
+using Spdy.Collections;
+using Spdy.Frames;
 using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server

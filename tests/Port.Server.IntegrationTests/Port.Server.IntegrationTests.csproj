@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <AssemblyName>Port.Server.IntegrationTests</AssemblyName>
     <RootNamespace>Port.Server.IntegrationTests</RootNamespace>
@@ -13,8 +13,8 @@
     <PackageReference Include="FluentAssertions" Version="5.10.3" />
     <PackageReference Include="KubernetesClient" Version="3.0.16" />
     <PackageReference Include="Log.It.With.NLog" Version="2.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="3.1.9" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.7.1" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="5.0.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3" />
     <PackageReference Include="Test.It" Version="3.0.3" />
     <PackageReference Include="Test.It.While.Hosting.Your.Web.Application" Version="4.0.3" />
     <PackageReference Include="Test.It.With.XUnit" Version="3.0.2" />
