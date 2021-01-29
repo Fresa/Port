@@ -653,7 +653,6 @@ namespace Spdy.IntegrationTests
             private SpdyStream _stream = default!;
             private Data _receivedData = default!;
             private FlushResult _sendingResult;
-            private RstStream _rst = default!;
 
             public When_sending_more_data_than_the_window_allows(
                 ITestOutputHelper testOutputHelper)
@@ -690,18 +689,19 @@ namespace Spdy.IntegrationTests
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
+                var cancellationTokenSource =
+                    CancellationTokenSource.CreateLinkedTokenSource(
+                        cancellationToken);
                 var sendingTask = _stream.SendLastAsync(
                                  Encoding.UTF8.GetBytes(
                                      "This is more than 5 bytes"),
-                                 cancellationToken: cancellationToken)
+                                 cancellationToken: cancellationTokenSource.Token)
                              .ConfigureAwait(false);
                 _receivedData = await Subscriptions.Get<Data>()
                                                    .ReceiveAsync(
                                                        cancellationToken)
                                                    .ConfigureAwait(false);
-                _stream.Dispose();
-                _rst = await Subscriptions.Get<RstStream>().ReceiveAsync(cancellationToken)
-                                      .ConfigureAwait(false);
+                cancellationTokenSource.Cancel();
                 _sendingResult = await sendingTask;
             }
 
@@ -716,20 +716,6 @@ namespace Spdy.IntegrationTests
             public void It_should_have_received_data_that_is_not_the_last()
             {
                 _receivedData.IsLastFrame.Should().BeFalse();
-            }
-
-            [Fact]
-            public void It_should_have_cancelled_the_stream()
-            {
-                _rst.Status.Should()
-                    .Be(RstStream.StatusCode.Cancel);
-            }
-
-            [Fact]
-            public void It_should_have_cancelled_the_stream_using_the_stream_id()
-            {
-                _rst.StreamId.Should()
-                    .Be(_stream.Id);
             }
 
             [Fact]
