@@ -16,11 +16,11 @@
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.9" />
     <PackageReference Include="NLog.Extensions.Logging" Version="1.7.0" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="4.10.0" />
+    <PackageReference Include="Spdy.AspNetCore" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Server\Port.Server.csproj" />
-    <ProjectReference Include="..\..\src\Spdy.AspNetCore\Spdy.AspNetCore.csproj" />
   </ItemGroup>
 
 

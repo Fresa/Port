@@ -103,7 +103,7 @@ namespace Port.Server
                 var cancellationToken = cancellationTokenSource.Token;
 
                 var requestId = Interlocked.Increment(ref _requestId).ToString();
-                using var stream = _spdySession.Open(
+                using var stream = _spdySession.CreateStream(
                     headers: new NameValueHeaderBlock(
                         (Kubernetes.Headers.PortForward.StreamType.Key, new[]
                         {
@@ -123,7 +123,7 @@ namespace Port.Server
                     _spdySession.Id,
                     stream.Id);
 
-                using var errorStream = _spdySession.Open(
+                using var errorStream = _spdySession.CreateStream(
                     options: SynStream.Options.Fin,
                     headers: new NameValueHeaderBlock(
                         (Kubernetes.Headers.PortForward.StreamType.Key, new[]

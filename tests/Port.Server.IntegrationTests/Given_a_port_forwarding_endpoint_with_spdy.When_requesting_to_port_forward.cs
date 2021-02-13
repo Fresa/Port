@@ -53,7 +53,7 @@ namespace Port.Server.IntegrationTests
                         cancellationToken) =>
                     {
                         using var stream = await session
-                                           .ReceiveAsync(cancellationToken)
+                                           .ReceiveStreamAsync(cancellationToken)
                                            .ConfigureAwait(false);
 
                         ReadResult result;
