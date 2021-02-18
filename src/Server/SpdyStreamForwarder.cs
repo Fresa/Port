@@ -24,12 +24,12 @@ namespace Port.Server
         private int _status = Stopped;
 
         private readonly CancellationTokenSource _cancellationTokenSource =
-            new CancellationTokenSource();
+            new();
 
         private CancellationToken CancellationToken
             => _cancellationTokenSource.Token;
 
-        private readonly List<Task> _backgroundTasks = new List<Task>();
+        private readonly List<Task> _backgroundTasks = new();
 
         private readonly ILogger _logger = LogFactory.Create<SpdyStreamForwarder>();
 

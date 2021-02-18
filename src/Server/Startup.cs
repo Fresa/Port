@@ -14,7 +14,7 @@ namespace Port.Server
 {
     public class Startup
     {
-        private readonly Container _container = new Container();
+        private readonly Container _container = new();
 
         static Startup()
         {

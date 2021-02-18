@@ -10,7 +10,7 @@ namespace Port.Server
     {
         private readonly ILogger _logger = LogFactory.Create<LogErrorStreamNetworkClient>();
 
-        public ValueTask DisposeAsync() => new ValueTask();
+        public ValueTask DisposeAsync() => new();
 
         public ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

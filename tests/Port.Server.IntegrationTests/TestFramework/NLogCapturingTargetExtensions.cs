@@ -6,7 +6,7 @@ namespace Port.Server.IntegrationTests.TestFramework
     internal static class NLogCapturingTargetExtensions
     {
         private static readonly ExclusiveLock NLogCapturingTargetLock = 
-            new ExclusiveLock();
+            new();
         internal static void RegisterOutputOnce()
         {
             if (NLogCapturingTargetLock.TryAcquire())

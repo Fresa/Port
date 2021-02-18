@@ -12,13 +12,13 @@ namespace Port.Server
     internal class SocketServer : INetworkServer
     {
         private readonly ConcurrentQueue<INetworkClient> _clients =
-            new ConcurrentQueue<INetworkClient>();
+            new();
 
         private readonly BufferBlock<INetworkClient> _waitingClients =
-            new BufferBlock<INetworkClient>();
+            new();
 
         private readonly CancellationTokenSource _cancellationSource =
-            new CancellationTokenSource();
+            new();
 
         private Task _acceptingClientsBackgroundTask = default!;
         private Socket _clientAcceptingSocket = default!;

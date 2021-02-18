@@ -9,7 +9,7 @@ namespace Port.Server
         private readonly SemaphoreSlim _semaphore;
 
         internal static SemaphoreSlimGate OneAtATime => 
-            new SemaphoreSlimGate(new SemaphoreSlim(1, 1));
+            new(new SemaphoreSlim(1, 1));
 
         internal SemaphoreSlimGate(
             SemaphoreSlim semaphore)
