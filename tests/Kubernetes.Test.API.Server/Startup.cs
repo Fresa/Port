@@ -38,7 +38,6 @@ namespace Kubernetes.Test.API.Server
 
             app.UseMiddleware<UpgradeTestMiddleware>();
             app.UseSpdy();
-            app.UseWebSockets();
             
             app.UseEndpoints(
                 endpoints =>

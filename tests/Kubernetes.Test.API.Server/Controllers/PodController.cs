@@ -30,44 +30,26 @@ namespace Kubernetes.Test.API.Server.Controllers
             [FromQuery] int[] ports,
             CancellationToken cancellationToken)
         {
-            if (HttpContext.WebSockets.IsWebSocketRequest)
+            if (!HttpContext.Spdy()
+                            .IsSpdyRequest)
             {
-                var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    _hostApplicationLifetime.ApplicationStopping);
-
-                var webSocket = await HttpContext.WebSockets
-                    .AcceptWebSocketAsync()
-                    .ConfigureAwait(false);
-
-                var subscription = new PortForward(@namespace, name, ports);
-                await _testFramework.Pod.PortForward.WaitAsync(
-                        subscription, webSocket, cancellationTokenSource.Token)
-                    .ConfigureAwait(false);
-
-                return Ok();
+                return BadRequest();
             }
 
-            if (HttpContext.Spdy()
-                           .IsSpdyRequest)
-            {
-                var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    _hostApplicationLifetime.ApplicationStopping);
+            var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                _hostApplicationLifetime.ApplicationStopping);
 
-                var spdySession = await HttpContext.Spdy()
-                                                   .AcceptSpdyAsync()
-                                                   .ConfigureAwait(false);
+            var spdySession = await HttpContext.Spdy()
+                                               .AcceptSpdyAsync()
+                                               .ConfigureAwait(false);
 
-                var subscription = new PortForward(@namespace, name, ports);
-                await _testFramework.Pod.PortForward.WaitAsync(
-                                        subscription, spdySession, cancellationTokenSource.Token)
-                                    .ConfigureAwait(false);
+            var subscription = new PortForward(@namespace, name, ports);
+            await _testFramework.Pod.PortForward.WaitAsync(
+                                    subscription, spdySession, cancellationTokenSource.Token)
+                                .ConfigureAwait(false);
 
-                return Ok();
-            }
-
-            return BadRequest();
+            return Ok();
         }
     }
 }
