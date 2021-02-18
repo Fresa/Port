@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Spdy.AspNetCore;
 
 namespace Kubernetes.Test.API.Server
 {
@@ -21,19 +20,11 @@ namespace Kubernetes.Test.API.Server
         {
             services.AddControllers();
             services.AddMvc();
-            services.AddSpdy();
         }
 
         public void Configure(
-            IApplicationBuilder app,
-            IWebHostEnvironment env)
+            IApplicationBuilder app)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-            
-            app.UseHttpsRedirection();
             app.UseRouting();
 
             app.UseMiddleware<UpgradeTestMiddleware>();

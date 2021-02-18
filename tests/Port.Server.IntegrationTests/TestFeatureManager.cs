@@ -18,7 +18,7 @@ namespace Port.Server.IntegrationTests
                 _features.AddOrUpdate(
                     feature, _ => enabled, (
                         _,
-                        __) => enabled);
+                        _) => enabled);
             }
         }
 

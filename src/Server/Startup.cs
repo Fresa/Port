@@ -1,6 +1,4 @@
 using System.Net.Http;
-using Log.It;
-using Log.It.With.NLog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;

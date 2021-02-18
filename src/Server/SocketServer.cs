@@ -119,8 +119,8 @@ namespace Port.Server
                 _clientAcceptingSocket.Close();
             }
             catch
-            {
-            } // Ignore unhandled exceptions during shutdown 
+            { // Ignore unhandled exceptions during shutdown 
+            } 
             finally
             {
                 _clientAcceptingSocket.Dispose();

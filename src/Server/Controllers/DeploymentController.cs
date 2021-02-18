@@ -17,10 +17,8 @@ namespace Port.Server.Controllers
         }
 
         [HttpGet("{context}")]
-        public async Task<IEnumerable<Deployment>> Get(string context)
-        {
-            return await _kubernetesService.ListDeploymentsInAllNamespacesAsync(context)
-                .ConfigureAwait(false);
-        }
+        public Task<IEnumerable<Deployment>> Get(
+            string context)
+            => _kubernetesService.ListDeploymentsInAllNamespacesAsync(context);
     }
 }
