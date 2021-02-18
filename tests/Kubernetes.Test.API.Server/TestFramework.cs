@@ -52,7 +52,7 @@ namespace Kubernetes.Test.API.Server
                        .ConfigureAppConfiguration(
                            (
                                context,
-                               configurationBuilder) =>
+                               _) =>
                            {
                                configuration =
                                    context.Configuration;
@@ -82,12 +82,9 @@ namespace Kubernetes.Test.API.Server
 
         public HttpMessageHandler CreateHttpMessageHandler()
             => new UpgradeMessageHandler(GetTestServer());
-
-        public WebSocketClient CreateWebSocketClient() => GetTestServer()
-            .CreateWebSocketClient();
-
+        
         public PodSubscriptions Pod { get; } =
-            new PodSubscriptions();
+            new();
 
         public async ValueTask DisposeAsync()
         {

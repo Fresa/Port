@@ -7,7 +7,7 @@ namespace Port.Server.IntegrationTests.TestFramework
         internal static KubernetesConfiguration CreateKubernetesConfiguration(
             this global::Kubernetes.Test.API.Server.TestFramework testFramework)
         {
-            return new KubernetesConfiguration(
+            return new(
                 createClient: _ => 
                     new HttpClient(
                         new LogItHttpMessageHandlerDecorator(
@@ -16,9 +16,7 @@ namespace Port.Server.IntegrationTests.TestFramework
                         BaseAddress = testFramework.BaseAddress
                     }
                 ,
-                kubernetesConfigPath: "config",
-                createWebSocketBuilder: () => new WebSocketClientBuilder(
-                    testFramework.CreateWebSocketClient()));
+                kubernetesConfigPath: "config");
         }
     }
 }

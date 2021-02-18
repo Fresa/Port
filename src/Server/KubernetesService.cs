@@ -6,7 +6,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
-using Microsoft.FeatureManagement;
 using Port.Server.Kubernetes;
 using Port.Shared;
 
@@ -17,22 +16,19 @@ namespace Port.Server
     {
         private readonly IKubernetesClientFactory _clientFactory;
         private readonly INetworkServerFactory _networkServerFactory;
-        private readonly IFeatureManager _featureManager;
 
         private readonly CancellationTokenSource _cancellationSource =
-            new CancellationTokenSource();
+            new();
 
         private readonly List<IAsyncDisposable> _disposables =
             new List<IAsyncDisposable>();
 
         public KubernetesService(
             IKubernetesClientFactory clientFactory,
-            INetworkServerFactory networkServerFactory,
-            IFeatureManager featureManager)
+            INetworkServerFactory networkServerFactory)
         {
             _clientFactory = clientFactory;
             _networkServerFactory = networkServerFactory;
-            _featureManager = featureManager;
         }
 
         public async Task<IEnumerable<Deployment>>
@@ -97,37 +93,18 @@ namespace Port.Server
 
             var socketServer = _networkServerFactory.CreateAndStart(
                 IPAddress.IPv6Any,
-                (int) portForward.LocalPort,
+                (int)portForward.LocalPort,
                 portForward.ProtocolType);
 
-            if (await _featureManager
-                      .IsEnabledAsync(nameof(Features.PortForwardingWithSpdy))
-                      .ConfigureAwait(false))
-            {
-                var session = await client.SpdyNamespacedPodPortForwardAsync(
-                                              portForward.Pod,
-                                              portForward.Namespace,
-                                              new[] {portForward.PodPort},
-                                              cancellationToken)
-                                          .ConfigureAwait(false);
-                _disposables.Add(
-                    SpdyStreamForwarder.Start(socketServer, session, portForward));
-                _disposables.Add(session);
-            }
-            else
-            {
-                var webSocket =
-                    await client.WebSocketNamespacedPodPortForwardAsync(
-                                    portForward.Pod, portForward.Namespace,
-                                    new[] {portForward.PodPort},
-                                    "v4.channel.k8s.io",
-                                    cancellationToken: cancellationToken)
-                                .ConfigureAwait(false);
-
-                var streamForwarder = StreamForwarder
-                    .Start(socketServer, webSocket);
-                _disposables.Add(streamForwarder);
-            }
+            var session = await client.SpdyNamespacedPodPortForwardAsync(
+                                          portForward.Pod,
+                                          portForward.Namespace,
+                                          new[] { portForward.PodPort },
+                                          cancellationToken)
+                                      .ConfigureAwait(false);
+            _disposables.Add(
+                SpdyStreamForwarder.Start(socketServer, session, portForward));
+            _disposables.Add(session);
             _disposables.Add(socketServer);
         }
 

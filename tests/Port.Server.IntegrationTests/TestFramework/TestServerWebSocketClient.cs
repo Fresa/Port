@@ -16,10 +16,7 @@ namespace Port.Server.IntegrationTests.TestFramework
             _webSocketClient = webSocketClient;
         }
 
-        public async Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default)
-        {
-            return await _webSocketClient.ConnectAsync(uri, cancellationToken)
-                .ConfigureAwait(false);
-        }
+        public Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default) =>
+            _webSocketClient.ConnectAsync(uri, cancellationToken);
     }
 }

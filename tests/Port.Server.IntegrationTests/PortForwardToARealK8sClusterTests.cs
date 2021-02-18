@@ -27,28 +27,7 @@ namespace Port.Server.IntegrationTests
                 : base(testOutputHelper)
             {
             }
-
-            [Fact(Skip = "Dependent on a real k8s cluster and services")]
-            public async Task Test1()
-            {
-                var factory =
-                    new KubernetesClientFactory(new KubernetesConfiguration());
-                var ks = new KubernetesService(
-                    factory, new SocketNetworkServerFactory(), new TestFeatureManager());
-                await ks.PortForwardAsync(
-                            "kind-argo-demo-ci", new Shared.PortForward(
-                                    podPort: 2746,
-                                    protocolType: ProtocolType.Tcp,
-                                    @namespace: "argo",
-                                    service: "argo-server-5f5c647dcb-bkcz6",
-                                    pod: "")
-                            { LocalPort = 2746 }, CancellationTokenSource.Token)
-                        .ConfigureAwait(false);
-
-                await Task.Delay(int.MaxValue)
-                          .ConfigureAwait(false);
-            }
-
+            
             [Fact(Skip = "Dependent on a real k8s cluster and services")]
             public async Task TestWithSpdy()
             {
@@ -56,7 +35,7 @@ namespace Port.Server.IntegrationTests
                 var factory =
                     new KubernetesClientFactory(config);
                 await using var ks = new KubernetesService(
-                    factory, new SocketNetworkServerFactory(), new TestFeatureManager((nameof(Features.PortForwardingWithSpdy), true)));
+                    factory, new SocketNetworkServerFactory());
                 await ks.PortForwardAsync(
                             "kind-argo-demo-test", new Shared.PortForward(
                                     podPort: 80,

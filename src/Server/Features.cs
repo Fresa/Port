@@ -2,6 +2,5 @@
 {
     internal enum Features
     {
-        PortForwardingWithSpdy
     }
 }
