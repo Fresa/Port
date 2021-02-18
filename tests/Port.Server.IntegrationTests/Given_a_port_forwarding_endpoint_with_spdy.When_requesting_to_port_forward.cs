@@ -11,7 +11,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
-using Microsoft.FeatureManagement;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
 using Spdy;
@@ -42,7 +41,6 @@ namespace Port.Server.IntegrationTests
             protected override void Given(
                 IServiceContainer configurer)
             {
-                configurer.RegisterSingleton<IFeatureManager>(() => new TestFeatureManager((nameof(Features.PortForwardingWithSpdy), true)));
                 _fixture = DisposeAsyncOnTearDown(new Fixture(configurer));
                 _fixture.PortForwardingSocket.On<byte[]>(
                     bytes => { _fixture.PortForwardResponseReceived(bytes); });
