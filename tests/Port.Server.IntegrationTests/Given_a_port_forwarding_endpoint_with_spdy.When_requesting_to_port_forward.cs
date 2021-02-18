@@ -14,7 +14,7 @@ using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Microsoft.FeatureManagement;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
-using Port.Server.Spdy;
+using Spdy;
 using Test.It;
 using Xunit;
 using Xunit.Abstractions;
@@ -53,7 +53,7 @@ namespace Port.Server.IntegrationTests
                         cancellationToken) =>
                     {
                         using var stream = await session
-                                           .ReceiveAsync(cancellationToken)
+                                           .ReceiveStreamAsync(cancellationToken)
                                            .ConfigureAwait(false);
 
                         ReadResult result;

@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -100,7 +101,9 @@ namespace Port.Server
                 SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
             _clientAcceptingSocket.Bind(endPoint);
             var localEndPoint =
-                (IPEndPoint) _clientAcceptingSocket.LocalEndPoint;
+                (IPEndPoint) (_clientAcceptingSocket.LocalEndPoint ??
+                              throw new InvalidOperationException(
+                                  "Missing local endpoint"));
             Port = localEndPoint.Port;
             Address = localEndPoint.Address;
             _clientAcceptingSocket.Listen(100);

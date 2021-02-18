@@ -4,7 +4,7 @@ using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
-using Port.Server.Spdy;
+using Spdy;
 
 namespace Kubernetes.Test.API.Server.Subscriptions
 {
@@ -13,7 +13,7 @@ namespace Kubernetes.Test.API.Server.Subscriptions
         private readonly ConcurrentDictionary<PortForward,
                 OnConnectedWebSocketAsync>
             _onConnectedWebSocketSubscriptions =
-                new ConcurrentDictionary<PortForward, OnConnectedWebSocketAsync>();
+                new();
 
         public delegate Task OnConnectedWebSocketAsync(
             WebSocket portForwardSocket,
@@ -22,7 +22,7 @@ namespace Kubernetes.Test.API.Server.Subscriptions
         private readonly ConcurrentDictionary<PortForward,
                 OnConnectedSpdySessionAsync>
             _onConnectedSpdySessionSubscriptions =
-                new ConcurrentDictionary<PortForward, OnConnectedSpdySessionAsync>();
+                new();
         
         public delegate Task OnConnectedSpdySessionAsync(
             SpdySession portForwardSpdySession,

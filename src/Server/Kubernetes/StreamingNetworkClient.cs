@@ -3,9 +3,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Port.Server
+namespace Port.Server.Kubernetes
 {
-    internal sealed class StreamingNetworkClient : INetworkClient
+    internal sealed class StreamingNetworkClient : Spdy.Network.INetworkClient
     {
         private readonly Stream _stream;
 
@@ -14,7 +14,7 @@ namespace Port.Server
             _stream = stream;
         }
 
-        public ValueTask DisposeAsync() => new ValueTask();
+        public ValueTask DisposeAsync() => new();
 
         public ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

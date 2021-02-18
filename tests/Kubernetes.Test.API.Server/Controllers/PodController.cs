@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
-using Port.Server.Spdy.AspNet;
+using Spdy.AspNetCore;
 
 namespace Kubernetes.Test.API.Server.Controllers
 {

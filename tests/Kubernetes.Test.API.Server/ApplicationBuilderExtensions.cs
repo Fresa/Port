@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Builder;
-using Port.Server.Spdy.AspNet;
+using Spdy.AspNetCore;
 
 namespace Kubernetes.Test.API.Server
 {
