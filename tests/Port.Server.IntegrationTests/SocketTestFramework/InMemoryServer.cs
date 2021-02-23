@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
@@ -9,7 +8,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
     internal class InMemoryServer : INetworkServer
     {
         private readonly ConcurrentQueue<INetworkClient> _clients =
-            new ConcurrentQueue<INetworkClient>();
+            new();
 
         private readonly BufferBlock<INetworkClient> _waitingClients;
 

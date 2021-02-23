@@ -7,8 +7,8 @@ namespace Port.Server.IntegrationTests.SocketTestFramework.Collections
 {
     internal sealed class ConcurrentMessageBroker<T> : ISubscription<T>
     {
-        private readonly ConcurrentQueue<Task<T>> _queue = new ConcurrentQueue<Task<T>>();
-        private readonly SemaphoreSlim _signaler = new SemaphoreSlim(0);
+        private readonly ConcurrentQueue<Task<T>> _queue = new();
+        private readonly SemaphoreSlim _signaler = new(0);
         internal void Send(
             T message)
         {

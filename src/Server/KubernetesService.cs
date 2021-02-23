@@ -21,7 +21,7 @@ namespace Port.Server
             new();
 
         private readonly List<IAsyncDisposable> _disposables =
-            new List<IAsyncDisposable>();
+            new();
 
         public KubernetesService(
             IKubernetesClientFactory clientFactory,

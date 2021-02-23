@@ -11,12 +11,12 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
     internal abstract class SocketTestFramework : IAsyncDisposable
     {
         private readonly CancellationTokenSource _cancellationTokenSource =
-            new CancellationTokenSource();
+            new();
 
-        private readonly List<Task> _messageReceivingTasks = new List<Task>();
+        private readonly List<Task> _messageReceivingTasks = new();
 
         public static InMemorySocketTestFramework InMemory()
-            => new InMemorySocketTestFramework();
+            => new();
 
         protected void ReceiveMessagesFor<T>(
             IReceivingClient<T> client)
@@ -72,7 +72,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
         }
 
         private readonly Dictionary<Type, MessageSubscription> _subscriptions =
-            new Dictionary<Type, MessageSubscription>();
+            new();
 
         private delegate void MessageSubscription(
             object message);

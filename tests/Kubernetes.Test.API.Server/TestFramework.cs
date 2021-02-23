@@ -39,7 +39,7 @@ namespace Kubernetes.Test.API.Server
                                 .Build();
             var startSignaler = new ManualResetEventSlim();
             _host.StartAsync()
-                 .ContinueWith(task => startSignaler.Set());
+                 .ContinueWith(_ => startSignaler.Set());
             startSignaler.Wait();
         }
 

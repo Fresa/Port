@@ -7,7 +7,7 @@ namespace Port.Server.Observability
     internal static class NLogBuilderExtensions
     {
         private static readonly ExclusiveLock NlogConfigurationLock =
-            new ExclusiveLock();
+            new();
 
         internal static void ConfigureNLogOnce(
             IConfiguration configuration)

@@ -8,7 +8,7 @@ namespace Port.Server.IntegrationTests
     internal sealed class TestFeatureManager : IFeatureManager
     {
         private readonly ConcurrentDictionary<string, bool> _features =
-            new ConcurrentDictionary<string, bool>();
+            new();
 
         public TestFeatureManager(
             params (string Feature, bool Enabled)[] features)
@@ -18,7 +18,7 @@ namespace Port.Server.IntegrationTests
                 _features.AddOrUpdate(
                     feature, _ => enabled, (
                         _,
-                        __) => enabled);
+                        _) => enabled);
             }
         }
 

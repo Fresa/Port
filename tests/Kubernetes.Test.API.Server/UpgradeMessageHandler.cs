@@ -47,7 +47,7 @@ namespace Kubernetes.Test.API.Server
                 response.Content =
                     new DuplexStreamContent(duplexStreamFeature.Body);
                 // This avoids anyone setting a buffer for the content which will override the stream
-                await response.Content.ReadAsStreamAsync()
+                await response.Content.ReadAsStreamAsync(cancellationToken)
                               .ConfigureAwait(false);
             }
             else

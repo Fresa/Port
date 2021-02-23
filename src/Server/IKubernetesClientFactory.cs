@@ -1,6 +1,4 @@
-﻿using k8s;
-
-namespace Port.Server
+﻿namespace Port.Server
 {
     internal interface IKubernetesClientFactory
     {

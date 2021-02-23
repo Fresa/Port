@@ -29,7 +29,7 @@ namespace Port.Server.IntegrationTests
         {
             if (_host == null)
             {
-                _host = Program.CreateHostBuilder(new string[0])
+                _host = Program.CreateHostBuilder(Array.Empty<string>())
                     .ConfigureServices(
                         collection =>
                         {
@@ -38,7 +38,9 @@ namespace Port.Server.IntegrationTests
                             testConfigurer.Configure(
                                 new SimpleInjectorServiceContainer(
                                     collection.BuildServiceProvider()
-                                        .GetService<Container>()));
+                                              .GetService<Container>() ??
+                                    throw new InvalidOperationException(
+                                        $"{typeof(Container)} has not been registered")));
 
                         })
                     .ConfigureWebHost(builder => builder.UseTestServer())
@@ -63,6 +65,7 @@ namespace Port.Server.IntegrationTests
         public void Dispose()
         {
             _host?.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         public HttpMessageHandler CreateHttpMessageHandler()

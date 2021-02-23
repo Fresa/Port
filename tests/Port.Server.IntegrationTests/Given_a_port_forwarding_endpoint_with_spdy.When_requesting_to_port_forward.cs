@@ -214,7 +214,7 @@ namespace Port.Server.IntegrationTests
                 private Memory<byte> Memory => _memoryOwner.Memory;
 
                 internal readonly List<byte> MessageReceived =
-                    new List<byte>();
+                    new();
 
                 internal string PortForwardResponse { get; private set; } = "";
 
@@ -227,7 +227,7 @@ namespace Port.Server.IntegrationTests
                 }
 
                 private readonly SemaphoreSlim _responseReceived =
-                    new SemaphoreSlim(0);
+                    new(0);
 
 
                 internal async Task WaitForResponseAsync(

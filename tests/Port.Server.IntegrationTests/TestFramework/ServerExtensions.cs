@@ -7,7 +7,7 @@ namespace Port.Server.IntegrationTests.TestFramework
     {
         internal static HttpClient CreateHttpClient(this IServer server)
         {
-            return new HttpClient(
+            return new(
                 new LogItHttpMessageHandlerDecorator(
                     server.CreateHttpMessageHandler()))
             {

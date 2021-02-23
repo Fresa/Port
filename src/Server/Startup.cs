@@ -1,6 +1,4 @@
 using System.Net.Http;
-using Log.It;
-using Log.It.With.NLog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -14,7 +12,7 @@ namespace Port.Server
 {
     public class Startup
     {
-        private readonly Container _container = new Container();
+        private readonly Container _container = new();
 
         static Startup()
         {

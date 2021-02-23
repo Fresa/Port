@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks.Dataflow;
@@ -11,7 +10,7 @@ namespace Port.Server.IntegrationTests.SocketTestFramework
     {
         private readonly ConcurrentDictionary<string, BufferBlock<INetworkClient>>
             _networkServers
-                = new ConcurrentDictionary<string, BufferBlock<INetworkClient>>();
+                = new();
         
         internal BufferBlock<INetworkClient> Get(
             IPAddress address,

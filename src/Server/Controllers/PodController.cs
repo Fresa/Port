@@ -17,12 +17,9 @@ namespace Port.Server.Controllers
         }
 
         [HttpGet("{context}")]
-        public async Task<IEnumerable<Shared.Pod>> GetAsync(
+        public Task<IEnumerable<Shared.Pod>> GetAsync(
             string context)
-        {
-            return await _kubernetesService.ListPodsInAllNamespacesAsync(
-                context)
-                .ConfigureAwait(false);
-        }
+            => _kubernetesService.ListPodsInAllNamespacesAsync(
+                                           context);
     }
 }

@@ -17,7 +17,7 @@ namespace Kubernetes.Test.API.Server
 
         protected override Task SerializeToStreamAsync(
             Stream stream,
-            TransportContext context)
+            TransportContext? context)
             => Task.CompletedTask;
 
         protected override bool TryComputeLength(
