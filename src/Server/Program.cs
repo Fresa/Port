@@ -28,7 +28,8 @@ namespace Port.Server
                     configurationBuilder
                         .AddJsonFile("appsettings.json", false, true)
                         .AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", true, true)
-                        .AddEnvironmentVariables();
+                        .AddEnvironmentVariables()
+                        .AddCommandLine(args);
                 })
                 .UseNLog();
     }
