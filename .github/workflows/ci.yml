@@ -119,7 +119,7 @@ jobs:
     - name: Publish
       run: |
         dotnet publish ./src/Server --self-contained -c Release -r ${{ matrix.rid }} -o ./bin/${{ matrix.rid }}
-        zip -rj port-${{needs.release.outputs.release_tag}}-${{ matrix.rid }}.zip ./bin/${{ matrix.rid }}
+        zip -r port-${{needs.release.outputs.release_tag}}-${{ matrix.rid }}.zip ./bin/${{ matrix.rid }}
     - name: Upload Release Artifacts
       uses: AButler/upload-release-assets@v2.0
       with:
