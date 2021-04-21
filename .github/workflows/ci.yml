@@ -6,31 +6,123 @@ on:
       - '*'
 
 jobs:
-  build:    
-    runs-on: ubuntu-latest
+  test:
+    name: Build & Test
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+    - name: Build
+      run: dotnet build -c Release
+    - name: Test
+      run: dotnet test -c Release --no-build --verbosity normal
 
+  release:    
+    name: Create Release
+    needs: [test]
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
       with:
         # Fetches entire history, so we can analyze commits since last tag
         fetch-depth: 0
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v0.9.7
+      with:
+        versionSpec: '5.x'
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v0
+      with:
+        useConfigFile: true
+        configFilePath: .github/version_config.yml
+    - name: Determine Release Info
+      id: release
+      run: |
+        from_tag=$(git tag --points-at ${{ steps.gitversion.outputs.versionSourceSha }} | grep -m 1 ^v[0-9]*\.[0-9]*\.[0-9]* | head -1)
+          [[ -z "$from_tag" ]] && \
+            from_ref_exclusive=${{ steps.gitversion.outputs.versionSourceSha }} || \
+            from_ref_exclusive=$from_tag
+
+          [[ -z "${{ steps.gitversion.outputs.preReleaseNumber }}" ]] && \
+            is_prerelease=false || \
+            is_prerelease=true
+
+          [[ $is_prerelease == true ]] && \
+            tag=v${{ steps.gitversion.outputs.majorMinorPatch }}-pre-${{ steps.gitversion.outputs.shortSha }} || \
+            tag=v${{ steps.gitversion.outputs.majorMinorPatch }}
+
+          echo "::set-output name=is_prerelease::$is_prerelease"
+          echo "::set-output name=tag::$tag"
+          echo "::set-output name=from_ref_exclusive::$from_ref_exclusive"
+    - name: Create Tag
+      uses: actions/github-script@v3
+      with:
+        script: |
+          github.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: "refs/tags/${{ steps.release.outputs.tag }}",
+            sha: "${{ steps.gitversion.outputs.sha }}"
+          });
+    - name: Generate Release Notes
+      id: release_notes
+      uses: Fresa/release-notes-generator@v0
+      with:
+          version: ${{ steps.release.outputs.tag }}
+          from_ref_exclusive: ${{ steps.release.outputs.from_ref_exclusive }}
+          to_ref_inclusive: ${{ steps.release.outputs.tag }}
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+          body: ${{ steps.release_notes.outputs.release_notes }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          prerelease: ${{ steps.release.outputs.is_prerelease }}
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Update Latest Minor Tag
+      uses: EndBug/latest-tag@v1
+      if: steps.release.outputs.is_prerelease == 'false'
+      with:
+          tag-name: v${{ steps.gitversion.outputs.major }}
+          description: ${{ steps.release.outputs.tag }}
+    - name: Update Latest Patch Tag
+      uses: EndBug/latest-tag@v1
+      if: steps.release.outputs.is_prerelease == 'false'
+      with:
+          tag-name: v${{ steps.gitversion.outputs.major }}.${{ steps.gitversion.outputs.minor }}
+          description: ${{ steps.release.outputs.tag }}
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+
+  publish:
+    name: Upload Artifacts
+    needs: [release]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [win-x64, linux-x64, osx-x64]
+    steps:
+    - uses: actions/checkout@v2
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 5.0.x
-    - name: Bump version and push tag
-      id: set-version
-      uses: mathieudutour/github-tag-action@v4.5
+    - name: Publish
+      run: |
+        dotnet publish --self-contained -c Release -r ${{ matrix.rid }} -o ./bin/${{ matrix.rid }}
+        zip -rj port-${{needs.release.outputs.release_tag}}-${{ matrix.rid }}.zip ./bin/${{ matrix.rid }}
+    - name: Upload Release Artifacts
+      uses: AButler/upload-release-assets@v2.0
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Install dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --configuration Release --no-restore
-    - name: Test
-      run: dotnet test --configuration Release --no-restore --verbosity normal
-
-    outputs:
-      version: ${{ steps.set-version.outputs.new_tag }}
-      changelog: ${{ steps.set-version.outputs.changelog }}
+        release-tag: ${{needs.release.outputs.release_tag}}
+        files: port-${{needs.release.outputs.release_tag}}-${{ matrix.rid }}.zip
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
