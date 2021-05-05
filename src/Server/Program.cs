@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -19,6 +20,7 @@ namespace Port.Server
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
+                    webBuilder.UseContentRoot(GetBasePath());
                     webBuilder.UseStartup<Startup>();
                 })
                 .ConfigureLogging(builder =>
@@ -28,12 +30,18 @@ namespace Port.Server
                 .ConfigureAppConfiguration((context, configurationBuilder) =>
                 {
                     configurationBuilder
-                        .SetBasePath(AppContext.BaseDirectory)
+                        .SetBasePath(GetBasePath())
                         .AddJsonFile("appsettings.json", false, true)
                         .AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", true, true)
                         .AddEnvironmentVariables()
                         .AddCommandLine(args);
                 })
                 .UseNLog();
+        
+        private static string GetBasePath()
+        {
+            using var processModule = Process.GetCurrentProcess().MainModule;
+            return Path.GetDirectoryName(processModule?.FileName) ?? AppContext.BaseDirectory;
+        }
     }
 }
