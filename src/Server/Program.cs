@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Hosting;
+﻿using System;
+using System.IO;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,6 +28,7 @@ namespace Port.Server
                 .ConfigureAppConfiguration((context, configurationBuilder) =>
                 {
                     configurationBuilder
+                        .SetBasePath(AppContext.BaseDirectory)
                         .AddJsonFile("appsettings.json", false, true)
                         .AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", true, true)
                         .AddEnvironmentVariables()

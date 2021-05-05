@@ -21,12 +21,36 @@ Remove-Item port.zip
 ```
 ### Linux
 ```bash
-VERSION="<VERSION>"; \
-sudo curl -Lo port.zip https://github.com/Fresa/Port/releases/download/$VERSION/port-$VERSION-linux-x64.zip; \
-sudo unzip -d /usr/local/bin/port/ port.zip; \
-sudo rm ./port.zip
+version="<version>"
+curl -fsSL -o install.sh https://raw.githubusercontent.com/Fresa/Port/$version/scripts/linux/install.sh
+chmod 700 install.sh
+./install.sh --version $version
+```
+### TLS Certificate
+By default Port listens on port 5001 over https. To configure a certificate edit the endpoint configuration in `appsettings.Production.json` found in the installation directory. 
+Example:
+```json
+"Kestrel": {
+  "EndPoints": {
+    "Https": {
+      "Url": "https://localhost:5001",
+      "Certificate": {
+        "Path": "certificate.pfx",
+        "Password": "<PASSWORD>",
+        "AllowInvalid": "true"
+      }
+    }
+  }
+}
 ```
 
+It's also possible to specify any configuration as arguments to port, for example the password.
+Example:
+```bash
+port --Kestrel:Endpoints:Https:Certificate:Password "<PASSWORD>"
+```
+
+This way you can source sensitive information from elsewhere.
 ## Usage
 The server is started by executing the executable.
 
@@ -36,7 +60,7 @@ The server is started by executing the executable.
 ```
 ### Linux
 ```bash
-./Port.Server
+port
 ```
 
 ## Contributing
