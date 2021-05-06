@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -13,14 +14,19 @@ namespace Port.Server
     {
         public static void Main(string[] args)
         {
-            CreateHostBuilder(args).Build().Run();
+            CreateHostBuilder(
+                    args
+                        .Append($"--{WebHostDefaults.ContentRootKey}")
+                        .Append(GetBasePath())
+                        .ToArray())
+                .Build()
+                .Run();
         }
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
+        public static IHostBuilder CreateHostBuilder(params string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    webBuilder.UseContentRoot(GetBasePath());
                     webBuilder.UseStartup<Startup>();
                 })
                 .ConfigureLogging(builder =>
@@ -30,14 +36,13 @@ namespace Port.Server
                 .ConfigureAppConfiguration((context, configurationBuilder) =>
                 {
                     configurationBuilder
-                        .SetBasePath(GetBasePath())
                         .AddJsonFile("appsettings.json", false, true)
                         .AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", true, true)
                         .AddEnvironmentVariables()
                         .AddCommandLine(args);
                 })
                 .UseNLog();
-        
+
         private static string GetBasePath()
         {
             using var processModule = Process.GetCurrentProcess().MainModule;
