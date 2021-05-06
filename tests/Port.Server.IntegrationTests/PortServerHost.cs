@@ -32,7 +32,7 @@ namespace Port.Server.IntegrationTests
             {
                 _host = 
                     Program
-                        .CreateHostBuilder($"--{WebHostDefaults.ContentRootKey}", AppContext.BaseDirectory)
+                        .CreateHostBuilder()
                         .ConfigureServices(
                             collection =>
                             {

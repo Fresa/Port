@@ -19,7 +19,7 @@ namespace Port.Client
                 .ConfigureAwait(false);
             message.EnsureSuccessStatusCode();
             return JsonConvert.DeserializeObject<T>(
-                await message.Content.ReadAsStringAsync()
+                await message.Content.ReadAsStringAsync(cancellationToken)
                     .ConfigureAwait(false));
         }
     }
