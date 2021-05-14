@@ -105,28 +105,42 @@ else
     [Parameter]
     public string Context { get; set; } = default!;
 
+    [CascadingParameter]
+    public Error Error { get; set; } = default!;
+
     protected override async Task OnParametersSetAsync()
     {
-        _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}")
-            .ConfigureAwait(false);
-        _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}")
-            .ConfigureAwait(false);
-        var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}")
-            .ConfigureAwait(false);
-        foreach (var service in services)
+        if (Error.HasError())
         {
-            foreach (var pod in _pods.WhereServiceIsHosted(service))
+            return;
+        }
+        try
+        {
+            _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}")
+                                     .ConfigureAwait(false);
+            _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}")
+                              .ConfigureAwait(false);
+            var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}")
+                                     .ConfigureAwait(false);
+            foreach (var service in services)
             {
-                foreach (var port in service.Ports)
+                foreach (var pod in _pods.WhereServiceIsHosted(service))
                 {
-                    _portForwards.Add(new global::Port.Shared.PortForward(
-                        service.Namespace,
-                        pod.Name,
-                        service.Name,
-                        port.ProtocolType,
-                        port.Number));
+                    foreach (var port in service.Ports)
+                    {
+                        _portForwards.Add(new global::Port.Shared.PortForward(
+                            service.Namespace,
+                            pod.Name,
+                            service.Name,
+                            port.ProtocolType,
+                            port.Number));
+                    }
                 }
             }
+        }
+        catch (Exception e)
+        {
+            Error.ProcessError(e);
         }
     }
 

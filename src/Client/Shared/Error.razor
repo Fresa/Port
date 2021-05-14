@@ -1,0 +1,35 @@
+﻿@inject NavigationManager NavigationManager
+<CascadingValue Value="this">
+    @ChildContent
+
+    @if (_error != null)
+    {
+        <div id="error-ui">
+            @_error
+            <a @onclick="@OnReload" href="@NavigationManager.Uri" class="reload">Reload</a>
+            <a class="dismiss">🗙</a>
+        </div>
+    }
+</CascadingValue>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string? _error;
+
+    public bool HasError() => _error != null;
+
+    public void ProcessError(Exception ex)
+    {
+        _error = ex.Message;
+
+        StateHasChanged();
+    }
+
+    public void OnReload()
+    {
+        _error = null;
+        NavigationManager.NavigateTo(NavigationManager.Uri);
+    }
+}
