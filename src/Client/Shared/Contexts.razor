@@ -1,6 +1,9 @@
 @using Port.Shared
+@using System.Threading
+@using Port.Client.Threading
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
+@implements IDisposable
 
 <div class="top-row pl-4 navbar navbar-dark">
     <span>@_location</span>
@@ -38,28 +41,67 @@ else
     private bool _collapseContextMenu = true;
     private Context[] _contexts = new Context[0];
     private string _location = "";
+    private readonly CancellationTokenSource _cts = new();
+    private CancellationToken CancellationToken => _cts.Token;
 
     private string? NavMenuCssClass => _collapseContextMenu ? "collapse" : null;
 
-    protected override async Task OnInitializedAsync()
+    [CascadingParameter]
+    public Error Error { get; set; } = default!;
+
+    protected override Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += (
             sender,
             args) =>
         {
             var positionOfLastSegment = args.Location.LastIndexOf('/');
-            _location = positionOfLastSegment >= 0 ? 
-                args.Location.Substring(positionOfLastSegment + 1) 
+            _location = positionOfLastSegment >= 0 ?
+                args.Location.Substring(positionOfLastSegment + 1)
                 : "";
             StateHasChanged();
         };
 
-        _contexts = await Http.GetFromNewtonsoftJsonAsync<Context[]>("Context")
-            .ConfigureAwait(false);
+        return Task.CompletedTask;
+    }
+
+    private readonly SemaphoreSlimGate _gate = SemaphoreSlimGate.OneAtATime;
+    protected override async Task OnParametersSetAsync()
+    {
+        using (await _gate.WaitAsync(CancellationToken)
+                          .ConfigureAwait(false))
+        {
+            if (Error.HasError())
+            {
+                return;
+            }
+
+            if (_contexts.Any())
+            {
+                return;
+            }
+
+            try
+            {
+                _contexts = await Http.GetFromNewtonsoftJsonAsync<Context[]>("Context", cancellationToken: CancellationToken)
+                                      .ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                Error.ProcessError(e);
+            }
+        }
     }
 
     private void ToggleNavMenu()
     {
         _collapseContextMenu = !_collapseContextMenu;
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _gate.Dispose();
     }
 }

@@ -1,7 +1,9 @@
 @page "/contexts/{Context}"
 @using Port.Shared
-@using System.ComponentModel
+@using System.Threading
+@using Port.Client.Threading
 @inject HttpClient Http
+@implements IDisposable
 
 <h1>Port forwards</h1>
 
@@ -100,7 +102,9 @@ else
 {
     private readonly List<global::Port.Shared.PortForward> _portForwards = new();
     private Deployment[] _deployments = new Deployment[0];
-    private Pod[] _pods = new Pod[0];
+    private Pod[]? _pods;
+    private readonly CancellationTokenSource _cts = new();
+    private CancellationToken CancellationToken => _cts.Token;
 
     [Parameter]
     public string Context { get; set; } = default!;
@@ -108,50 +112,64 @@ else
     [CascadingParameter]
     public Error Error { get; set; } = default!;
 
+    private readonly SemaphoreSlimGate _gate = SemaphoreSlimGate.OneAtATime;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (Error.HasError())
+        using (await _gate.WaitAsync(CancellationToken)
+                          .ConfigureAwait(false))
         {
-            return;
-        }
-        try
-        {
-            _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}")
-                                     .ConfigureAwait(false);
-            _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}")
-                              .ConfigureAwait(false);
-            var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}")
-                                     .ConfigureAwait(false);
-            foreach (var service in services)
+            if (Error.HasError())
             {
-                foreach (var pod in _pods.WhereServiceIsHosted(service))
+                return;
+            }
+
+            try
+            {
+                _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}", cancellationToken: CancellationToken)
+                                         .ConfigureAwait(false);
+                _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}", cancellationToken: CancellationToken)
+                                  .ConfigureAwait(false);
+                var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}", cancellationToken: CancellationToken)
+                                         .ConfigureAwait(false);
+                foreach (var service in services)
                 {
-                    foreach (var port in service.Ports)
+                    foreach (var pod in _pods.WhereServiceIsHosted(service))
                     {
-                        _portForwards.Add(new global::Port.Shared.PortForward(
-                            service.Namespace,
-                            pod.Name,
-                            service.Name,
-                            port.ProtocolType,
-                            port.Number));
+                        foreach (var port in service.Ports)
+                        {
+                            _portForwards.Add(new global::Port.Shared.PortForward(
+                                service.Namespace,
+                                pod.Name,
+                                service.Name,
+                                port.ProtocolType,
+                                port.Number));
+                        }
                     }
                 }
             }
-        }
-        catch (Exception e)
-        {
-            Error.ProcessError(e);
+            catch (Exception e)
+            {
+                Error.ProcessError(e);
+            }
         }
     }
 
     private async Task ChangePortForwardAsync(
-        global::Port.Shared.PortForward portForward,
-        bool enable)
+            global::Port.Shared.PortForward portForward,
+            bool enable)
     {
         if (enable)
         {
-            await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward)
+            await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward, cancellationToken: CancellationToken)
                 .ConfigureAwait(false);
         }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _gate.Dispose();
     }
 }
