@@ -35,5 +35,9 @@
     <ProjectReference Include="..\Shared\Port.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Hosting\" />
+  </ItemGroup>
+
 
 </Project>

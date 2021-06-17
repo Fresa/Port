@@ -1,3 +1,4 @@
+using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,10 +15,17 @@ namespace Port.Client
         {
             var message = await httpClient.GetAsync(url, cancellationToken)
                 .ConfigureAwait(false);
-            message.EnsureSuccessStatusCode();
-            return JsonConvert.DeserializeObject<T>(
-                await message.Content.ReadAsStringAsync(cancellationToken)
-                    .ConfigureAwait(false));
+            var content = await message
+                                .Content.ReadAsStringAsync(cancellationToken)
+                                .ConfigureAwait(false);
+            
+            if (message.IsSuccessStatusCode)
+            {
+                return JsonConvert.DeserializeObject<T>(
+                    content);
+            }
+
+            throw new Exception(content);
         }
     }
 }
