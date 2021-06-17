@@ -1,3 +1,4 @@
+using System;
 using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.FeatureManagement;
+using Port.Server.Hosting;
 using Port.Server.Observability;
 using SimpleInjector;
 
@@ -63,7 +65,7 @@ namespace Port.Server
                     KubernetesClientFactory>();
             _container.RegisterSingleton(
                 () => new KubernetesConfiguration(
-                    createClient: handler => 
+                    createClient: handler =>
                         new HttpClient(
                             new LogItHttpMessageHandlerDecorator(
                                 handler))
@@ -84,14 +86,14 @@ namespace Port.Server
 
             if (env.IsDevelopment())
             {
-                app.UseDeveloperExceptionPage();
                 app.UseWebAssemblyDebugging();
             }
             else
             {
-                app.UseExceptionHandler("/Error");
                 app.UseHsts();
             }
+
+            app.UseExceptionHandler(builder => builder.Run(env.HandleExceptions));
 
             app.UseHttpsRedirection();
             app.UseBlazorFrameworkFiles();

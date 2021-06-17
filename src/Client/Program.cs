@@ -8,7 +8,7 @@ namespace Port.Client
 {
     public class Program
     {
-        public static async Task Main(string[] args)
+        public static Task Main(string[] args)
         {
             var builder = WebAssemblyHostBuilder.CreateDefault(args);
             builder.RootComponents.Add<App>("#app");
@@ -18,8 +18,8 @@ namespace Port.Client
                 {
                     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
                 });
-            await builder.Build().RunAsync()
-                .ConfigureAwait(false);
+            return builder.Build()
+                          .RunAsync();
         }
     }
 }
