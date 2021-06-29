@@ -1,6 +1,8 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Grpc.Net.Client;
+using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,6 +20,18 @@ namespace Port.Client
                 {
                     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
                 });
+
+            builder.Services.AddSingleton(
+                _ =>
+                    GrpcChannel.ForAddress(
+                        builder.HostEnvironment.BaseAddress,
+                        new GrpcChannelOptions
+                        {
+                            HttpHandler = new GrpcWebHandler(
+                                GrpcWebMode.GrpcWebText,
+                                new HttpClientHandler())
+                        }));
+
             return builder.Build()
                           .RunAsync();
         }
