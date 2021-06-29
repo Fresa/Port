@@ -13,12 +13,12 @@ namespace Port.Client.Services
         private readonly Task _listeningTask;
         private CancellationToken CancellationToken => _cts.Token;
 
-        public PortForwarder(
+        public PortForwardService(
             AsyncDuplexStreamingCall<ForwardRequest, ForwardResponse> stream,
             global::Port.Shared.PortForward model)
         {
             _stream = stream;
-            Model = model;
+            Model = model ?? throw new ArgumentNullException(nameof(model));
             _listeningTask = StartListenOnEventsAsync();
         }
 

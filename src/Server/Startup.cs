@@ -1,4 +1,3 @@
-using System;
 using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.FeatureManagement;
 using Port.Server.Hosting;
 using Port.Server.Observability;
+using Port.Server.Services;
 using SimpleInjector;
 
 namespace Port.Server
@@ -52,6 +52,8 @@ namespace Port.Server
                 });
 
             services.AddFeatureManagement();
+
+            services.AddGrpc();
 
             InitializeContainer();
         }
@@ -101,11 +103,15 @@ namespace Port.Server
 
             app.UseRouting();
 
+            app.UseGrpcWeb();
+
             app.UseEndpoints(
                 endpoints =>
                 {
                     endpoints.MapRazorPages();
                     endpoints.MapControllers();
+                    endpoints.MapGrpcService<PortForwardService>()
+                             .EnableGrpcWeb();
                     endpoints.MapFallbackToFile("index.html");
                 });
 
