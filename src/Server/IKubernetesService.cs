@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Port.Shared;
@@ -15,7 +16,7 @@ namespace Port.Server
         Task<IEnumerable<Service>>
             ListServicesInAllNamespacesAsync(string context);
 
-        Task PortForwardAsync(
+        Task<IAsyncDisposable> PortForwardAsync(
             string context,
             PortForward portForward,
             CancellationToken cancellationToken = default);

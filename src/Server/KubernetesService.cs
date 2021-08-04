@@ -11,18 +11,11 @@ using Port.Shared;
 
 namespace Port.Server
 {
-    internal sealed class KubernetesService : IKubernetesService,
-        IAsyncDisposable
+    internal sealed class KubernetesService : IKubernetesService
     {
         private readonly IKubernetesClientFactory _clientFactory;
         private readonly INetworkServerFactory _networkServerFactory;
-
-        private readonly CancellationTokenSource _cancellationSource =
-            new();
-
-        private readonly List<IAsyncDisposable> _disposables =
-            new();
-
+        
         public KubernetesService(
             IKubernetesClientFactory clientFactory,
             INetworkServerFactory networkServerFactory)
@@ -79,46 +72,36 @@ namespace Port.Server
                     service.Spec.Selector));
         }
 
-        public async Task PortForwardAsync(
+        public async Task<IAsyncDisposable> PortForwardAsync(
             string context,
             PortForward portForward,
             CancellationToken cancellationToken = default)
         {
             if (!portForward.LocalPort.HasValue)
             {
-                return;
+                throw new ArgumentNullException(
+                    nameof(portForward.LocalPort), "Must specify local port");
             }
-
-            using var client = _clientFactory.Create(context);
 
             var socketServer = _networkServerFactory.CreateAndStart(
                 IPAddress.IPv6Any,
                 (int)portForward.LocalPort,
                 portForward.ProtocolType);
 
+            using var client = _clientFactory.Create(context);
             var session = await client.SpdyNamespacedPodPortForwardAsync(
                                           portForward.Pod,
                                           portForward.Namespace,
                                           new[] { portForward.PodPort },
                                           cancellationToken)
                                       .ConfigureAwait(false);
-            _disposables.Add(
-                SpdyStreamForwarder.Start(socketServer, session, portForward));
-            _disposables.Add(session);
-            _disposables.Add(socketServer);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            _cancellationSource.Cancel();
 
             // The disposables have order dependencies so they need to be
-            // disposed fully in the order they have been registered
-            foreach (var disposable in _disposables)
-            {
-                await disposable.DisposeAsync()
-                                .ConfigureAwait(false);
-            }
+            // disposed in the reversed order they where created
+            return new AsyncDisposables(
+                SpdyStreamForwarder.Start(socketServer, session, portForward),
+                session,
+                socketServer);
         }
     }
 }
