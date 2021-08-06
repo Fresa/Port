@@ -142,7 +142,10 @@ else
                     {
                         foreach (var port in service.Ports)
                         {
-                            var forwarder = new PortForwardService(_client.PortForward(), new global::Port.Shared.PortForward(
+                            var forwarder = new PortForwardService(
+                                _client.PortForward(), 
+                                Context,
+                                new global::Port.Shared.PortForward(
                                 service.Namespace,
                                 pod.Name,
                                 service.Name,

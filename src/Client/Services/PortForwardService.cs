@@ -9,15 +9,18 @@ namespace Port.Client.Services
     internal sealed class PortForwardService : IAsyncDisposable
     {
         private readonly AsyncDuplexStreamingCall<ForwardRequest, ForwardResponse> _stream;
+        private readonly string _context;
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _listeningTask;
         private CancellationToken CancellationToken => _cts.Token;
 
         public PortForwardService(
             AsyncDuplexStreamingCall<ForwardRequest, ForwardResponse> stream,
+            string context,
             global::Port.Shared.PortForward model)
         {
             _stream = stream;
+            _context = context;
             Model = model ?? throw new ArgumentNullException(nameof(model));
             _listeningTask = StartListenOnEventsAsync();
         }
@@ -30,6 +33,7 @@ namespace Port.Client.Services
             return _stream.RequestStream.WriteAsync(
                 new ForwardRequest
                 {
+                    Context = _context,
                     Forward = new Forward
                     {
                         Namespace = Model.Namespace,

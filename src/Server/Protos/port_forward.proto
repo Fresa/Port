@@ -1,15 +1,17 @@
 syntax = "proto3";
 
-option csharp_namespace = "Port.Server";
+option csharp_namespace = "Port.Server.Messages";
 
 service PortForwarder {
 	rpc PortForward (stream ForwardRequest) returns (stream ForwardResponse);
 }
 
 message ForwardRequest {
+	string context = 1;
+
 	oneof command {
-		Forward forward = 1;
-		Stop stop = 2;
+		Forward forward = 2;
+		Stop stop = 3;
 	}
 }
 
@@ -36,15 +38,9 @@ message ForwardResponse {
 }
 
 message Forwarded {
-	string namespace = 1;
-	string pod = 2;
-	uint32 pod_port = 3;
 }
 
 message Stopped {
-	string namespace = 1;
-	string pod = 2;
-	uint32 pod_port = 3;
 	bool retrying = 4;
 	uint32 retries = 5;
 }
