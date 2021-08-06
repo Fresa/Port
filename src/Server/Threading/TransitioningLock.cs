@@ -14,7 +14,7 @@ namespace Port.Server.Threading
         {
             var success =
                 Interlocked.CompareExchange(ref _state, Transitioning, Released) ==
-                Transitioning;
+                Released;
 
             if (!success)
             {
@@ -30,7 +30,7 @@ namespace Port.Server.Threading
         {
             var success =
                 Interlocked.CompareExchange(ref _state, Transitioning, Locked) ==
-                Transitioning;
+                Locked;
 
             if (!success)
             {

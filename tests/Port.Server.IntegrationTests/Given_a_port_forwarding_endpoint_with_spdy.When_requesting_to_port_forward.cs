@@ -3,14 +3,14 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Kubernetes.Test.API.Server.Subscriptions.Models;
+using Port.Client;
+using Port.Server.IntegrationTests.Grpc;
 using Port.Server.IntegrationTests.SocketTestFramework;
 using Port.Server.IntegrationTests.TestFramework;
 using Spdy;
@@ -27,7 +27,7 @@ namespace Port.Server.IntegrationTests
             When_requesting_to_port_forward : XUnit2ServiceSpecificationAsync<
                 PortServerHost>
         {
-            private HttpResponseMessage _response = default!;
+            private ForwardResponse _response = default!;
             private Fixture _fixture = default!;
 
             public When_requesting_to_port_forward(
@@ -81,18 +81,32 @@ namespace Port.Server.IntegrationTests
             protected override async Task WhenAsync(
                 CancellationToken cancellationToken)
             {
-                _response = await Server.CreateHttpClient()
-                    .PostAsJsonAsync(
-                        "service/test/portforward",
-                        new Shared.PortForward(
-                                "test",
-                                pod: "pod1",
-                                service: "service1",
-                                ProtocolType.Tcp,
-                                2001)
-                        { LocalPort = 1000 }, cancellationToken)
-                    .ConfigureAwait(false);
+                using var portForwardStream =
+                    new PortForwarder.PortForwarderClient(
+                        Server.CreateGrpcWebChannel()).PortForward(cancellationToken: cancellationToken);
+                await portForwardStream
+                      .RequestStream
+                      .WriteAsync(
+                          new ForwardRequest
+                          {
+                              Context = "test",
+                              Forward = new Forward
+                              {
+                                  Namespace = "test",
+                                  Pod = "pod1",
+                                  PodPort = 2001,
+                                  LocalPort = 1000,
+                                  ProtocolType = Forward.Types
+                                      .ProtocolType.Tcp
+                              }
+                          })
+                      .ConfigureAwait(false);
 
+                _response = await portForwardStream
+                                  .ResponseStream
+                                  .ReadAsync(cancellationToken)
+                                  .ConfigureAwait(false);
+                
                 var client =
                     await _fixture.PortForwardingSocket
                         .ConnectAsync(
@@ -130,8 +144,8 @@ namespace Port.Server.IntegrationTests
             public void
                 TestStartPortForwarding()
             {
-                _response.StatusCode.Should()
-                    .Be(HttpStatusCode.OK);
+                _response.EventCase.Should()
+                         .Be(ForwardResponse.EventOneofCase.Forwarded);
             }
 
             [Fact(DisplayName = "It should receive a http response")]
@@ -233,7 +247,7 @@ namespace Port.Server.IntegrationTests
                 internal async Task WaitForResponseAsync(
                     CancellationToken cancellationToken)
                 {
-                    var timeout = TimeSpan.FromSeconds(25);
+                    var timeout = TimeSpan.FromSeconds(3);
                     while (PortForwardResponse.Length < FragmentedResponses.Sum(response => response.Length))
                     {
                         if (await _responseReceived.WaitAsync(

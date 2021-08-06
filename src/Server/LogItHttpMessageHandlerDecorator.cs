@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Log.It;
@@ -18,7 +19,8 @@ namespace Port.Server
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            if (request.Content != null)
+            if (request.Content != null && 
+                ShouldLog(request.Content.Headers.ContentType))
             {
                 var requestContent = await request.Content
                     .ReadAsStringAsync(cancellationToken)
@@ -32,7 +34,8 @@ namespace Port.Server
                 .ConfigureAwait(false);
 
             // Response content might be a continues stream
-            if (response.StatusCode == HttpStatusCode.SwitchingProtocols)
+            if (response.StatusCode == HttpStatusCode.SwitchingProtocols ||
+                !ShouldLog(response.Content.Headers.ContentType))
             {
                 return response;
             }
@@ -45,5 +48,22 @@ namespace Port.Server
 
             return response;
         }
+
+        private static bool ShouldLog(
+            MediaTypeHeaderValue? contentType)
+        {
+            if (contentType == null)
+            {
+                return true;
+            }
+
+            if (contentType.MediaType?.StartsWith("application/grpc") ?? false)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
     }
 }
