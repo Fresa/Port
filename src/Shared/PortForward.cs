@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 
 namespace Port.Shared
 {
@@ -25,5 +24,6 @@ namespace Port.Shared
         public ProtocolType ProtocolType { get; }
         public int PodPort { get; }
         public int? LocalPort { get; set; }
+        public bool Forwarding { get; set; }
     }
 }

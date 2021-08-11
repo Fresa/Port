@@ -27,8 +27,9 @@ namespace Port.Server.Kubernetes
             {
                 Headers =
                 {
-                    { Microsoft.Net.Http.Headers.HeaderNames.Connection, "Upgrade" },
-                    { Microsoft.Net.Http.Headers.HeaderNames.Upgrade, "SPDY/3.1" }
+                    { Microsoft.Net.Http.Headers.HeaderNames.Connection, "upgrade" },
+                    { Microsoft.Net.Http.Headers.HeaderNames.Upgrade, "SPDY/3.1" },
+                    { "X-Stream-Protocol-Version", "portforward.k8s.io" },
                 }
             };
 
@@ -51,8 +52,19 @@ namespace Port.Server.Kubernetes
 
             if (response.StatusCode is not HttpStatusCode.SwitchingProtocols)
             {
+                string contentResponse;
+                try
+                {
+                    contentResponse = await response.Content.ReadAsStringAsync(cancellationToken)
+                                                    .ConfigureAwait(false);
+                }
+                catch
+                {
+                    contentResponse = "";
+                }
+
                 throw new InvalidOperationException(
-                    $"Expected switching protocol, but got {response.StatusCode}");
+                    $"Expected switching protocol, but got {response.StatusCode} with content: {contentResponse}");
             }
 
             var stream = await response.Content.ReadAsStreamAsync(cancellationToken)

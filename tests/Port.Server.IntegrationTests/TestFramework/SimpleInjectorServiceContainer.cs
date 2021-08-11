@@ -17,7 +17,7 @@ namespace Port.Server.IntegrationTests.TestFramework
         private IDisposable OverrideRegistration()
         {
             _container.Options.AllowOverridingRegistrations = true;
-            return new DisposableAction(
+            return new DisposableActions(
                 () => _container.Options.AllowOverridingRegistrations = false);
         }
 

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option csharp_namespace = "Port.Client";
+
+service PortForwarder {
+	rpc PortForward (Forward) returns (stream ForwardResponse);
+	rpc StopForwarding (Stop) returns (Stopped);
+}
+
+message Forward {
+	string context = 1;
+	string namespace = 2;
+	string pod = 3;
+	uint32 pod_port = 4;
+	uint32 local_port = 5;
+	ProtocolType protocol_type = 6;
+}
+
+message Stop {
+	string context = 1;
+	string namespace = 2;
+	string pod = 3;
+	uint32 pod_port = 4;
+	uint32 local_port = 5;
+	ProtocolType protocol_type = 6;
+}
+
+message ForwardResponse {
+	oneof event {
+		Forwarded forwarded = 1;
+		Stopped stopped = 2;
+	}
+}
+
+message Forwarded {
+}
+
+message Stopped {
+	bool retrying = 2;
+	uint32 retries = 3;
+}
+
+enum ProtocolType {
+	TCP = 0;
+	UDP = 1;
+}

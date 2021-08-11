@@ -1,9 +1,12 @@
 @page "/contexts/{Context}"
 @using Port.Shared
 @using System.Threading
+@using Grpc.Net.Client
 @using Port.Client.Threading
+@using Port.Client.Services
 @inject HttpClient Http
-@implements IDisposable
+@inject GrpcChannel Channel
+@implements IAsyncDisposable
 
 <h1>Port forwards</h1>
 
@@ -69,22 +72,22 @@ else
             </tr>
         </thead>
         <tbody>
-            <Virtualize Context="serviceGroups" Items="@(_portForwards.GroupBy(forward => $"{forward.Namespace}.{forward.Service}").ToList())">
+            <Virtualize Context="serviceGroups" Items="@(_portForwards.GroupBy(forward => $"{forward.Model.Namespace}.{forward.Model.Service}").ToList())">
                 @{ var renderService = true; }
-                <Virtualize Context="podGroups" Items="serviceGroups.GroupBy(forward => forward.Pod).ToList()">
+                <Virtualize Context="podGroups" Items="serviceGroups.GroupBy(forward => forward.Model.Pod).ToList()">
                     @{ var renderPod = true; }
                     <Virtualize Context="portForward" Items="@podGroups.ToList()">
                         <tr>
-                            <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Namespace : "")</td>
-                            <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Service : "")</td>
-                            <td class="@(renderPod ? "" : "no-borders")">@(renderPod ? portForward.Pod : "")</td>
-                            <td>@portForward.PodPort</td>
-                            <td>@portForward.ProtocolType</td>
+                            <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Model.Namespace : "")</td>
+                            <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Model.Service : "")</td>
+                            <td class="@(renderPod ? "" : "no-borders")">@(renderPod ? portForward.Model.Pod : "")</td>
+                            <td>@portForward.Model.PodPort</td>
+                            <td>@portForward.Model.ProtocolType</td>
                             <td>
-                                <MatTextField TValue="int?" @bind-Value="@portForward.LocalPort" />
+                                <MatTextField TValue="int?" @bind-Value="@portForward.Model.LocalPort" />
                             </td>
                             <td>
-                                <MatSlideToggle TValue="bool" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                                <MatSlideToggle TValue="bool" Value="@portForward.Model.Forwarding" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
                             </td>
                         </tr>
                         @{
@@ -100,7 +103,7 @@ else
 
 @code
 {
-    private readonly List<global::Port.Shared.PortForward> _portForwards = new();
+    private readonly List<PortForwardService> _portForwards = new();
     private Deployment[] _deployments = new Deployment[0];
     private Pod[]? _pods;
     private readonly CancellationTokenSource _cts = new();
@@ -138,12 +141,17 @@ else
                     {
                         foreach (var port in service.Ports)
                         {
-                            _portForwards.Add(new global::Port.Shared.PortForward(
-                                service.Namespace,
-                                pod.Name,
-                                service.Name,
-                                port.ProtocolType,
-                                port.Number));
+                            var forwarder = new PortForwardService(
+                                new PortForwarder.PortForwarderClient(Channel),
+                                Context,
+                                new global::Port.Shared.PortForward(
+                                    service.Namespace,
+                                    pod.Name,
+                                    service.Name,
+                                    port.ProtocolType,
+                                    port.Number));
+                            forwarder.OnStateChanged += StateHasChanged;
+                            _portForwards.Add(forwarder);
                         }
                     }
                 }
@@ -155,20 +163,19 @@ else
         }
     }
 
-    private async Task ChangePortForwardAsync(
-            global::Port.Shared.PortForward portForward,
-            bool enable)
-    {
-        if (enable)
-        {
-            await Http.PostAsJsonAsync($"Service/{Context}/portforward", portForward, cancellationToken: CancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
+    private static Task ChangePortForwardAsync(
+        PortForwardService portForward,
+        bool forward) =>
+            forward ?
+                portForward.ForwardAsync() :
+                portForward.StopAsync();
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
+        await Task.WhenAll(_portForwards.Select(forwarder => forwarder.DisposeAsync())
+                                  .Where(valueTask => !valueTask.IsCompletedSuccessfully)
+                                  .Select(valueTask => valueTask.AsTask()));
         _cts.Dispose();
         _gate.Dispose();
     }

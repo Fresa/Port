@@ -244,7 +244,7 @@ namespace Port.Server
 
                     sendResult = await spdyStream
                                        .SendAsync(
-                                           memory.Slice(0, bytesReceived),
+                                           memory[..bytesReceived],
                                            cancellationToken: cancellationToken)
                                        .ConfigureAwait(false);
                     _logger.Trace(

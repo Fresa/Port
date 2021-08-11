@@ -11,11 +11,11 @@ namespace Port.Server
             if (Interlocked.CompareExchange(ref _acquired, 1, 0) == 1)
             {
                 acquired = false;
-                return new DisposableAction(() => {});
+                return new DisposableActions(() => {});
             }
 
             acquired = true;
-            return new DisposableAction(
+            return new DisposableActions(
                 () =>
                 {
                     Interlocked.Exchange(ref _acquired, 0);

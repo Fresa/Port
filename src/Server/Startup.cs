@@ -1,13 +1,15 @@
-using System;
 using System.Net.Http;
+using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.FeatureManagement;
+using Port.Server.DependencyInjection;
 using Port.Server.Hosting;
 using Port.Server.Observability;
+using Port.Server.Services;
 using SimpleInjector;
 
 namespace Port.Server
@@ -38,6 +40,11 @@ namespace Port.Server
                 .AddNewtonsoftJson();
             services.AddRazorPages();
 
+            services.AddSingleton(_container);
+            services.AddSingleton(
+                typeof(IGrpcServiceActivator<>),
+                typeof(GrpcSimpleInjectorActivator<>));
+
             services.AddSimpleInjector(
                 _container, options =>
                 {
@@ -53,6 +60,8 @@ namespace Port.Server
 
             services.AddFeatureManagement();
 
+            services.AddGrpc(options => options.EnableDetailedErrors = true);
+
             InitializeContainer();
         }
 
@@ -67,12 +76,11 @@ namespace Port.Server
                 () => new KubernetesConfiguration(
                     createClient: handler =>
                         new HttpClient(
-                            new LogItHttpMessageHandlerDecorator(
-                                handler))
-                    ));
+                            new LogItHttpMessageHandlerDecorator(handler))));
             _container
                 .RegisterSingleton<INetworkServerFactory,
                     SocketNetworkServerFactory>();
+            _container.RegisterSingleton<PortForwardService>();
         }
 
         public void Configure(
@@ -93,7 +101,8 @@ namespace Port.Server
                 app.UseHsts();
             }
 
-            app.UseExceptionHandler(builder => builder.Run(env.HandleExceptions));
+            app.UseExceptionHandler(
+                builder => builder.Run(env.HandleExceptions));
 
             app.UseHttpsRedirection();
             app.UseBlazorFrameworkFiles();
@@ -101,11 +110,18 @@ namespace Port.Server
 
             app.UseRouting();
 
+            app.UseGrpcWeb(
+                new GrpcWebOptions
+                {
+                    DefaultEnabled = true
+                });
+
             app.UseEndpoints(
                 endpoints =>
                 {
                     endpoints.MapRazorPages();
                     endpoints.MapControllers();
+                    endpoints.MapGrpcService<PortForwardService>();
                     endpoints.MapFallbackToFile("index.html");
                 });
 
