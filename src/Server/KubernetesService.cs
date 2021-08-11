@@ -62,13 +62,13 @@ namespace Port.Server
                 service => new Service(
                     service.Metadata.NamespaceProperty,
                     service.Metadata.Name,
-                    service.Spec.Ports.Select(
+                    service.Spec.Ports?.Select(
                         port => new Shared.Port(
                             int.TryParse(
                                 port.TargetPort.Value, out var targetPort)
                                 ? targetPort
                                 : port.NodePort ?? port.Port,
-                            Enum.Parse<ProtocolType>(port.Protocol, true))),
+                            Enum.Parse<ProtocolType>(port.Protocol, true))) ?? new List<Shared.Port>(),
                     service.Spec.Selector));
         }
 
@@ -88,20 +88,29 @@ namespace Port.Server
                 (int)portForward.LocalPort,
                 portForward.ProtocolType);
 
-            using var client = _clientFactory.Create(context);
-            var session = await client.SpdyNamespacedPodPortForwardAsync(
-                                          portForward.Pod,
-                                          portForward.Namespace,
-                                          new[] { portForward.PodPort },
-                                          cancellationToken)
-                                      .ConfigureAwait(false);
+            try
+            {
+                using var client = _clientFactory.Create(context);
+                var session = await client.SpdyNamespacedPodPortForwardAsync(
+                                              portForward.Pod,
+                                              portForward.Namespace,
+                                              new[] { portForward.PodPort },
+                                              cancellationToken)
+                                          .ConfigureAwait(false);
 
-            // The disposables have order dependencies so they need to be
-            // disposed in the reversed order they where created
-            return new AsyncDisposables(
-                SpdyStreamForwarder.Start(socketServer, session, portForward),
-                session,
-                socketServer);
+                // The disposables have order dependencies so they need to be
+                // disposed in the reversed order they where created
+                return new AsyncDisposables(
+                    SpdyStreamForwarder.Start(socketServer, session, portForward),
+                    session,
+                    socketServer);
+            }
+            catch
+            {
+                await socketServer.DisposeAsync()
+                                  .ConfigureAwait(false);
+                throw;
+            }
         }
     }
 }

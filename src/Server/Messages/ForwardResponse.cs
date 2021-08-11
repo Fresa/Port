@@ -7,7 +7,7 @@
             Stopped = new Stopped()
         };
 
-        internal static ForwardResponse CreateForwarded() => new()
+        internal static ForwardResponse WasForwarded() => new()
         {
             Forwarded = new Forwarded()
         };

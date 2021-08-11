@@ -17,6 +17,7 @@ using Spdy;
 using Test.It;
 using Xunit;
 using Xunit.Abstractions;
+using ProtocolType = System.Net.Sockets.ProtocolType;
 using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server.IntegrationTests
@@ -83,24 +84,18 @@ namespace Port.Server.IntegrationTests
             {
                 using var portForwardStream =
                     new PortForwarder.PortForwarderClient(
-                        Server.CreateGrpcWebChannel()).PortForward(cancellationToken: cancellationToken);
-                await portForwardStream
-                      .RequestStream
-                      .WriteAsync(
-                          new ForwardRequest
-                          {
-                              Context = "test",
-                              Forward = new Forward
+                        Server.CreateGrpcWebChannel()).PortForward(
+                          new Forward
                               {
+                                  Context = "test",
                                   Namespace = "test",
                                   Pod = "pod1",
                                   PodPort = 2001,
                                   LocalPort = 1000,
-                                  ProtocolType = Forward.Types
+                                  ProtocolType = Client
                                       .ProtocolType.Tcp
-                              }
-                          })
-                      .ConfigureAwait(false);
+                              },
+                          cancellationToken: cancellationToken);
 
                 _response = await portForwardStream
                                   .ResponseStream

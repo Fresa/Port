@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Net.Sockets;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
@@ -8,62 +8,83 @@ namespace Port.Client.Services
 {
     internal sealed class PortForwardService : IAsyncDisposable
     {
-        private readonly AsyncDuplexStreamingCall<ForwardRequest, ForwardResponse> _stream;
+        private readonly PortForwarder.PortForwarderClient _portForwarder;
         private readonly string _context;
         private readonly CancellationTokenSource _cts = new();
-        private readonly Task _listeningTask;
         private CancellationToken CancellationToken => _cts.Token;
+        private readonly ConcurrentBag<Task> _tasks = new();
 
         public PortForwardService(
-            AsyncDuplexStreamingCall<ForwardRequest, ForwardResponse> stream,
+            PortForwarder.PortForwarderClient portForwarder,
             string context,
-            global::Port.Shared.PortForward model)
+            Port.Shared.PortForward model)
         {
-            _stream = stream;
+            _portForwarder = portForwarder;
             _context = context;
             Model = model ?? throw new ArgumentNullException(nameof(model));
-            _listeningTask = StartListenOnEventsAsync();
         }
 
-        internal global::Port.Shared.PortForward Model { get; }
+        internal Port.Shared.PortForward Model { get; }
         internal event Action OnStateChanged = () => { };
 
         internal Task ForwardAsync()
         {
-            return _stream.RequestStream.WriteAsync(
-                new ForwardRequest
+            var forwardRequest = new Forward
+            {
+                Context = _context,
+                Namespace = Model.Namespace,
+                Pod = Model.Pod,
+                PodPort = (uint) Model.PodPort,
+                LocalPort = (uint) (Model.LocalPort ??
+                                    throw new ArgumentNullException(
+                                        nameof(Model.LocalPort))),
+                ProtocolType = Model.ProtocolType switch
                 {
-                    Context = _context,
-                    Forward = new Forward
-                    {
-                        Namespace = Model.Namespace,
-                        Pod = Model.Pod,
-                        PodPort = (uint)Model.PodPort,
-                        LocalPort = (uint)(Model.LocalPort ?? throw new ArgumentNullException(nameof(Model.LocalPort))),
-                        ProtocolType = Model.ProtocolType switch
-                        {
-                            ProtocolType.Tcp => Forward.Types.ProtocolType.Tcp,
-                            ProtocolType.Udp => Forward.Types.ProtocolType.Udp,
-                            _ => throw new ArgumentOutOfRangeException($"{Model.ProtocolType} not supported")
-                        }
-                    }
-                });
+                    System.Net.Sockets.ProtocolType.Tcp => ProtocolType.Tcp,
+                    System.Net.Sockets.ProtocolType.Udp => ProtocolType.Udp,
+                    _ => throw new ArgumentOutOfRangeException(
+                        $"{Model.ProtocolType} not supported")
+                }
+            };
+
+            var stream = _portForwarder.PortForward(forwardRequest);
+            _tasks.Add(StartListenOnForwardResponseAsync(stream));
+            return Task.CompletedTask;
         }
 
-        internal Task StopAsync()
+        internal async Task StopAsync()
         {
-            return _stream.RequestStream.WriteAsync(
-                new ForwardRequest
+            var stopRequest = new Stop
+            {
+                Context = _context,
+                Namespace = Model.Namespace,
+                Pod = Model.Pod,
+                PodPort = (uint) Model.PodPort,
+                LocalPort = (uint) (Model.LocalPort ??
+                                    throw new ArgumentNullException(
+                                        nameof(Model.LocalPort))),
+                ProtocolType = Model.ProtocolType switch
                 {
-                    Stop = new Stop()
-                });
+                    System.Net.Sockets.ProtocolType.Tcp => ProtocolType.Tcp,
+                    System.Net.Sockets.ProtocolType.Udp => ProtocolType.Udp,
+                    _ => throw new ArgumentOutOfRangeException(
+                        $"{Model.ProtocolType} not supported")
+                }
+            };
+
+            using var stream = _portForwarder.StopForwardingAsync(stopRequest);
+            await stream.ResponseAsync.ConfigureAwait(false);
+            Model.Forwarding = false;
         }
 
-        private async Task StartListenOnEventsAsync()
+        private async Task StartListenOnForwardResponseAsync(
+            AsyncServerStreamingCall<ForwardResponse> stream)
         {
             try
             {
-                await foreach (var message in _stream.ResponseStream.ReadAllAsync(cancellationToken: CancellationToken))
+                await foreach (var message in stream.ResponseStream
+                                                    .ReadAllAsync(
+                                                        CancellationToken))
                 {
                     switch (message.EventCase)
                     {
@@ -72,6 +93,7 @@ namespace Port.Client.Services
                             {
                                 continue;
                             }
+
                             Model.Forwarding = true;
                             break;
                         case ForwardResponse.EventOneofCase.Stopped:
@@ -79,6 +101,7 @@ namespace Port.Client.Services
                             {
                                 continue;
                             }
+
                             Model.Forwarding = false;
                             break;
                         case ForwardResponse.EventOneofCase.None:
@@ -86,6 +109,7 @@ namespace Port.Client.Services
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+
                     OnStateChanged();
                 }
             }
@@ -95,15 +119,19 @@ namespace Port.Client.Services
             catch (Exception) when (CancellationToken.IsCancellationRequested)
             {
             }
+            finally
+            {
+                stream.Dispose();
+            }
         }
 
         public async ValueTask DisposeAsync()
         {
             _cts.Cancel();
-            await Task.WhenAll(
-                _stream.RequestStream.CompleteAsync(),
-                _listeningTask);
-            _stream.Dispose();
+
+            await Task.WhenAll(_tasks)
+                      .ConfigureAwait(false);
+
             _cts.Dispose();
         }
     }

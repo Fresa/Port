@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Net.Sockets;
 using Port.Shared;
 
 namespace Port.Server.Messages
@@ -14,10 +13,10 @@ namespace Port.Server.Messages
                 "",
                 request.ProtocolType switch
                 {
-                    Forward.Types.ProtocolType.Tcp =>
-                        ProtocolType.Tcp,
-                    Forward.Types.ProtocolType.Udp =>
-                        ProtocolType.Udp,
+                    ProtocolType.Tcp =>
+                        System.Net.Sockets.ProtocolType.Tcp,
+                    ProtocolType.Udp =>
+                        System.Net.Sockets.ProtocolType.Udp,
                     _ => throw new
                         ArgumentOutOfRangeException(
                             nameof(request

@@ -116,7 +116,6 @@ else
     public Error Error { get; set; } = default!;
 
     private readonly SemaphoreSlimGate _gate = SemaphoreSlimGate.OneAtATime;
-    private Client.PortForwarder.PortForwarderClient _client = default!;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -143,14 +142,14 @@ else
                         foreach (var port in service.Ports)
                         {
                             var forwarder = new PortForwardService(
-                                _client.PortForward(), 
+                                new PortForwarder.PortForwarderClient(Channel),
                                 Context,
                                 new global::Port.Shared.PortForward(
-                                service.Namespace,
-                                pod.Name,
-                                service.Name,
-                                port.ProtocolType,
-                                port.Number));
+                                    service.Namespace,
+                                    pod.Name,
+                                    service.Name,
+                                    port.ProtocolType,
+                                    port.Number));
                             forwarder.OnStateChanged += StateHasChanged;
                             _portForwards.Add(forwarder);
                         }
@@ -164,18 +163,13 @@ else
         }
     }
 
-    protected override Task OnInitializedAsync()
-    {
-        _client = new Client.PortForwarder.PortForwarderClient(Channel);
-        return Task.CompletedTask;
-    }
-
     private static Task ChangePortForwardAsync(
         PortForwardService portForward,
-        bool forward) => forward ?
-            portForward.ForwardAsync() :
-            portForward.StopAsync();
-    
+        bool forward) =>
+            forward ?
+                portForward.ForwardAsync() :
+                portForward.StopAsync();
+
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();

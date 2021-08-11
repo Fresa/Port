@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Port.Server
@@ -14,11 +15,11 @@ namespace Port.Server
 
         public async ValueTask DisposeAsync()
         {
-            foreach (var asyncDisposable in _disposables)
-            {
-                await asyncDisposable.DisposeAsync()
-                                     .ConfigureAwait(false);
-            }
+            await Task.WhenAll(
+                _disposables.Select(forwarder => forwarder.DisposeAsync())
+                            .Where(
+                                valueTask => !valueTask.IsCompletedSuccessfully)
+                            .Select(valueTask => valueTask.AsTask()));
         }
     }
 }
