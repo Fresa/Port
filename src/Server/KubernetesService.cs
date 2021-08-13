@@ -72,7 +72,7 @@ namespace Port.Server
                     service.Spec.Selector));
         }
 
-        public async Task<IAsyncDisposable> PortForwardAsync(
+        public async Task<IStreamForwarder> PortForwardAsync(
             string context,
             PortForward portForward,
             CancellationToken cancellationToken = default)
@@ -100,7 +100,7 @@ namespace Port.Server
 
                 // The disposables have order dependencies so they need to be
                 // disposed in the reversed order they where created
-                return new AsyncDisposables(
+                return new OrderedDisposableStreamForwarderDecorator(
                     SpdyStreamForwarder.Start(socketServer, session, portForward),
                     session,
                     socketServer);

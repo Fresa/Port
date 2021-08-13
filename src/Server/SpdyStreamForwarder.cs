@@ -14,7 +14,7 @@ using ReadResult = System.IO.Pipelines.ReadResult;
 
 namespace Port.Server
 {
-    internal sealed class SpdyStreamForwarder : IAsyncDisposable
+    internal sealed class SpdyStreamForwarder : IStreamForwarder
     {
         private readonly INetworkServer _networkServer;
         private readonly SpdySession _spdySession;
@@ -43,7 +43,7 @@ namespace Port.Server
             _portForward = portForward;
         }
 
-        internal static IAsyncDisposable Start(
+        internal static IStreamForwarder Start(
             INetworkServer networkServer,
             SpdySession spdySession,
             PortForward portForward)
@@ -52,7 +52,7 @@ namespace Port.Server
                 .Start();
         }
 
-        private IAsyncDisposable Start()
+        private IStreamForwarder Start()
         {
             var previousStatus = Interlocked.Exchange(ref _status, Started);
             if (previousStatus == Started)
@@ -339,19 +339,22 @@ namespace Port.Server
 
         public async ValueTask DisposeAsync()
         {
-            _cancellationTokenSource.Cancel(false);
-
-            try
+            using (_cancellationTokenSource)
             {
+                _cancellationTokenSource.Cancel(false);
+
                 await Task.WhenAll(_backgroundTasks)
                           .ConfigureAwait(false);
-
             }
-            catch (OperationCanceledException)
-            {
-            }
+        }
 
-            _cancellationTokenSource.Dispose();
+        public Task WaitUntilStoppedAsync(
+            CancellationToken cancellation)
+        {
+            var stopped = new TaskCompletionSource();
+            CancellationToken.Register(() => stopped.TrySetResult());
+            cancellation.Register(() => stopped.TrySetCanceled(cancellation));
+            return stopped.Task;
         }
     }
 }
