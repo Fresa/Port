@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Port.Server.Framework;
 using Port.Server.Messages;
 
 namespace Port.Server.Services
@@ -14,9 +15,8 @@ namespace Port.Server.Services
         private readonly IKubernetesService _kubernetesService;
         private readonly CancellationTokenSource _cts = new();
         private CancellationToken CancellationToken => _cts.Token;
-        private IAsyncDisposable _portForwardHandler = new AsyncDisposables();
 
-        private readonly ConcurrentDictionary<string, IAsyncDisposable>
+        private readonly ConcurrentDictionary<string, IStreamForwarder>
             _portForwardHandlers =
                 new();
 
@@ -31,19 +31,38 @@ namespace Port.Server.Services
         {
             var portForward = command.ToPortForward();
 
-            _portForwardHandler =
-                await _kubernetesService
-                      .PortForwardAsync(
-                          command.Context,
-                          portForward,
-                          CancellationToken)
+            using var cancellationTokenSource =
+                CancellationTokenSource.CreateLinkedTokenSource(
+                    CancellationToken, context.CancellationToken);
+            var cancellationToken = cancellationTokenSource.Token;
+
+            try
+            {
+                var portForwardHandler =
+                    await _kubernetesService
+                          .PortForwardAsync(
+                              command.Context,
+                              portForward,
+                              cancellationToken)
+                          .ConfigureAwait(false);
+
+                _portForwardHandlers.TryAdd(command.GetId(), portForwardHandler);
+
+                await responseStream
+                      .WriteAsync(ForwardResponse.WasForwarded())
                       .ConfigureAwait(false);
 
-            _portForwardHandlers.TryAdd(command.GetId(), _portForwardHandler);
+                await portForwardHandler.WaitUntilStoppedAsync(cancellationToken)
+                                        .ConfigureAwait(false);
 
-            await responseStream
-                  .WriteAsync(ForwardResponse.WasForwarded())
-                  .ConfigureAwait(false);
+                await responseStream
+                      .WriteAsync(ForwardResponse.WasStopped())
+                      .ConfigureAwait(false);
+            }
+            catch when (cancellationToken.IsCancellationRequested)
+            {
+                context.Status = Status.DefaultCancelled;
+            }
         }
 
         public override async Task<Stopped> StopForwarding(
@@ -62,25 +81,22 @@ namespace Port.Server.Services
 
         public async ValueTask DisposeAsync()
         {
-            _cts.Cancel();
-
-            while (!_portForwardHandlers.IsEmpty)
+            using (_cts)
             {
-                await Task.WhenAll(
-                    _portForwardHandlers
-                        .Keys
-                        .Select(
-                            key => _portForwardHandlers
-                                .TryRemove(key, out var handler)
-                                ? handler.DisposeAsync()
-                                : ValueTask.CompletedTask)
-                        .Where(
-                            valueTask => !valueTask
-                                .IsCompletedSuccessfully)
-                        .Select(valueTask => valueTask.AsTask()));
-            }
+                _cts.Cancel();
 
-            _cts.Dispose();
+                while (!_portForwardHandlers.IsEmpty)
+                {
+                    await _portForwardHandlers
+                          .Keys
+                          .Select(
+                              key => _portForwardHandlers
+                                  .TryRemove(key, out var handler)
+                                  ? handler.DisposeAsync()
+                                  : ValueTask.CompletedTask)
+                          .WhenAllAsync();
+                }
+            }
         }
     }
 }

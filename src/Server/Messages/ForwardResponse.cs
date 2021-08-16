@@ -2,7 +2,7 @@
 {
     internal sealed partial class ForwardResponse
     {
-        internal static ForwardResponse CreateStopped() => new()
+        internal static ForwardResponse WasStopped() => new()
         {
             Stopped = new Stopped()
         };

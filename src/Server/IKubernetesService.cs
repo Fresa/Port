@@ -16,7 +16,7 @@ namespace Port.Server
         Task<IEnumerable<Service>>
             ListServicesInAllNamespacesAsync(string context);
 
-        Task<IAsyncDisposable> PortForwardAsync(
+        Task<IStreamForwarder> PortForwardAsync(
             string context,
             PortForward portForward,
             CancellationToken cancellationToken = default);
