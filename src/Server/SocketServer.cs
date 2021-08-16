@@ -1,19 +1,16 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Log.It;
+using Port.Server.Framework;
 
 namespace Port.Server
 {
     internal class SocketServer : INetworkServer
     {
-        private readonly ConcurrentQueue<INetworkClient> _clients =
-            new();
-
         private readonly BufferBlock<INetworkClient> _waitingClients =
             new();
 
@@ -36,7 +33,6 @@ namespace Port.Server
                 .ReceiveAsync(cancellationToken)
                 .ConfigureAwait(false);
             Logger.Debug("Client accepted {@client}", client);
-            _clients.Enqueue(client);
             return client;
         }
 
@@ -128,11 +124,11 @@ namespace Port.Server
 
             await _acceptingClientsBackgroundTask
                 .ConfigureAwait(false);
-            while (_clients.TryDequeue(out var client))
+
+            if (_waitingClients.TryReceiveAll(out var clients))
             {
-                await client
-                    .DisposeAsync()
-                    .ConfigureAwait(false);
+                await clients.DisposeAllAsync()
+                             .ConfigureAwait(false);
             }
             Logger.Trace("Disposed");
         }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Port.Server.Framework;
 using Port.Server.Messages;
 
 namespace Port.Server.Services
@@ -86,18 +87,14 @@ namespace Port.Server.Services
 
                 while (!_portForwardHandlers.IsEmpty)
                 {
-                    await Task.WhenAll(
-                        _portForwardHandlers
-                            .Keys
-                            .Select(
-                                key => _portForwardHandlers
-                                    .TryRemove(key, out var handler)
-                                    ? handler.DisposeAsync()
-                                    : ValueTask.CompletedTask)
-                            .Where(
-                                valueTask => !valueTask
-                                    .IsCompletedSuccessfully)
-                            .Select(valueTask => valueTask.AsTask()));
+                    await _portForwardHandlers
+                          .Keys
+                          .Select(
+                              key => _portForwardHandlers
+                                  .TryRemove(key, out var handler)
+                                  ? handler.DisposeAsync()
+                                  : ValueTask.CompletedTask)
+                          .WhenAllAsync();
                 }
             }
         }

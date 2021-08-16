@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
+using Port.Server.Framework;
 
 namespace Port.Server
 {
@@ -15,11 +15,8 @@ namespace Port.Server
 
         public async ValueTask DisposeAsync()
         {
-            await Task.WhenAll(
-                _disposables.Select(forwarder => forwarder.DisposeAsync())
-                            .Where(
-                                valueTask => !valueTask.IsCompletedSuccessfully)
-                            .Select(valueTask => valueTask.AsTask()));
+            await _disposables.DisposeAllAsync()
+                              .ConfigureAwait(false);
         }
     }
 }
