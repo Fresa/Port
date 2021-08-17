@@ -72,11 +72,14 @@ else
             </tr>
         </thead>
         <tbody>
-            <Virtualize Context="serviceGroups" Items="@(_portForwards.GroupBy(forward => $"{forward.Model.Namespace}.{forward.Model.Service}").ToList())">
-                @{ var renderService = true; }
-                <Virtualize Context="podGroups" Items="serviceGroups.GroupBy(forward => forward.Model.Pod).ToList()">
-                    @{ var renderPod = true; }
-                    <Virtualize Context="portForward" Items="@podGroups.ToList()">
+            @foreach (var serviceGroups in _portForwards.GroupBy(forward => $"{forward.Model.Namespace}.{forward.Model.Service}"))
+            {
+                var renderService = true;
+                @foreach (var podGroups in serviceGroups.GroupBy(forward => forward.Model.Pod))
+                {
+                    var renderPod = true;
+                    @foreach (var portForward in podGroups)
+                    {
                         <tr>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Model.Namespace : "")</td>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Model.Service : "")</td>
@@ -90,13 +93,12 @@ else
                                 <MatSlideToggle TValue="bool" Value="@portForward.Model.Forwarding" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
                             </td>
                         </tr>
-                        @{
-                            renderPod = false;
-                            renderService = false;
-                        }
-                    </Virtualize>
-                </Virtualize>
-            </Virtualize>
+
+                        renderPod = false;
+                        renderService = false;
+                    }
+                }
+            }
         </tbody>
     </table>
 }
