@@ -12,12 +12,12 @@ namespace Port.Client
         {
             return pods.Where(
                 pod =>
-                    service.Selectors.Any(
-                        pair =>
+                    service.Selectors.All(
+                        selector =>
                             pod.Labels.Any(
-                                valuePair =>
-                                    valuePair.Key == pair.Key &&
-                                    valuePair.Value == pair.Value)));
+                                label =>
+                                    label.Key == selector.Key &&
+                                    label.Value == selector.Value)));
         }
     }
 }
