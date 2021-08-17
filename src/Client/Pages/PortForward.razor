@@ -137,11 +137,11 @@ else
                                   .ConfigureAwait(false);
                 var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}", cancellationToken: CancellationToken)
                                          .ConfigureAwait(false);
-                foreach (var service in services)
+                foreach (var service in services.OrderBy(service => service.Namespace + service.Name))
                 {
-                    foreach (var pod in _pods.WhereServiceIsHosted(service))
+                    foreach (var pod in _pods.WhereServiceIsHosted(service).OrderBy(pod => pod.Name))
                     {
-                        foreach (var port in service.Ports)
+                        foreach (var port in service.Ports.OrderBy(port => port.Number))
                         {
                             var forwarder = new PortForwardService(
                                 new PortForwarder.PortForwarderClient(Channel),
