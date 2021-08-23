@@ -12,6 +12,7 @@ namespace Port.Client
         {
             return pods.Where(
                 pod =>
+                    service.Selectors.Any() &&
                     service.Selectors.All(
                         selector =>
                             pod.Labels.Any(
