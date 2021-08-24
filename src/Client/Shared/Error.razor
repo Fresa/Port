@@ -19,11 +19,11 @@
 
     public bool HasError() => _error != null;
 
-    public void ProcessError(Exception ex)
+    public Task ProcessErrorAsync(Exception ex)
     {
         _error = ex.Message;
 
-        StateHasChanged();
+        return InvokeAsync(StateHasChanged);
     }
 
     public void OnReload()
