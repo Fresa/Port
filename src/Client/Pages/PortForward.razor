@@ -90,7 +90,13 @@ else
                                 <MatTextField TValue="int?" @bind-Value="@portForward.Model.LocalPort" />
                             </td>
                             <td>
-                                <MatSlideToggle TValue="bool" Value="@portForward.Model.Forwarding" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                                @{
+                                    // This forward ref makes no sense, but for some reason
+                                    // it prevents toggling when rendering an error
+                                }
+                                <ForwardRefContext TRef="MatSlideToggle<bool>">
+                                    <MatSlideToggle TValue="bool" Value="@portForward.Model.Forwarding" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                                </ForwardRefContext>
                             </td>
                         </tr>
                         renderPod = false;
@@ -123,7 +129,7 @@ else
     {
         using (await _gate.WaitAsync(CancellationToken))
         {
-            if (Error.HasError())
+            if (Error.HasError)
             {
                 return;
             }
@@ -186,15 +192,14 @@ else
         PortForwardService portForward,
         bool forward)
     {
-        // The bounded value have to be set or the toggle component will potentially be
-        // rendered toggled without being toggled which causes untoggling not to work
-        portForward.Model.Forwarding = forward;
         try
         {
             if (forward)
                 await portForward.ForwardAsync();
             else
                 await portForward.StopAsync();
+
+            portForward.Model.Forwarding = forward;
         }
         catch (Exception e)
         {

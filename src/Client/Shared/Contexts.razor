@@ -70,7 +70,7 @@ else
     {
         using (await _gate.WaitAsync(CancellationToken))
         {
-            if (Error.HasError())
+            if (Error.HasError)
             {
                 return;
             }

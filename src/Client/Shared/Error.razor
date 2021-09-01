@@ -17,7 +17,7 @@
 
     private string? _error;
 
-    public bool HasError() => _error != null;
+    public bool HasError => _error != null;
 
     public Task ProcessErrorAsync(Exception ex)
     {
