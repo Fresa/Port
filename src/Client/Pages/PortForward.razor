@@ -87,7 +87,7 @@ else
                             <td>@portForward.Model.PodPort</td>
                             <td>@portForward.Model.ProtocolType</td>
                             <td>
-                                <MatTextField TValue="int?" @bind-Value="@portForward.Model.LocalPort" />
+                                <MatTextField TValue="int?" @bind-Value="@portForward.Model.LocalPort" Disabled="@portForward.Model.Forwarding" />
                             </td>
                             <td>
                                 @{
