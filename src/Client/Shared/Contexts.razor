@@ -59,7 +59,7 @@ else
             _location = positionOfLastSegment >= 0 ?
                 args.Location.Substring(positionOfLastSegment + 1)
                 : "";
-            StateHasChanged();
+            InvokeAsync(StateHasChanged);
         };
 
         return Task.CompletedTask;
@@ -68,10 +68,9 @@ else
     private readonly SemaphoreSlimGate _gate = SemaphoreSlimGate.OneAtATime;
     protected override async Task OnParametersSetAsync()
     {
-        using (await _gate.WaitAsync(CancellationToken)
-                          .ConfigureAwait(false))
+        using (await _gate.WaitAsync(CancellationToken))
         {
-            if (Error.HasError())
+            if (Error.HasError)
             {
                 return;
             }
@@ -83,12 +82,11 @@ else
 
             try
             {
-                _contexts = await Http.GetFromNewtonsoftJsonAsync<Context[]>("Context", cancellationToken: CancellationToken)
-                                      .ConfigureAwait(false);
+                _contexts = await Http.GetFromNewtonsoftJsonAsync<Context[]>("Context", cancellationToken: CancellationToken);
             }
             catch (Exception e)
             {
-                Error.ProcessError(e);
+                await Error.ProcessErrorAsync(e);
             }
         }
     }

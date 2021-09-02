@@ -25,7 +25,8 @@ namespace Port.Client.Services
         }
 
         internal Port.Shared.PortForward Model { get; }
-        internal event Action OnStateChanged = () => { };
+        internal event Func<Task> OnStateChangedAsync = () => Task.CompletedTask;
+        internal event Func<Exception, Task> OnErrorAsync = _ => Task.CompletedTask;
 
         internal Task ForwardAsync()
         {
@@ -34,8 +35,8 @@ namespace Port.Client.Services
                 Context = _context,
                 Namespace = Model.Namespace,
                 Pod = Model.Pod,
-                PodPort = (uint) Model.PodPort,
-                LocalPort = (uint) (Model.LocalPort ??
+                PodPort = (uint)Model.PodPort,
+                LocalPort = (uint)(Model.LocalPort ??
                                     throw new ArgumentNullException(
                                         nameof(Model.LocalPort))),
                 ProtocolType = Model.ProtocolType switch
@@ -59,8 +60,8 @@ namespace Port.Client.Services
                 Context = _context,
                 Namespace = Model.Namespace,
                 Pod = Model.Pod,
-                PodPort = (uint) Model.PodPort,
-                LocalPort = (uint) (Model.LocalPort ??
+                PodPort = (uint)Model.PodPort,
+                LocalPort = (uint)(Model.LocalPort ??
                                     throw new ArgumentNullException(
                                         nameof(Model.LocalPort))),
                 ProtocolType = Model.ProtocolType switch
@@ -73,8 +74,13 @@ namespace Port.Client.Services
             };
 
             using var stream = _portForwarder.StopForwardingAsync(stopRequest);
-            await stream.ResponseAsync.ConfigureAwait(false);
-            Model.Forwarding = false;
+            try
+            {
+                await stream.ResponseAsync.ConfigureAwait(false);
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
+            {
+            }
         }
 
         private async Task StartListenOnForwardResponseAsync(
@@ -83,8 +89,8 @@ namespace Port.Client.Services
             try
             {
                 await foreach (var message in stream.ResponseStream
-                                                    .ReadAllAsync(
-                                                        CancellationToken))
+                                                    .ReadAllAsync(CancellationToken)
+                                                    .ConfigureAwait(false))
                 {
                     switch (message.EventCase)
                     {
@@ -110,7 +116,8 @@ namespace Port.Client.Services
                             throw new ArgumentOutOfRangeException();
                     }
 
-                    OnStateChanged();
+                    await OnStateChangedAsync()
+                        .ConfigureAwait(false);
                 }
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
@@ -118,6 +125,12 @@ namespace Port.Client.Services
             }
             catch (Exception) when (CancellationToken.IsCancellationRequested)
             {
+            }
+            catch (Exception ex)
+            {
+                Model.Forwarding = false;
+                await OnErrorAsync(ex)
+                    .ConfigureAwait(false);
             }
             finally
             {

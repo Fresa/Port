@@ -72,38 +72,49 @@ else
             </tr>
         </thead>
         <tbody>
-            <Virtualize Context="serviceGroups" Items="@(_portForwards.GroupBy(forward => $"{forward.Model.Namespace}.{forward.Model.Service}").ToList())">
-                @{ var renderService = true; }
-                <Virtualize Context="podGroups" Items="serviceGroups.GroupBy(forward => forward.Model.Pod).ToList()">
-                    @{ var renderPod = true; }
-                    <Virtualize Context="portForward" Items="@podGroups.ToList()">
+            @foreach (var serviceGroups in _portForwards.Values.GroupBy(forward => $"{forward.Model.Namespace}.{forward.Model.Service}"))
+            {
+                var renderService = true;
+                @foreach (var podGroups in serviceGroups.GroupBy(forward => forward.Model.Pod))
+                {
+                    var renderPod = true;
+                    @foreach (var portForward in podGroups)
+                    {
                         <tr>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Model.Namespace : "")</td>
                             <td class="@(renderService ? "" : "no-borders")">@(renderService ? portForward.Model.Service : "")</td>
                             <td class="@(renderPod ? "" : "no-borders")">@(renderPod ? portForward.Model.Pod : "")</td>
                             <td>@portForward.Model.PodPort</td>
                             <td>@portForward.Model.ProtocolType</td>
-                            <td>
-                                <MatTextField TValue="int?" @bind-Value="@portForward.Model.LocalPort" />
-                            </td>
-                            <td>
-                                <MatSlideToggle TValue="bool" Value="@portForward.Model.Forwarding" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
-                            </td>
+                            <ForwardRefContext TRef="MatSlideToggle<bool>"
+                                               @key="@portForward.Model.Forwarding">
+                                <td>
+                                    <MatTextField TValue="int?"
+                                                  Value="@portForward.Model.LocalPort"
+                                                  OnInput="@(changeEventArgs => OnLocalPortInput(changeEventArgs, portForward, context.Current))"
+                                                  Disabled="@portForward.Model.Forwarding" />
+                                </td>
+                                <td>
+                                    <MatSlideToggle TValue="bool"
+                                                    @ref="@context.Current"
+                                                    Value="@portForward.Model.Forwarding"
+                                                    Disabled="@(!portForward.Model.LocalPort.HasValue)"
+                                                    ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                                </td>
+                            </ForwardRefContext>
                         </tr>
-                        @{
-                            renderPod = false;
-                            renderService = false;
-                        }
-                    </Virtualize>
-                </Virtualize>
-            </Virtualize>
+                        renderPod = false;
+                        renderService = false;
+                    }
+                }
+            }
         </tbody>
     </table>
 }
 
 @code
 {
-    private readonly List<PortForwardService> _portForwards = new();
+    private Dictionary<string, PortForwardService> _portForwards = new();
     private Deployment[] _deployments = new Deployment[0];
     private Pod[]? _pods;
     private readonly CancellationTokenSource _cts = new();
@@ -117,63 +128,105 @@ else
 
     private readonly SemaphoreSlimGate _gate = SemaphoreSlimGate.OneAtATime;
 
+
     protected override async Task OnParametersSetAsync()
     {
-        using (await _gate.WaitAsync(CancellationToken)
-                          .ConfigureAwait(false))
+        using (await _gate.WaitAsync(CancellationToken))
         {
-            if (Error.HasError())
+            if (Error.HasError)
             {
                 return;
             }
 
             try
             {
-                _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}", cancellationToken: CancellationToken)
-                                         .ConfigureAwait(false);
-                _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}", cancellationToken: CancellationToken)
-                                  .ConfigureAwait(false);
-                var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}", cancellationToken: CancellationToken)
-                                         .ConfigureAwait(false);
-                foreach (var service in services)
+                _deployments = await Http.GetFromNewtonsoftJsonAsync<Deployment[]>($"Deployment/{Context}", cancellationToken: CancellationToken);
+                _pods = await Http.GetFromNewtonsoftJsonAsync<Pod[]>($"Pod/{Context}", cancellationToken: CancellationToken);
+                var services = await Http.GetFromNewtonsoftJsonAsync<Service[]>($"Service/{Context}", cancellationToken: CancellationToken);
+
+                var portForwards = new Dictionary<string, PortForwardService>();
+                foreach (var service in services
+                    .OrderBy(service => service.Namespace)
+                    .ThenBy(service => service.Name))
                 {
-                    foreach (var pod in _pods.WhereServiceIsHosted(service))
+                    foreach (var pod in _pods.WhereServiceIsHosted(service)
+                                             .OrderBy(pod => pod.Name))
                     {
-                        foreach (var port in service.Ports)
+                        foreach (var port in service.Ports
+                                                    .OrderBy(port => port.Number))
                         {
-                            var forwarder = new PortForwardService(
-                                new PortForwarder.PortForwarderClient(Channel),
-                                Context,
-                                new global::Port.Shared.PortForward(
-                                    service.Namespace,
-                                    pod.Name,
-                                    service.Name,
-                                    port.ProtocolType,
-                                    port.Number));
-                            forwarder.OnStateChanged += StateHasChanged;
-                            _portForwards.Add(forwarder);
+                            var id = service.Namespace +
+                                     pod.Name +
+                                     service.Name +
+                                     port.ProtocolType +
+                                     port.Number;
+
+                            if (!_portForwards.Remove(id, out var forwarder))
+                            {
+                                forwarder = new PortForwardService(
+                                    new PortForwarder.PortForwarderClient(Channel),
+                                    Context,
+                                    new global::Port.Shared.PortForward(
+                                        service.Namespace,
+                                        pod.Name,
+                                        service.Name,
+                                        port.ProtocolType,
+                                        port.Number));
+                                forwarder.OnStateChangedAsync += () => InvokeAsync(StateHasChanged);
+                                forwarder.OnErrorAsync += Error.ProcessErrorAsync;
+                            }
+                            portForwards.Add(id, forwarder);
                         }
                     }
                 }
+
+                await Task.WhenAll(_portForwards.Values.Select(forwarder => forwarder.DisposeAsync())
+                                                .Where(valueTask => !valueTask.IsCompletedSuccessfully)
+                                                .Select(valueTask => valueTask.AsTask()));
+                _portForwards = portForwards;
             }
             catch (Exception e)
             {
-                Error.ProcessError(e);
+                await Error.ProcessErrorAsync(e);
             }
         }
     }
 
-    private static Task ChangePortForwardAsync(
+    private async Task ChangePortForwardAsync(
         PortForwardService portForward,
-        bool forward) =>
-            forward ?
-                portForward.ForwardAsync() :
-                portForward.StopAsync();
+        bool forward)
+    {
+        try
+        {
+            if (forward)
+                await portForward.ForwardAsync();
+            else
+                await portForward.StopAsync();
+
+            portForward.Model.Forwarding = forward;
+        }
+        catch (Exception e)
+        {
+            await Error.ProcessErrorAsync(e);
+        }
+    }
+
+    private static void OnLocalPortInput(
+        ChangeEventArgs args,
+        PortForwardService portForward,
+        MatSlideToggle<bool> toggle)
+    {
+        portForward.Model.LocalPort =
+            int.TryParse(args.Value as string, out var input) ?
+                input : null;
+
+        toggle.InvokeStateHasChanged();
+    }
 
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        await Task.WhenAll(_portForwards.Select(forwarder => forwarder.DisposeAsync())
+        await Task.WhenAll(_portForwards.Values.Select(forwarder => forwarder.DisposeAsync())
                                   .Where(valueTask => !valueTask.IsCompletedSuccessfully)
                                   .Select(valueTask => valueTask.AsTask()));
         _cts.Dispose();
