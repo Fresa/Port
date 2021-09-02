@@ -86,18 +86,22 @@ else
                             <td class="@(renderPod ? "" : "no-borders")">@(renderPod ? portForward.Model.Pod : "")</td>
                             <td>@portForward.Model.PodPort</td>
                             <td>@portForward.Model.ProtocolType</td>
-                            <td>
-                                <MatTextField TValue="int?" @bind-Value="@portForward.Model.LocalPort" Disabled="@portForward.Model.Forwarding" />
-                            </td>
-                            <td>
-                                @{
-                                    // This forward ref makes no sense, but for some reason
-                                    // it prevents toggling when rendering an error
-                                }
-                                <ForwardRefContext TRef="MatSlideToggle<bool>">
-                                    <MatSlideToggle TValue="bool" Value="@portForward.Model.Forwarding" ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
-                                </ForwardRefContext>
-                            </td>
+                            <ForwardRefContext TRef="MatSlideToggle<bool>"
+                                               @key="@portForward.Model.Forwarding">
+                                <td>
+                                    <MatTextField TValue="int?"
+                                                  Value="@portForward.Model.LocalPort"
+                                                  OnInput="@(changeEventArgs => OnLocalPortInput(changeEventArgs, portForward, context.Current))"
+                                                  Disabled="@portForward.Model.Forwarding" />
+                                </td>
+                                <td>
+                                    <MatSlideToggle TValue="bool"
+                                                    @ref="@context.Current"
+                                                    Value="@portForward.Model.Forwarding"
+                                                    Disabled="@(!portForward.Model.LocalPort.HasValue)"
+                                                    ValueChanged="@(enable => ChangePortForwardAsync(portForward, enable))" />
+                                </td>
+                            </ForwardRefContext>
                         </tr>
                         renderPod = false;
                         renderService = false;
@@ -205,6 +209,18 @@ else
         {
             await Error.ProcessErrorAsync(e);
         }
+    }
+
+    private static void OnLocalPortInput(
+        ChangeEventArgs args,
+        PortForwardService portForward,
+        MatSlideToggle<bool> toggle)
+    {
+        portForward.Model.LocalPort =
+            int.TryParse(args.Value as string, out var input) ?
+                input : null;
+
+        toggle.InvokeStateHasChanged();
     }
 
     public async ValueTask DisposeAsync()
